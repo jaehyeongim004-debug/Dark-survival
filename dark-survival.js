@@ -417,8 +417,22 @@ const STAGE_GRID=['#0d0d1a','#1a0808','#081408'];
 const STAGE_NAMES=['어둠의 황야','혈염의 성','마계의 심연'];
 
 function handleMsg(msg){
-  if(msg.t==='created'){myId=msg.id;isHost=true;document.getElementById('codeDisplay').textContent=msg.code;document.getElementById('joinRow').style.display='none';document.getElementById('waitRoom').style.display='flex';}
-  else if(msg.t==='joined'){myId=msg.id;document.getElementById('codeDisplay').textContent=msg.code;document.getElementById('joinRow').style.display='none';document.getElementById('startBtn').style.display='none';document.getElementById('waitRoom').style.display='flex';}
+  if(msg.t==='created'){
+  myId=msg.id;isHost=true;
+  document.getElementById('codeDisplay').textContent=msg.code;
+  document.getElementById('joinRow').style.display='none';
+  document.getElementById('waitRoom').style.display='flex';
+  // 버튼들 숨기기
+  document.querySelectorAll('#lobbyScreen .btn, #lobbyScreen input.inp, #lobbyScreen .sub').forEach(el=>el.style.display='none');
+}
+else if(msg.t==='joined'){
+  myId=msg.id;
+  document.getElementById('codeDisplay').textContent=msg.code;
+  document.getElementById('joinRow').style.display='none';
+  document.getElementById('startBtn').style.display='none';
+  document.getElementById('waitRoom').style.display='flex';
+  document.querySelectorAll('#lobbyScreen .btn, #lobbyScreen input.inp, #lobbyScreen .sub').forEach(el=>el.style.display='none');
+}
   else if(msg.t==='lobby'){document.getElementById('playerListEl').innerHTML='참가자: '+msg.players.map(p=>'<b>'+p.name+'</b>').join(', ');}
   else if(msg.t==='err'){showErr(msg.msg);}
   else if(msg.t==='classSelect'){showClassScreen();}
