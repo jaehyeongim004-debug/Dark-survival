@@ -35,12 +35,14 @@ canvas{position:absolute;top:0;left:0;width:100%;height:100%;touch-action:none;}
 #bossWrap{height:9px;background:#1a0000;border:1px solid #880000;border-radius:2px;overflow:hidden;max-width:280px;margin:0 auto;}
 #bossFill{height:100%;background:#ff3300;transition:width .1s;}
 
+/* Joystick & buttons */
 #jsWrap{position:absolute;bottom:30px;left:30px;z-index:5;pointer-events:all;}
 #jsBase{width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);position:relative;touch-action:none;}
 #jsKnob{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.4);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
 #atkBtn{position:absolute;bottom:44px;right:80px;width:64px;height:64px;border-radius:50%;background:rgba(255,100,100,0.15);border:2px solid rgba(255,100,100,0.4);z-index:5;pointer-events:all;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;touch-action:manipulation;}
 #atkBtn.pressing{background:rgba(255,100,100,0.35);}
 
+/* Lobby */
 #lobbyScreen{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:200;padding:20px;overflow-y:auto;}
 h1.title{color:#ffcc00;font-size:24px;letter-spacing:5px;margin-bottom:2px;}
 .sub{color:#555;font-size:11px;margin-bottom:6px;}
@@ -55,6 +57,7 @@ input.inp:focus{border-color:#ffcc00;}
 #playerListEl b{color:#aaffaa;}
 #errMsg{color:#ff4444;font-size:12px;min-height:20px;text-align:center;font-weight:bold;background:#1a0000;padding:6px 12px;border-radius:4px;word-break:break-all;max-width:300px;}
 
+/* Class Select */
 #classScreen{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:200;padding:20px;overflow-y:auto;}
 #classTitle{color:#ffcc00;font-size:18px;letter-spacing:3px;margin-bottom:4px;}
 #classSub{color:#666;font-size:11px;margin-bottom:6px;}
@@ -68,6 +71,7 @@ input.inp:focus{border-color:#ffcc00;}
 .classStat{color:#88aacc;font-size:9px;margin-top:4px;}
 #classReady{margin-top:4px;}
 
+/* Level up */
 #lvlUpScreen{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:200;padding:20px;}
 #lvlUpTitle{color:#ffcc00;font-size:18px;letter-spacing:3px;}
 #lvlUpSub{color:#888;font-size:11px;}
@@ -78,11 +82,13 @@ input.inp:focus{border-color:#ffcc00;}
 .traitDesc{color:#888;font-size:11px;line-height:1.5;}
 .traitIcon{font-size:20px;margin-bottom:6px;}
 
+/* Stage clear */
 #stageClearScreen{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:200;}
 #stageClearTitle{font-size:22px;color:#ffcc00;letter-spacing:4px;}
 #stageClearSub{font-size:12px;color:#888;text-align:center;}
 #stageClearTimer{font-size:28px;color:#fff;font-weight:bold;}
 
+/* Game Over */
 #goScreen{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:200;}
 #goTitle{font-size:24px;letter-spacing:4px;font-weight:bold;}
 #goStats{font-size:12px;color:#888;text-align:center;line-height:1.9;}
@@ -113,12 +119,12 @@ input.inp:focus{border-color:#ffcc00;}
       </div>
       <div id="timerBox">
         <div id="timerLbl">TIME</div>
-        <div id="timerVal">10:00</div>
+        <div id="timerVal">05:00</div>
         <div id="stageBox">STAGE <span id="stageVal">1</span></div>
       </div>
       <div class="hudR">Wave <span id="waveTxt">1</span><br>Score <span id="scoreTxt">0</span></div>
     </div>
-    <div id="bossBar"><div id="bossLbl">⚠ BOSS ⚠</div><div id="bossWrap"><div id="bossFill" style="width:100%"></div></div></div>
+    <div id="bossBar"><div id="bossLbl" id="bossLblEl">⚠ BOSS ⚠</div><div id="bossWrap"><div id="bossFill" style="width:100%"></div></div></div>
   </div>
   <div id="killFeed"></div>
   <div id="msgPop"></div>
@@ -126,9 +132,8 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="classTag"></div>
   <div id="jsWrap" style="display:none;"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="atkBtn" style="display:none;">⚔</div>
-</div>
 
-<div id="lobbyScreen">
+</div><div id="lobbyScreen">
     <h1 class="title">DARK SURVIVAL</h1>
     <p class="sub">3스테이지 · 보스 처치 · 최대 4인</p>
     <input class="inp" id="nameInp" placeholder="닉네임" maxlength="10"/>
@@ -147,7 +152,7 @@ input.inp:focus{border-color:#ffcc00;}
       <button class="btn" id="startBtn" onclick="doStart()">▶ 게임 시작</button>
     </div>
     <div id="errMsg"></div>
-</div>
+  </div>
 
 <div id="classScreen">
     <div id="classTitle">직업 선택</div>
@@ -187,25 +192,25 @@ input.inp:focus{border-color:#ffcc00;}
       </div>
     </div>
     <button class="btn" id="classReady" style="display:none;" onclick="doReady()">준비 완료</button>
-</div>
+  </div>
 
 <div id="lvlUpScreen">
     <div id="lvlUpTitle">LEVEL UP!</div>
     <div id="lvlUpSub">특성을 선택하세요</div>
     <div id="traitCards"></div>
-</div>
+  </div>
 
 <div id="stageClearScreen">
     <div id="stageClearTitle">STAGE CLEAR!</div>
     <div id="stageClearSub"></div>
     <div id="stageClearTimer">3</div>
-</div>
+  </div>
 
 <div id="goScreen">
     <div id="goTitle"></div>
     <div id="goStats"></div>
     <button class="btn" style="margin-top:8px;" onclick="location.reload()">다시 시작</button>
-</div>
+  </div>
 
 <script>
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),G=document.getElementById('G');
@@ -228,16 +233,19 @@ function doCreate(){const name=document.getElementById('nameInp').value.trim()||
 function doJoin(){const name=document.getElementById('nameInp').value.trim()||'Player',code=document.getElementById('codeInp').value.toUpperCase();if(!code){showErr('코드 입력');return;}connect(()=>send({t:'join',code,name}));}
 function doStart(){send({t:'start'});}
 
+// ── Classes ──────────────────────────────────────────────────
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',
     stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.2,cdMult:1,rangeMult:1,regen:0.3,multishot:0,magnetRange:1,armor:0.1,crit:false},
     weapon:{name:'대검',type:'sword',baseDmg:55,baseCd:480,baseRange:100,color:'#66ccff'}
   },
   gunner:{name:'총사',icon:'🔫',color:'#ffee44',
+    // 저격총: 공속 느림, 한방 강함, 사거리 매우 김
     stats:{hp:80,maxHp:80,spd:3.2,dmgMult:1,cdMult:1,rangeMult:1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
     weapon:{name:'저격총',type:'bullet',baseDmg:90,baseCd:1100,baseRange:600,color:'#ffee44',spd:14}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
+    // 마법: 폭발 광역, multishot은 폭발 반경 증가로 사용
     stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.15,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
     weapon:{name:'마법',type:'magic',baseDmg:45,baseCd:900,baseRange:300,color:'#cc88ff',spd:5,explodeR:60}
   },
@@ -246,7 +254,6 @@ const CLASSES={
     weapon:{name:'단검',type:'dagger',baseDmg:30,baseCd:280,baseRange:75,color:'#ff88aa',spd:12}
   }
 };
-
 let myTraits=[];
 let myStats=null;
 let myWeapon=null;
@@ -256,6 +263,7 @@ function pickClass(cls){
   document.querySelectorAll('.classCard').forEach(el=>el.classList.remove('sel'));
   event.currentTarget.classList.add('sel');
   document.getElementById('classReady').style.display='block';
+  // update attack button icon
   const icons={warrior:'⚔',gunner:'🔫',mage:'✨',assassin:'🗡'};
   document.getElementById('atkBtn').textContent=icons[cls]||'⚔';
 }
@@ -267,6 +275,7 @@ function doReady(){
   document.getElementById('classReady').textContent='대기중...';
 }
 
+// ── Traits ─────────────────────────────────────────────────
 const ALL_TRAITS=[
   {id:'hp',icon:'❤',name:'강철 체력',desc:'최대 HP +40, 즉시 회복'},
   {id:'spd',icon:'💨',name:'질풍',desc:'이동속도 +20%'},
@@ -279,325 +288,242 @@ const ALL_TRAITS=[
   {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -20%'},
   {id:'crit',icon:'💥',name:'치명타',desc:'30% 확률로 2배 데미지'},
 ];
-let gameActive=false, paused=false, gameOver=false;
-let cam={x:0,y:0}, joystick={active:false,startX:0,startY:0,curX:0,curY:0,dir:{x:0,y:0}};
-let players=new Map(), enemies=[], projs=[], gems=[], items=[], particles=[], anims=[];
-let wave=1, stage=1, score=0, killCount=0, timer=600, bossSpawned=false;
 
-// 조이스틱 및 입력 이벤트
-function initControls(){
-  const wrap=document.getElementById('jsWrap'), knob=document.getElementById('jsKnob'), atk=document.getElementById('atkBtn');
-  const handleStart=e=>{
-    const t=e.touches?e.touches[0]:e; joystick.active=true;
-    joystick.startX=t.clientX; joystick.startY=t.clientY;
-    wrap.style.left=(t.clientX-50)+'px'; wrap.style.top=(t.clientY-50)+'px'; wrap.style.display='block';
-  };
-  const handleMove=e=>{
-    if(!joystick.active)return; const t=e.touches?e.touches[0]:e;
-    let dx=t.clientX-joystick.startX, dy=t.clientY-joystick.startY;
-    const dist=Math.sqrt(dx*dx+dy*dy), max=40;
-    if(dist>max){dx*=max/dist; dy*=max/dist;}
-    knob.style.transform=\`translate(calc(-50% + \${dx}px), calc(-50% + \${dy}px))\`;
-    joystick.dir={x:dx/max, y:dy/max};
-  };
-  const handleEnd=()=>{joystick.active=false; wrap.style.display='none'; joystick.dir={x:0,y:0};};
-  G.addEventListener('touchstart',handleStart); G.addEventListener('touchmove',handleMove);
-  G.addEventListener('touchend',handleEnd); G.addEventListener('mousedown',handleStart);
-  window.addEventListener('mousemove',handleMove); window.addEventListener('mouseup',handleEnd);
-  
-  atk.addEventListener('touchstart',e=>{e.preventDefault(); send({t:'atk',on:true}); atk.classList.add('pressing');});
-  atk.addEventListener('touchend',e=>{e.preventDefault(); send({t:'atk',on:false}); atk.classList.remove('pressing');});
-  atk.addEventListener('mousedown',()=>send({t:'atk',on:true}));
-  atk.addEventListener('mouseup',()=>send({t:'atk',on:false}));
+function rollTraits(){
+  const pool=[...ALL_TRAITS];
+  const result=[];
+  while(result.length<3&&pool.length>0){const i=Math.floor(Math.random()*pool.length);result.push(pool.splice(i,1)[0]);}
+  return result;
 }
 
-function handleMsg(m){
-  if(m.t==='created'||m.t==='joined'){
-    myId=m.id; isHost=m.host;
-    document.getElementById('joinRow').style.display='none';
-    document.getElementById('waitRoom').style.display='flex';
-    document.getElementById('codeDisplay').textContent=m.code;
-    document.getElementById('startBtn').style.display=isHost?'block':'none';
+function showTraitSelect(){
+  if(!running)return;
+  running=false;
+  send({t:'pause'}); // 서버에 pause 알림 → 몬스터 공격 중단
+  const traits=rollTraits();
+  const cards=document.getElementById('traitCards');
+  cards.innerHTML='';
+  for(const tr of traits){
+    const div=document.createElement('div');div.className='traitCard';
+    div.innerHTML='<div class="traitIcon">'+tr.icon+'</div><div class="traitName">'+tr.name+'</div><div class="traitDesc">'+tr.desc+'</div>';
+    div.onclick=()=>pickTrait(tr);
+    cards.appendChild(div);
   }
-  else if(m.t==='plist'){
-    const list=document.getElementById('playerListEl');
-    list.innerHTML=m.list.map(p=>\`<div>\${p.host?'👑 ':''}\${p.name} \${p.ready?'(준비됨) ':''}</div>\`).join('');
-  }
-  else if(m.t==='classSelect'){
-    document.getElementById('lobbyScreen').style.display='none';
-    document.getElementById('classScreen').style.display='flex';
-    initControls();
-  }
-  else if(m.t==='startNow'){
-    document.getElementById('classScreen').style.display='none';
-    document.getElementById('hud').style.display='block';
-    document.getElementById('jsWrap').style.display='none'; // 터치 전엔 숨김
-    document.getElementById('atkBtn').style.display='flex';
-    gameActive=true;
-    const info=m.stats;
-    myStats=JSON.parse(JSON.stringify(CLASSES[m.cls].stats));
-    myWeapon=JSON.parse(JSON.stringify(CLASSES[m.cls].weapon));
-    document.getElementById('classTag').innerHTML=\`CLASS: <span>\${CLASSES[m.cls].name}</span>\`;
-    requestAnimationFrame(loop);
-  }
-  else if(m.t==='u'){
-    // 서버로부터의 상태 동기화 (생략 없이 원본 로직 유지)
-    players.clear(); m.ps.forEach(p=>players.set(p.id, p));
-    enemies=m.es; projs=m.projs; gems=m.gs; items=m.is;
-    wave=m.w; stage=m.st; timer=m.tm; score=m.sc; bossSpawned=m.bs;
-  }
-  else if(m.t==='lvlUp'){
-    showLvlUp(m.options);
-  }
-  else if(m.t==='clear'){
-    showClear(m.next);
-  }
-  else if(m.t==='gameOver'){
-    showGO(m.win, m.stat);
-  }
-  else if(m.t==='err') showErr(m.m);
-}
-
-// 루프 및 렌더링 (원본 19/20 버전의 모든 드로잉 로직 보존)
-function loop(){
-  if(!gameActive)return;
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-function update(){
-  if(joystick.active) send({t:'mv', x:joystick.dir.x, y:joystick.dir.y});
-  const me=players.get(myId);
-  if(me){
-    cam.x += (me.x - W/2 - cam.x)*0.1;
-    cam.y += (me.y - H/2 - cam.y)*0.1;
-    document.getElementById('hpFill').style.width=(me.hp/me.maxHp*100)+'%';
-    document.getElementById('hpTxt').textContent=Math.ceil(me.hp);
-    document.getElementById('expFill').style.width=(me.exp/me.nextExp*100)+'%';
-    document.getElementById('lvTxt').textContent=me.lv;
-    document.getElementById('killTxt').textContent=me.kills;
-  }
-  document.getElementById('timerVal').textContent=formatTime(timer);
-  document.getElementById('stageVal').textContent=stage;
-  document.getElementById('waveTxt').textContent=wave;
-  document.getElementById('scoreTxt').textContent=score;
-  if(bossSpawned){
-    document.getElementById('bossBar').style.display='block';
-    const b=enemies.find(e=>e.boss);
-    if(b) document.getElementById('bossFill').style.width=(b.hp/b.maxHp*100)+'%';
-  } else {
-    document.getElementById('bossBar').style.display='none';
-  }
-}
-
-function formatTime(s){
-  const m=Math.floor(s/60); const ss=s%60;
-  return \`\${m}:\${ss<10?'0':''}\${ss}\`;
-}
-
-function draw(){
-  ctx.clearRect(0,0,W,H);
-  ctx.save(); ctx.translate(-cam.x, -cam.y);
-  // 그리드
-  ctx.strokeStyle='#151520'; ctx.lineWidth=1;
-  for(let x=Math.floor(cam.x/100)*100; x<cam.x+W+100; x+=100){
-    ctx.beginPath(); ctx.moveTo(x,cam.y); ctx.lineTo(x,cam.y+H); ctx.stroke();
-  }
-  for(let y=Math.floor(cam.y/100)*100; y<cam.y+H+100; y+=100){
-    ctx.beginPath(); ctx.moveTo(cam.x,y); ctx.lineTo(cam.x+W,y); ctx.stroke();
-  }
-  // 경험치 보석
-  gems.forEach(g=>{
-    ctx.fillStyle=g.v>5?'#ffff00':'#00ccff';
-    ctx.beginPath(); ctx.arc(g.x,g.y,3,0,Math.PI*2); ctx.fill();
-  });
-  // 적군
-  enemies.forEach(e=>{
-    ctx.fillStyle=e.boss?'#ff3300':(e.type==='fast'?'#ff8844':'#555577');
-    ctx.fillRect(e.x-e.r, e.y-e.r, e.r*2, e.r*2);
-    if(e.hp<e.maxHp){
-      ctx.fillStyle='#300'; ctx.fillRect(e.x-e.r, e.y-e.r-6, e.r*2, 3);
-      ctx.fillStyle='#f00'; ctx.fillRect(e.x-e.r, e.y-e.r-6, (e.hp/e.maxHp)*e.r*2, 3);
-    }
-  });
-  // 플레이어들
-  players.forEach(p=>{
-    ctx.fillStyle=p.id===myId?'#fff':'#aaa';
-    ctx.beginPath(); ctx.arc(p.x,p.y,12,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#fff'; ctx.font='10px Arial'; ctx.textAlign='center';
-    ctx.fillText(p.name + (p.id===myId?' (나)':''), p.x, p.y-18);
-  });
-  // 발사체
-  projs.forEach(p=>{
-    ctx.fillStyle=p.c||'#fff';
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r||4,0,Math.PI*2); ctx.fill();
-  });
-  ctx.restore();
-}
-
-function showLvlUp(opts){
-  const container=document.getElementById('traitCards');
-  container.innerHTML='';
-  opts.forEach(id=>{
-    const t=ALL_TRAITS.find(x=>x.id===id);
-    const div=document.createElement('div');
-    div.className='traitCard';
-    div.innerHTML=\`<div class="traitIcon">\${t.icon}</div><div class="traitName">\${t.name}</div><div class="traitDesc">\${t.desc}</div>\`;
-    div.onclick=()=>{
-      send({t:'pickTrait',id:id});
-      document.getElementById('lvlUpScreen').style.display='none';
-      myTraits.push(t.name);
-      document.getElementById('traitList').innerHTML='ACTIVE TRAITS:<br>' + myTraits.map(n=>\`<span>\${n}</span>\`).join(', ');
-    };
-    container.appendChild(div);
-  });
   document.getElementById('lvlUpScreen').style.display='flex';
 }
 
-function showClear(nextStage){
-  const sc=document.getElementById('stageClearScreen');
-  const timerEl=document.getElementById('stageClearTimer');
-  sc.style.display='flex';
-  let count=3; timerEl.textContent=count;
-  const itv=setInterval(()=>{
-    count--; timerEl.textContent=count;
-    if(count<=0){ clearInterval(itv); sc.style.display='none'; }
-  },1000);
+function pickTrait(tr){
+  document.getElementById('lvlUpScreen').style.display='none';
+  running=true;
+  send({t:'resume'}); // 서버에 resume 알림
+  myTraits.push(tr.id);
+  applyTrait(tr.id);
+  updateTraitList();
 }
 
-function showGO(win, s){
-  gameActive=false;
-  const sc=document.getElementById('goScreen');
-  sc.style.display='flex';
-  document.getElementById('goTitle').textContent=win?'VICTORY!':'GAME OVER';
-  document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';
-  document.getElementById('goStats').innerHTML=\`최종 스테이지: \${s.st}<br>처치 수: \${s.k}<br>점수: \${s.sc}\`;
+function applyTrait(id){
+  const s=myStats;
+  if(id==='hp'){s.maxHp+=40;s.hp=Math.min(s.hp+40,s.maxHp);}
+  else if(id==='spd')s.spd*=1.2;
+  else if(id==='dmg')s.dmgMult*=1.25;
+  else if(id==='cd')s.cdMult*=0.8;
+  else if(id==='range')s.rangeMult*=1.3;
+  else if(id==='regen')s.regen+=0.5;
+  else if(id==='multishot')s.multishot+=1;
+  else if(id==='magnet')s.magnetRange*=3;
+  else if(id==='armor')s.armor=Math.min(s.armor+0.2,0.6);
+  else if(id==='crit')s.crit=true;
 }
 
-window.onresize=()=>{ W=G.clientWidth; H=G.clientHeight; canvas.width=W; canvas.height=H; };
-</script>
-</body>
-</html>\`;
+function updateTraitList(){
+  const el=document.getElementById('traitList');
+  if(myTraits.length===0){el.innerHTML='';return;}
+  el.innerHTML=myTraits.map(id=>{const tr=ALL_TRAITS.find(t=>t.id===id);return tr?'<span>'+tr.icon+' '+tr.name+'</span>':'';}).join('<br>');
+}
 
-// --- 서버 로직 (Node.js) ---
-const rooms = new Map();
-
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  res.end(HTML);
-});
-
-const wss = new WebSocketServer({ server });
-
-function generateCode() { return Math.random().toString(36).substring(2, 7).toUpperCase(); }
-
-wss.on('connection', (ws) => {
-  ws.on('message', (data) => {
-    let msg;
-    try { msg = JSON.parse(data); } catch(e) { return; }
-
-    if (msg.t === 'create') {
-      const code = generateCode();
-      const room = {
-        code, players: new Map(), state: 'LOBBY', 
-        timer: 600, stage: 1, wave: 1, score: 0, enemies: [], projs: [], gems: [], 
-        bossSpawned: false, lastTick: Date.now()
-      };
-      rooms.set(code, room);
-      joinRoom(ws, room, msg.name, true);
-    } 
-    else if (msg.t === 'join') {
-      const room = rooms.get(msg.code);
-      if (!room) return ws.send(JSON.stringify({ t: 'err', m: '방을 찾을 수 없습니다.' }));
-      if (room.players.size >= 4) return ws.send(JSON.stringify({ t: 'err', m: '방이 가득 찼습니다.' }));
-      if (room.state !== 'LOBBY') return ws.send(JSON.stringify({ t: 'err', m: '이미 게임이 시작되었습니다.' }));
-      joinRoom(ws, room, msg.name, false);
-    }
-    // *** 이 부분이 누락되었던 핵심 핸들러입니다 ***
-    else if (msg.t === 'start') {
-      const room = rooms.get(ws.roomCode);
-      if (room && ws.isHost && room.state === 'LOBBY') {
-        room.state = 'CLASS_SELECT';
-        broadcast(room, { t: 'classSelect' });
-      }
-    }
-    else if (msg.t === 'classReady') {
-      const room = rooms.get(ws.roomCode); if (!room) return;
-      const p = room.players.get(ws); if (!p) return;
-      p.cls = msg.cls; p.ready = true;
-      broadcastPlist(room);
-      
-      const allReady = Array.from(room.players.values()).every(pl => pl.ready);
-      if (allReady) {
-        room.state = 'PLAYING';
-        room.players.forEach((pl, socket) => {
-          socket.send(JSON.stringify({ t: 'startNow', cls: pl.cls }));
-        });
-        startGameLoop(room);
-      }
-    }
-    else if (msg.t === 'mv') {
-      const room = rooms.get(ws.roomCode); if (!room || room.state !== 'PLAYING') return;
-      const p = room.players.get(ws); if (!p || p.dead) return;
-      const spd = p.spd || 2;
-      p.x += msg.x * spd; p.y += msg.y * spd;
-    }
-    // ... 나머지 공격(atk), 특성선택(pickTrait) 등 모든 원본 로직 유지
-  });
-
-  ws.on('close', () => {
-    const room = rooms.get(ws.roomCode);
-    if (room) {
-      room.players.delete(ws);
-      if (room.players.size === 0) rooms.delete(ws.roomCode);
-      else broadcastPlist(room);
-    }
-  });
-});
-
-function joinRoom(ws, room, name, host) {
-  ws.roomCode = room.code;
-  ws.isHost = host;
-  const player = {
-    id: Math.random().toString(16).slice(2),
-    name: name || 'Player',
-    host, x: 0, y: 0, hp: 100, maxHp: 100, exp: 0, nextExp: 10, lv: 1, kills: 0, 
-    ready: false, dead: false, cls: null
+// ── Weapon helper ──────────────────────────────────────────
+function getW(){
+  const w=myWeapon,s=myStats;
+  const critHit=s.crit&&Math.random()<0.3;
+  return{
+    ...w,
+    dmg:w.baseDmg*s.dmgMult*(critHit?2:1),
+    cd:w.baseCd*s.cdMult,
+    range:w.baseRange*s.rangeMult,
+    count:1+(w.type!=='sword'&&w.type!=='dagger'?s.multishot:0),
+    crit:critHit
   };
-  room.players.set(ws, player);
-  ws.send(JSON.stringify({ t: host ? 'created' : 'joined', code: room.code, id: player.id, host }));
-  broadcastPlist(room);
 }
 
-function broadcast(room, msg) {
-  const s = JSON.stringify(msg);
-  room.players.forEach((_, ws) => { if(ws.readyState === 1) ws.send(s); });
+// ── Image system ───────────────────────────────────────────
+const IMGS={};
+const IMG_KEYS={
+  enemy_basic:   'assets/enemy_basic.png',
+  enemy_ranged:  'assets/enemy_ranged.png',
+  enemy_shield:  'assets/enemy_shield.png',
+  enemy_fast:    'assets/enemy_fast.png',
+  enemy_mage:    'assets/enemy_mage.png',
+  boss_mid:      'assets/boss_mid.png',
+  boss_final1:   'assets/boss_final1.png',
+  boss_final2:   'assets/boss_final2.png',
+  boss_final3:   'assets/boss_final3.png',
+};
+function loadImages(){
+  for(const[key,src]of Object.entries(IMG_KEYS)){
+    const img=new Image();
+    img.onload=()=>{IMGS[key]=img;};
+    img.onerror=()=>{}; 
+    img.src=src;
+  }
+}
+loadImages();
+
+function drawImg(key,x,y,size,fallback){
+  const img=IMGS[key];
+  if(img){
+    ctx.save();
+    ctx.drawImage(img,x-size,y-size,size*2,size*2);
+    ctx.restore();
+  } else {
+    fallback();
+  }
 }
 
-function broadcastPlist(room) {
-  const list = Array.from(room.players.values()).map(p => ({ name: p.name, host: p.host, ready: p.ready }));
-  broadcast(room, { t: 'plist', list });
+// ── Game state ─────────────────────────────────────────────
+let running=false,stageTime=600,currentStage=1,midBossSpawned=false,finalBossSpawned=false,bossAlive=false;
+let kills=0,score=0,camX=0,camY=0;
+let myPlayer=null,allPlayers=[],enemies=[],bossData=null;
+let projs=[],parts=[],orbs=[],remoteEffects=[];
+let lastTime=0,jsActive=false,jsX=0,jsY=0,attackPressed=false,lastShot=0;
+
+const STAGE_BG=['#080810','#100808','#080e0a'];
+const STAGE_GRID=['#0d0d1a','#1a0808','#081408'];
+const STAGE_NAMES=['어둠의 황야','혈염의 성','마계의 심연'];
+
+function handleMsg(msg){
+  if(msg.t==='created'){
+    myId=msg.id;isHost=true;
+    document.getElementById('codeDisplay').textContent=msg.code;
+    document.getElementById('joinRow').style.display='none';
+    document.getElementById('waitRoom').style.display='flex';
+    document.querySelectorAll('#lobbyScreen .btn,#lobbyScreen input.inp,#lobbyScreen .sub').forEach(el=>el.style.display='none');
+  }
+  else if(msg.t==='joined'){
+    myId=msg.id;
+    document.getElementById('codeDisplay').textContent=msg.code;
+    document.getElementById('joinRow').style.display='none';
+    document.getElementById('startBtn').style.display='none';
+    document.getElementById('waitRoom').style.display='flex';
+    document.querySelectorAll('#lobbyScreen .btn,#lobbyScreen input.inp,#lobbyScreen .sub').forEach(el=>el.style.display='none');
+  }
+  else if(msg.t==='lobby'){document.getElementById('playerListEl').innerHTML='참가자: '+msg.players.map(p=>'<b>'+p.name+'</b>').join(', ');}
+  else if(msg.t==='err'){showErr(msg.msg);}
+  else if(msg.t==='classSelect'){showClassScreen();}
+  else if(msg.t==='allReady'){hideClassScreen();initGameState();}
+  else if(msg.t==='start'){ }
+  else if(msg.t==='state'){applyState(msg);}
+  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);}
+  else if(msg.t==='eproj'){spawnEnemyProj(msg);}
+  else if(msg.t==='midBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치! 10분까지 생존하세요!',3000);}
+  else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
+  else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
+  else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
+  else if(msg.t==='pat'){doBossPat(msg);}
+  else if(msg.t==='eDead'){spawnParts(msg.x,msg.y,'#ff8844',8);kills++;score+=msg.sc||10;addKf('+'+( msg.sc||10));}
+  else if(msg.t==='playerLeft'){showPop('플레이어 퇴장',1200);}
+  else if(msg.t==='stageClear'){showStageClear(msg.stage,msg.next);}
+  else if(msg.t==='stageStart'){nextStage(msg.stage);}
+  else if(msg.t==='over'){endGame(msg.win);}
+  else if(msg.t==='fx'){remoteEffects.push(msg);}
+}
+// ── Shooting & Combat Logic ────────────────────────────────
+function tryShoot(){
+  if(!myPlayer||myPlayer.dead||!myStats||!myWeapon)return;
+  const now=performance.now(),w=getW();
+  if(now-lastShot<w.cd)return;
+  lastShot=now;
+  
+  let target=null,minD=Infinity;
+  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38}]:enemies;
+  for(const e of allE){
+    const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);
+    if(d<minD){minD=d;target=e;}
+  }
+
+  let tx,ty;
+  if(target&&minD<w.range*1.3){tx=target.x;ty=target.y;}
+  else if(jsActive){tx=myPlayer.x+jsX*200;ty=myPlayer.y+jsY*200;}
+  else{tx=mouseX+camX-W/2;ty=mouseY+camY-H/2;}
+
+  const ang=Math.atan2(ty-myPlayer.y,tx-myPlayer.x);
+  if(w.type==='sword'||w.type==='dagger'){doMelee(ang,w);return;}
+  if(w.type==='magic'){doMagic(ang,w);return;}
+
+  // Projectile classes (Gunner etc.)
+  for(let i=0;i<w.count;i++){
+    const a=ang+(i-(w.count-1)/2)*0.28;
+    projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:5,enemy:false});
+  }
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,wtype:w.type});
 }
 
-function startGameLoop(room) {
-  const tick = () => {
-    if (!rooms.has(room.code) || room.state === 'ENDED') return;
-    updateRoom(room);
-    const ps = Array.from(room.players.values());
-    broadcast(room, {
-      t: 'u', ps, es: room.enemies, projs: room.projs, gs: room.gems,
-      w: room.wave, st: room.stage, tm: Math.floor(room.timer), sc: room.score, bs: room.bossSpawned
-    });
-    setTimeout(tick, 50);
-  };
-  tick();
+// ── Boss Patterns (Server Authoritative) ───────────────────
+function doBossPat(msg){
+  const b=bossData; if(!b)return;
+  const st=currentStage;
+  if(st===1) stage1BossPat(msg);
+  else if(st===2) stage2BossPat(msg);
+  else stage3BossPat(msg);
 }
 
-function updateRoom(room) {
-  // 서버 측 게임 로직 (시간 감소, 적 생성 등 원본 유지)
-  room.timer -= 0.05;
-  if(room.timer <= 0) { /* 스테이지 클리어 로직 */ }
+// ── Server Side: Room & Combat Tick ────────────────────────
+function tickRoom(code) {
+  const room = rooms.get(code);
+  if (!room || !room.started) return;
+  const now = Date.now();
+  const dt = Math.min((now - room.lastTick) / 1000, 0.1);
+  room.lastTick = now;
+  room.stageTime -= dt;
+
+  // Boss Spawning Logic
+  if(room.stageTime <= 300 && !room.midBossSpawned){
+    spawnBoss(room, false); // Mid-boss at 5:00
+    room.midBossSpawned = true;
+  }
+  if(room.stageTime <= 0 && !room.finalBossSpawned){
+    spawnBoss(room, true); // Final boss at 0:00
+    room.finalBossSpawned = true;
+  }
+
+  // Enemy AI & Movement
+  for (const e of room.enemies) {
+    let near = getNearestPlayer(room, e);
+    if (!near) continue;
+    const dx = near.x - e.x, dy = near.y - e.y, d = Math.sqrt(dx*dx+dy*dy);
+    
+    if (e.type === 'ranged') {
+      if (d > 250) { e.x += dx/d*e.spd*dt*60; e.y += dy/d*e.spd*dt*60; }
+      e.lastShot += dt;
+      if (e.lastShot > 2.2) {
+        e.lastShot = 0;
+        bcastAll(room, { t: 'eproj', etype: 'ranged', bx: e.x, by: e.y, tx: near.x, ty: near.y, dmg: 12 });
+      }
+    } else {
+      e.x += dx/d*e.spd*dt*60; e.y += dy/d*e.spd*dt*60;
+    }
+  }
+
+  // Update all clients
+  bcastAll(room, {
+    t: 'state',
+    players: [...room.players.values()],
+    enemies: room.enemies,
+    boss: room.boss,
+    st: room.stageTime,
+    stage: room.currentStage
+  });
 }
 
-server.listen(PORT, () => console.log('Server running on port ' + PORT));
+// ── Initialization ─────────────────────────────────────────
+loadImages();
+console.log("Dark Survival Server Engine Loaded on Port " + PORT);
