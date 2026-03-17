@@ -237,17 +237,15 @@ function doStart(){send({t:'start'});}
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',
     stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.2,cdMult:1,rangeMult:1,regen:0.3,multishot:0,magnetRange:1,armor:0.1,crit:false},
-    weapon:{name:'대검',type:'sword',baseDmg:55,baseCd:480,baseRange:100,color:'#66ccff'}
+    weapon:{name:'검',type:'sword',baseDmg:55,baseCd:480,baseRange:100,color:'#66ccff'}
   },
   gunner:{name:'총사',icon:'🔫',color:'#ffee44',
-    // 저격총: 공속 느림, 한방 강함, 사거리 매우 김
-    stats:{hp:80,maxHp:80,spd:3.2,dmgMult:1,cdMult:1,rangeMult:1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
-    weapon:{name:'저격총',type:'bullet',baseDmg:90,baseCd:1100,baseRange:600,color:'#ffee44',spd:14}
+    stats:{hp:80,maxHp:80,spd:3.4,dmgMult:1,cdMult:0.85,rangeMult:1.3,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
+    weapon:{name:'총',type:'bullet',baseDmg:24,baseCd:200,baseRange:420,color:'#ffee44',spd:10}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
-    // 마법: 폭발 광역, multishot은 폭발 반경 증가로 사용
-    stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.15,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
-    weapon:{name:'마법',type:'magic',baseDmg:45,baseCd:900,baseRange:300,color:'#cc88ff',spd:5,explodeR:60}
+    stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.15,cdMult:1,rangeMult:1.1,regen:0,multishot:1,magnetRange:1,armor:0,crit:false},
+    weapon:{name:'마법',type:'magic',baseDmg:40,baseCd:750,baseRange:280,color:'#cc88ff',spd:5}
   },
   assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',
     stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.1,cdMult:0.9,rangeMult:1,regen:0,multishot:0,magnetRange:1,armor:0,crit:true},
@@ -300,7 +298,6 @@ function rollTraits(){
 function showTraitSelect(){
   if(!running)return;
   running=false;
-  send({t:'pause'}); // 서버에 pause 알림 → 몬스터 공격 중단
   const traits=rollTraits();
   const cards=document.getElementById('traitCards');
   cards.innerHTML='';
@@ -316,7 +313,6 @@ function showTraitSelect(){
 function pickTrait(tr){
   document.getElementById('lvlUpScreen').style.display='none';
   running=true;
-  send({t:'resume'}); // 서버에 resume 알림
   myTraits.push(tr.id);
   applyTrait(tr.id);
   updateTraitList();
@@ -422,17 +418,13 @@ function applyState(msg){
   if(msg.stage)currentStage=msg.stage;
   const me=allPlayers.find(p=>p.id===myId);
   if(me&&myPlayer){
-    // 서버 HP가 권위(authoritative). armor는 데미지 경감용이므로 표시 HP = 서버 HP
-    myPlayer.hp=Math.max(0,me.hp);
+    myPlayer.hp=Math.max(0,me.hp*(1-myStats.armor));
     myPlayer.maxHp=myStats.maxHp;
-    myPlayer.lv=me.lv;myPlayer.exp=me.exp;myPlayer.expNext=me.expNext;
+    myPlayer.lv=me.lv;myPlayer.dead=me.dead;
+    myPlayer.exp=me.exp;myPlayer.expNext=me.expNext;
     if(me.lvUp)showTraitSelect();
-    // 사망 판정: 서버 dead 플래그 OR hp가 0
-    if((me.dead||me.hp<=0)&&!myPlayer.dead){
-      myPlayer.dead=true;
-      if(running){running=false;endGame(false);}
-    }
   }
+  if(me&&me.dead&&running){running=false;endGame(false);}
 }
 
 // ── Stage transitions ──────────────────────────────────────
@@ -497,23 +489,11 @@ function tryShoot(){
   else{tx=mouseX+camX-W/2;ty=mouseY+camY-H/2;}
   const ang=Math.atan2(ty-myPlayer.y,tx-myPlayer.x);
   if(w.type==='sword'||w.type==='dagger'){doMelee(ang,w);return;}
-  if(w.type==='magic'){doMagic(ang,w);return;}
-  // 저격총/기타 투사체
   for(let i=0;i<w.count;i++){
     const a=ang+(i-(w.count-1)/2)*0.28;
-    projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:5,enemy:false});
+    projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:w.type==='magic'?7:4,enemy:false});
   }
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,wtype:w.type});
-}
-
-function doMagic(ang,w){
-  // 마법구 발사 — 착탄 시 폭발 광역
-  const explodeR=(w.explodeR||60)*(1+myStats.multishot*0.3);
-  projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(ang)*w.spd,vy:Math.sin(ang)*w.spd,
-    dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:8,enemy:false,
-    magic:true,explodeR});
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx??myPlayer.x+Math.cos(ang)*200,ay:ty??myPlayer.y+Math.sin(ang)*200,w:myClass,cnt:1,wtype:'magic'});
-}
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count});
 }
 
 function doMelee(ang,w){
@@ -531,112 +511,28 @@ function doMelee(ang,w){
   send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1});
 }
 
-function magicExplode(p){
-  const r=p.explodeR||60;
-  // 폭발 파티클
-  spawnParts(p.x,p.y,'#cc88ff',20);
-  spawnParts(p.x,p.y,'#ffffff',8);
-  // 범위 내 모든 적 히트
-  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:42}]:enemies;
-  for(const e of allE){
-    const dx=p.x-e.x,dy=p.y-e.y;
-    if(Math.sqrt(dx*dx+dy*dy)<r+(e.r||10)){
-      reportHit(e.id==='boss'?'boss':e.id,p.dmg);
-    }
-  }
-  // 폭발 링 파티클
-  for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2;parts.push({x:p.x+Math.cos(a)*r*0.7,y:p.y+Math.sin(a)*r*0.7,vx:Math.cos(a)*1.5,vy:Math.sin(a)*1.5,life:300,maxLife:300,r:5,color:'#cc88ff'});}
-}
-
 function reportHit(id,dmg){id==='boss'?send({t:'hit',target:'boss',dmg}):send({t:'hit',eid:id,dmg});}
 
-// ── Boss & enemy patterns ──────────────────────────────────
-function doBossPat(msg){
-  const{i,bx,by,ang,phase,etype,stage}=msg;
-  // 원거리 몬스터 탄
-  if(i===-1){
-    if(etype==='ranged'){
-      // 단발 조준탄
-      mkBB(bx,by,Math.cos(ang)*5.5,Math.sin(ang)*5.5,12,'#ffaa44',5);
-    } else if(etype==='mage'){
-      // 3방향 마법탄
-      for(let k=-1;k<=1;k++){const a=ang+k*0.35;mkBB(bx,by,Math.cos(a)*3.5,Math.sin(a)*3.5,14,'#cc66ff',6);}
-    }
-    return;
-  }
-  // 중간보스 패턴
-  if(!msg.isFinal){[midBossSpiral,midBossCharge,midBossRing][Math.min(i,2)](bx,by,ang,phase);return;}
-  // 최종보스 패턴 — 스테이지별로 다름
-  const st=stage||1;
-  if(st===1)[finalBoss1Spiral,finalBoss1Blast,finalBoss1Cross,finalBoss1Rapid,finalBoss1Ring][Math.min(i,4)](bx,by,ang,phase);
-  else if(st===2)[finalBoss2Wave,finalBoss2Burst,finalBoss2Cross,finalBoss2Rapid,finalBoss2Ring][Math.min(i,4)](bx,by,ang,phase);
-  else[finalBoss3Nova,finalBoss3Death,finalBoss3Spiral,finalBoss3Rapid,finalBoss3Ring][Math.min(i,4)](bx,by,ang,phase);
-}
-
-function mkBB(bx,by,vx,vy,dmg,col,r){projs.push({x:bx,y:by,vx,vy,dmg,range:500,traveled:0,gone:false,color:col,r,enemy:true});}
-
-// ─ 중간보스 (해골기사) 패턴 ─
-function midBossSpiral(bx,by,ang){for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*3.2,Math.sin(a)*3.2,14,'#aabb44',7);}}
-function midBossCharge(bx,by,ang){// 플레이어 방향 집중 3탄
-  if(!myPlayer)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1;
-  for(let k=-1;k<=1;k++){const a=Math.atan2(dy,dx)+k*0.2;mkBB(bx,by,Math.cos(a)*6,Math.sin(a)*6,18,'#ddcc22',6);}
-}
-function midBossRing(bx,by,ang){for(let i=0;i<12;i++){const a=(i/12)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*2.5,Math.sin(a)*2.5,16,'#88cc44',8);}}
-
-// ─ 스테이지1 최종보스 (화염마) 패턴 ─
-function finalBoss1Spiral(bx,by,ang){for(let i=0;i<10;i++){const a=(i/10)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*3.8,Math.sin(a)*3.8,16,'#ff6600',8);}}
-function finalBoss1Blast(bx,by){for(let i=0;i<18;i++){const a=(i/18)*Math.PI*2;mkBB(bx,by,Math.cos(a)*2.5,Math.sin(a)*2.5,20,'#ff2200',10);}spawnParts(bx,by,'#ff6600',16);}
-function finalBoss1Cross(bx,by){[[1,0],[-1,0],[0,1],[0,-1],[.71,.71],[-.71,.71],[.71,-.71],[-.71,-.71]].forEach(([dx,dy])=>{for(let n=0;n<3;n++)setTimeout(()=>mkBB(bx,by,dx*5,dy*5,18,'#ff4400',6),n*180);});}
-function finalBoss1Rapid(bx,by){if(!myPlayer)return;for(let n=0;n<6;n++)setTimeout(()=>{if(!myPlayer)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1,a=Math.atan2(dy,dx)+(Math.random()-.5)*.4;mkBB(bx,by,Math.cos(a)*6.5,Math.sin(a)*6.5,15,'#ff4444',5);},n*100);}
-function finalBoss1Ring(bx,by,ang){for(let i=0;i<16;i++){const a=(i/16)*Math.PI*2+ang*2,s=2.5+Math.random()*2;mkBB(bx,by,Math.cos(a)*s,Math.sin(a)*s,22,'#ffaa00',9);}}
-
-// ─ 스테이지2 최종보스 (독룡) 패턴 ─
-function finalBoss2Wave(bx,by,ang){// 파도형
-  for(let i=0;i<14;i++){const a=ang+(i/14)*Math.PI*2;const spd=3+Math.sin(i*0.8)*1.5;mkBB(bx,by,Math.cos(a)*spd,Math.sin(a)*spd,18,'#44ff88',8);}
-}
-function finalBoss2Burst(bx,by){// 독 폭발
-  for(let i=0;i<24;i++){const a=(i/24)*Math.PI*2;mkBB(bx,by,Math.cos(a)*3,Math.sin(a)*3,22,'#22dd44',9);}
-  spawnParts(bx,by,'#44ff88',20);
-}
-function finalBoss2Cross(bx,by,ang){[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{for(let n=0;n<5;n++)setTimeout(()=>mkBB(bx,by,dx*5.5,dy*5.5,20,'#88ff44',5),n*120);});}
-function finalBoss2Rapid(bx,by){if(!myPlayer)return;for(let n=0;n<8;n++)setTimeout(()=>{if(!myPlayer)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1,a=Math.atan2(dy,dx)+(Math.random()-.5)*.3;mkBB(bx,by,Math.cos(a)*7,Math.sin(a)*7,16,'#66ff44',5);},n*80);}
-function finalBoss2Ring(bx,by,ang){for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2+ang*2.5;mkBB(bx,by,Math.cos(a)*3.5,Math.sin(a)*3.5,20,'#44ffaa',8);}}
-
-// ─ 스테이지3 최종보스 (마왕) 패턴 ─
-function finalBoss3Nova(bx,by,ang){// 전방위 다중 링
-  for(let r=0;r<3;r++)setTimeout(()=>{for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2+ang+r*0.3;mkBB(bx,by,Math.cos(a)*(3+r),Math.sin(a)*(3+r),22,'#cc44ff',9);}},r*200);
-}
-function finalBoss3Death(bx,by){// 죽음의 폭발
-  for(let i=0;i<30;i++){const a=(i/30)*Math.PI*2,s=1+Math.random()*5;mkBB(bx,by,Math.cos(a)*s,Math.sin(a)*s,25,'#ff00ff',10);}
-  spawnParts(bx,by,'#cc44ff',30);
-}
-function finalBoss3Spiral(bx,by,ang){// 빠른 나선
-  for(let i=0;i<14;i++){const a=(i/14)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*5,Math.sin(a)*5,20,'#ff44cc',8);}
-}
-function finalBoss3Rapid(bx,by){if(!myPlayer)return;for(let n=0;n<10;n++)setTimeout(()=>{if(!myPlayer)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1,a=Math.atan2(dy,dx)+(Math.random()-.5)*.25;mkBB(bx,by,Math.cos(a)*8,Math.sin(a)*8,18,'#ff44ff',6);},n*70);}
-function finalBoss3Ring(bx,by,ang){for(let i=0;i<24;i++){const a=(i/24)*Math.PI*2+ang*3,s=3+Math.random()*3;mkBB(bx,by,Math.cos(a)*s,Math.sin(a)*s,25,'#ff88ff',10);}}
+// ── Boss patterns ──────────────────────────────────────────
+function doBossPat(msg){const{i,bx,by,ang,phase}=msg;[bossSpiral,bossBlast,bossCross,bossRapid,bossRing][Math.min(i,4)](bx,by,ang);}
+function mkBB(bx,by,vx,vy,dmg,col,r){projs.push({x:bx,y:by,vx,vy,dmg,range:480,traveled:0,gone:false,color:col,r,enemy:true});}
+function bossSpiral(bx,by,ang){for(let i=0;i<10;i++){const a=(i/10)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*3.8,Math.sin(a)*3.8,16,'#ff6600',8);}}
+function bossBlast(bx,by){for(let i=0;i<18;i++){const a=(i/18)*Math.PI*2;mkBB(bx,by,Math.cos(a)*2.2,Math.sin(a)*2.2,20,'#ff2200',10);}spawnParts(bx,by,'#ff6600',14);}
+function bossCross(bx,by){[[1,0],[-1,0],[0,1],[0,-1],[.71,.71],[-.71,.71],[.71,-.71],[-.71,-.71]].forEach(([dx,dy])=>{for(let n=0;n<3;n++)setTimeout(()=>mkBB(bx,by,dx*5,dy*5,18,'#cc44ff',6),n*180);});}
+function bossRapid(bx,by){if(!myPlayer)return;for(let n=0;n<6;n++)setTimeout(()=>{if(!myPlayer)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1,a=Math.atan2(dy,dx)+(Math.random()-.5)*.5;mkBB(bx,by,Math.cos(a)*6,Math.sin(a)*6,14,'#ff4444',5);},n*100);}
+function bossRing(bx,by,ang){for(let i=0;i<16;i++){const a=(i/16)*Math.PI*2+ang*2,s=2+Math.random()*2;mkBB(bx,by,Math.cos(a)*s,Math.sin(a)*s,22,'#ffaa00',9);}}
 
 // ── Remote FX ──────────────────────────────────────────────
 function spawnRemoteFx(fx){
-  const cls=CLASSES[fx.w]||CLASSES.warrior;
-  const wc=cls.weapon;
-  const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x);
-  if(fx.wtype==='sword'||fx.wtype==='dagger'){
-    const spread=fx.wtype==='dagger'?0.5:0.9;
-    for(let a=ang-spread;a<=ang+spread;a+=0.25)
-      for(let r=18;r<80;r+=16)
-        parts.push({x:fx.x+Math.cos(a)*r,y:fx.y+Math.sin(a)*r,vx:0,vy:0,life:140,maxLife:140,r:4,color:wc.color+'88'});
-  } else if(fx.wtype==='magic'){
-    // 마법구 visual 투사체
-    projs.push({x:fx.x,y:fx.y,vx:Math.cos(ang)*(wc.spd||5),vy:Math.sin(ang)*(wc.spd||5),
-      dmg:0,range:wc.baseRange||300,traveled:0,gone:false,color:wc.color+'cc',r:8,enemy:false,visual:true});
-  } else {
-    // 총/기타
-    const cnt=fx.cnt||1;
+  const cls=CLASSES[fx.w]||CLASSES.warrior,wc=cls.weapon;
+  if(wc.type==='sword'||wc.type==='dagger'){
+    const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x);
+    for(let a=ang-0.9;a<=ang+0.9;a+=0.25)for(let r=22;r<80;r+=16)parts.push({x:fx.x+Math.cos(a)*r,y:fx.y+Math.sin(a)*r,vx:0,vy:0,life:140,maxLife:140,r:4,color:wc.color+'88'});
+  }else{
+    const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x),cnt=fx.cnt||1;
     for(let i=0;i<cnt;i++){
       const a=ang+(i-(cnt-1)/2)*0.28;
-      projs.push({x:fx.x,y:fx.y,vx:Math.cos(a)*(wc.spd||7),vy:Math.sin(a)*(wc.spd||7),
-        dmg:0,range:wc.baseRange||300,traveled:0,gone:false,color:wc.color+'aa',r:5,enemy:false,visual:true});
+      projs.push({x:fx.x,y:fx.y,vx:Math.cos(a)*(wc.spd||7),vy:Math.sin(a)*(wc.spd||7),dmg:0,range:wc.baseRange||300,traveled:0,gone:false,color:wc.color+'aa',r:wc.type==='magic'?6:3,enemy:false,visual:true});
     }
   }
 }
@@ -645,8 +541,7 @@ function spawnRemoteFx(fx){
 let regenTimer=0;
 function update(dt){
   if(!running||!myPlayer||myPlayer.dead||!myStats)return;
-  // regen — 서버에 회복 요청
-  if(myStats.regen>0){regenTimer+=dt;if(regenTimer>1000){regenTimer=0;send({t:'regen',amount:myStats.regen});}}
+  if(myStats.regen>0){regenTimer+=dt;if(regenTimer>1000){regenTimer=0;myPlayer.hp=Math.min(myPlayer.hp+myStats.regen,myPlayer.maxHp);}}
   let mx=jsX,my=jsY;
   if(keys['w']||keys['arrowup'])my=-1;if(keys['s']||keys['arrowdown'])my=1;
   if(keys['a']||keys['arrowleft'])mx=-1;if(keys['d']||keys['arrowright'])mx=1;
@@ -664,16 +559,10 @@ function update(dt){
     if(p.traveled>p.range){p.gone=true;continue;}
     if(p.visual)continue;
     if(!p.enemy){
-      for(const e of enemies){const dx=p.x-e.x,dy=p.y-e.y;if(Math.sqrt(dx*dx+dy*dy)<(e.r||10)+p.r){
-        if(p.magic){magicExplode(p);p.gone=true;break;}
-        reportHit(e.id,p.dmg);spawnParts(p.x,p.y,p.color,4);p.gone=true;break;
-      }}
-      if(!p.gone&&bossData){const dx=p.x-bossData.x,dy=p.y-bossData.y;if(Math.sqrt(dx*dx+dy*dy)<42+p.r){
-        if(p.magic){magicExplode(p);p.gone=true;}
-        else{reportHit('boss',p.dmg);spawnParts(p.x,p.y,p.color,5);p.gone=true;}
-      }}
+      for(const e of enemies){const dx=p.x-e.x,dy=p.y-e.y;if(Math.sqrt(dx*dx+dy*dy)<(e.r||10)+p.r){reportHit(e.id,p.dmg);spawnParts(p.x,p.y,p.color,4);p.gone=true;break;}}
+      if(!p.gone&&bossData){const dx=p.x-bossData.x,dy=p.y-bossData.y;if(Math.sqrt(dx*dx+dy*dy)<38+p.r){reportHit('boss',p.dmg);spawnParts(p.x,p.y,p.color,5);p.gone=true;}}
     }else{
-      if(myPlayer&&!myPlayer.dead){const dx=p.x-myPlayer.x,dy=p.y-myPlayer.y;if(Math.sqrt(dx*dx+dy*dy)<14){spawnParts(p.x,p.y,p.color,4);p.gone=true;send({t:'projHit',dmg:p.dmg});}}
+      if(myPlayer&&!myPlayer.dead){const dx=p.x-myPlayer.x,dy=p.y-myPlayer.y;if(Math.sqrt(dx*dx+dy*dy)<14){const dmg=p.dmg*(1-myStats.armor);myPlayer.hp-=dmg;if(myPlayer.hp<0)myPlayer.hp=0;spawnParts(p.x,p.y,p.color,4);p.gone=true;}}
     }
   }
   projs=projs.filter(p=>!p.gone);
@@ -791,64 +680,20 @@ function drawEnemies(){
 
 function drawBoss(){
   const b=bossData,t=performance.now()*0.003;
-  const ang=b.ang||t;
+  const isFinal=b.isFinal||false;
+  const baseColor=isFinal?(b.phase===1?'#880000':'#550033'):(b.phase===1?'#553300':'#333300');
+  const coreColor=isFinal?'#ff4444':'#ffaa22';
+  const orbColor=isFinal?'#ff2200':'#ffcc00';
   ctx.save();
-  if(!b.isFinal){
-    // ── 중간보스: 해골기사 ──
-    ctx.shadowColor='#aacc44';ctx.shadowBlur=20;
-    ctx.fillStyle=b.phase===1?'#334400':'#223300';
-    ctx.beginPath();ctx.arc(b.x,b.y,38,0,Math.PI*2);ctx.fill();
-    ctx.shadowBlur=0;
-    ctx.fillStyle='#aabb44';ctx.beginPath();ctx.arc(b.x,b.y,20,0,Math.PI*2);ctx.fill();
-    // 방패 회전
-    for(let i=0;i<4;i++){const a=ang+(i/4)*Math.PI*2;
-      ctx.fillStyle='#88aa33';ctx.beginPath();ctx.arc(b.x+Math.cos(a)*28,b.y+Math.sin(a)*28,8,0,Math.PI*2);ctx.fill();}
-    ctx.fillStyle='#eeff88';ctx.font='bold 11px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-    ctx.fillText('⚠ 해골기사',b.x,b.y-46);
-  } else {
-    const st=currentStage;
-    if(st===1){
-      // ── S1 최종보스: 화염마 ──
-      ctx.shadowColor='#ff4400';ctx.shadowBlur=28;
-      ctx.fillStyle=b.phase===1?'#880000':'#550000';
-      ctx.beginPath();ctx.arc(b.x,b.y,42,0,Math.PI*2);ctx.fill();
-      ctx.shadowBlur=0;ctx.fillStyle='#ff4444';ctx.beginPath();ctx.arc(b.x,b.y,22,0,Math.PI*2);ctx.fill();
-      for(let i=0;i<8;i++){const a=ang+(i/8)*Math.PI*2;
-        ctx.fillStyle='hsl('+(20+i*5)+',100%,50%)';ctx.beginPath();ctx.arc(b.x+Math.cos(a)*32,b.y+Math.sin(a)*32,7,0,Math.PI*2);ctx.fill();}
-      ctx.fillStyle='#ffcc88';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-      ctx.fillText('\u2620 \ud654\uc5fc\ub9c8',b.x,b.y-50);
-    } else if(st===2){
-      // ── S2 최종보스: 독룡 ──
-      ctx.shadowColor='#44ff44';ctx.shadowBlur=28;
-      ctx.fillStyle=b.phase===1?'#004400':'#002200';
-      ctx.beginPath();ctx.arc(b.x,b.y,44,0,Math.PI*2);ctx.fill();
-      // 비늘
-      for(let i=0;i<12;i++){const a=(i/12)*Math.PI*2+ang*0.5;
-        ctx.fillStyle=i%2===0?'#22bb44':'#118833';ctx.beginPath();ctx.arc(b.x+Math.cos(a)*34,b.y+Math.sin(a)*34,6,0,Math.PI*2);ctx.fill();}
-      ctx.shadowBlur=0;ctx.fillStyle='#44ff88';ctx.beginPath();ctx.arc(b.x,b.y,20,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#aaffcc';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-      ctx.fillText('\u2620 \ub3c5\ub8a1',b.x,b.y-52);
-    } else {
-      // ── S3 최종보스: 마왕 ──
-      ctx.shadowColor='#ff00ff';ctx.shadowBlur=32;
-      ctx.fillStyle=b.phase===1?'#330033':'#220022';
-      ctx.beginPath();ctx.arc(b.x,b.y,46,0,Math.PI*2);ctx.fill();
-      // 마력 링 3중
-      for(let ring=0;ring<3;ring++){
-        ctx.strokeStyle='hsla('+(280+ring*30)+',100%,60%,'+(0.4+ring*0.2)+')';ctx.lineWidth=2;
-        ctx.beginPath();ctx.arc(b.x,b.y,20+ring*10,ang*(ring+1)*0.5,ang*(ring+1)*0.5+Math.PI*1.5);ctx.stroke();
-      }
-      ctx.shadowBlur=0;ctx.fillStyle='#ff44ff';ctx.beginPath();ctx.arc(b.x,b.y,22,0,Math.PI*2);ctx.fill();
-      for(let i=0;i<10;i++){const a=ang*2+(i/10)*Math.PI*2;
-        ctx.fillStyle='hsl('+(280+i*8)+',100%,60%)';ctx.beginPath();ctx.arc(b.x+Math.cos(a)*36,b.y+Math.sin(a)*36,6,0,Math.PI*2);ctx.fill();}
-      ctx.fillStyle='#ffaaff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-      ctx.fillText('\u2620 \ub9c8\uc655',b.x,b.y-54);
-    }
-  }
-  if(b.phase===2){
-    ctx.fillStyle='#ff4444';ctx.font='bold 8px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-    ctx.fillText('PHASE 2',b.x,b.y+60);
-  }
+  ctx.shadowColor=isFinal?'#ff2200':'#ff8800';ctx.shadowBlur=28;
+  ctx.fillStyle=baseColor;ctx.beginPath();ctx.arc(b.x,b.y,42,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;ctx.fillStyle=coreColor;ctx.beginPath();ctx.arc(b.x,b.y,24,0,Math.PI*2);ctx.fill();
+  const ang=b.ang||t;ctx.fillStyle=orbColor;
+  const orbCount=isFinal?8:6;
+  for(let i=0;i<orbCount;i++){const a=ang+(i/orbCount)*Math.PI*2;ctx.beginPath();ctx.arc(b.x+Math.cos(a)*33,b.y+Math.sin(a)*33,7,0,Math.PI*2);ctx.fill();}
+  ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText(isFinal?'☠ FINAL BOSS':'⚠ MID BOSS',b.x,b.y-48);
+  if(b.phase===2){ctx.fillStyle='#ff4444';ctx.font='bold 8px monospace';ctx.fillText('PHASE 2',b.x,b.y+58);}
   ctx.restore();
 }
 
@@ -1014,7 +859,7 @@ function tickRoom(code) {
   for (const e of room.enemies) {
     if (e.dead) continue;
     let near = null, md = Infinity;
-    for (const p of arr) { if (p.dead || p.paused) continue; const dx = p.x - e.x, dy = p.y - e.y, d = Math.sqrt(dx * dx + dy * dy); if (d < md) { md = d; near = p; } }
+    for (const p of arr) { if (p.dead) continue; const dx = p.x - e.x, dy = p.y - e.y, d = Math.sqrt(dx * dx + dy * dy); if (d < md) { md = d; near = p; } }
     if (!near) continue;
     const dx = near.x - e.x, dy = near.y - e.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
 
@@ -1033,56 +878,30 @@ function tickRoom(code) {
     } else {
       e.x += dx / d * e.spd * dt * 60; e.y += dy / d * e.spd * dt * 60;
     }
-    // contact damage — armor는 서버에서 반영
-    if (d < e.r + 14) {
-      const armor = near.armor || 0;
-      near.hp -= 0.35 * e.dmgMult * (1 - armor) * dt * 60;
-      if (near.hp <= 0) { near.hp = 0; near.dead = true; }
-    }
+    // contact damage
+    if (d < e.r + 14) { near.hp -= 0.35 * e.dmgMult * dt * 60; if (near.hp < 0) near.hp = 0; }
   }
 
   // Boss AI
   if (room.boss && !room.boss.dead) {
     const b = room.boss;
-    b.ang += dt * (b.isFinal ? 2.2 : 1.5);
+    b.ang += dt * 1.5;
     const halfHp = b.maxHp / 2;
     if (b.hp < halfHp && b.phase === 1) { b.phase = 2; bcastAll(room, { t: 'phase2' }); }
     let near = null, md = Infinity;
     for (const p of arr) { if (p.dead) continue; const dx = p.x - b.x, dy = p.y - b.y, d = Math.sqrt(dx * dx + dy * dy); if (d < md) { md = d; near = p; } }
     if (near) {
       const dx = near.x - b.x, dy = near.y - b.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-      // 최종보스: 스테이지마다 속도 증가, 페이즈2에서 더 빠름
-      const bspd = b.isFinal
-        ? (1.8 + (room.currentStage - 1) * 0.4) * (b.phase === 2 ? 1.5 : 1.0)
-        : 1.4;
+      const bspd = b.isFinal ? 1.8 : 1.4;
       b.x += dx / d * bspd * dt * 60; b.y += dy / d * bspd * dt * 60;
-      if (d < b.r + 14) {
-        const armor = near.armor || 0;
-        const dmg = b.isFinal
-          ? (1.2 + (room.currentStage - 1) * 0.3) * b.phase * (1 - armor)
-          : 0.7 * (1 - armor);
-        near.hp -= dmg * dt * 60;
-        if (near.hp <= 0) { near.hp = 0; near.dead = true; }
-      }
+      if (d < b.r + 14) { near.hp -= (b.isFinal ? 1.0 : 0.7) * dt * 60 * b.phase; if (near.hp < 0) near.hp = 0; }
     }
     room.patT = (room.patT || 0) + dt;
-    // 최종보스: 스테이지·페이즈마다 패턴 빈도 증가
-    const patInterval = b.isFinal
-      ? Math.max(0.6, 1.4 - (room.currentStage - 1) * 0.2 - (b.phase === 2 ? 0.4 : 0))
-      : (b.phase === 1 ? 2.0 : 1.4);
+    const patInterval = b.isFinal ? (b.phase === 1 ? 1.5 : 1.0) : (b.phase === 1 ? 2.0 : 1.4);
     if (room.patT > patInterval) {
       room.patT = 0;
-      const patCount = b.isFinal ? 5 : 3;
-      bcastAll(room, { t: 'pat', i: (room.patI || 0) % patCount, bx: b.x, by: b.y, ang: b.ang, phase: b.phase, stage: room.currentStage, isFinal: b.isFinal });
+      bcastAll(room, { t: 'pat', i: (room.patI || 0) % (b.phase === 1 ? 3 : 5), bx: b.x, by: b.y, ang: b.ang, phase: b.phase });
       room.patI = (room.patI || 0) + 1;
-    }
-    // 최종보스 페이즈2: 주기적으로 추가 전방위 탄막
-    if (b.isFinal && b.phase === 2) {
-      room.extraPatT = (room.extraPatT || 0) + dt;
-      if (room.extraPatT > 2.5) {
-        room.extraPatT = 0;
-        bcastAll(room, { t: 'pat', i: 1, bx: b.x, by: b.y, ang: b.ang + Math.PI / 4, phase: 2, stage: room.currentStage, isFinal: true });
-      }
     }
   }
 
@@ -1146,14 +965,9 @@ wss.on('connection', ws => {
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p) return;
       p.cls = msg.cls || 'warrior';
-      // 클래스별 초기 스탯을 서버에도 반영
-      const clsHp = { warrior: 150, gunner: 80, mage: 65, assassin: 85 };
-      const clsArmor = { warrior: 0.1, gunner: 0, mage: 0, assassin: 0 };
-      const initHp = clsHp[p.cls] || 100;
-      p.hp = initHp; p.maxHp = initHp;
-      p.armor = clsArmor[p.cls] || 0;
       room.readyCount = (room.readyCount || 0) + 1;
       if (room.readyCount >= room.players.size) {
+        // All ready — start game
         room.started = true; room.lastTick = Date.now();
         bcastAll(room, { t: 'allReady' });
         room.tick = setInterval(() => tickRoom(ws.roomCode), 50);
@@ -1208,39 +1022,16 @@ wss.on('connection', ws => {
           e.hp -= dmg;
           if (e.hp <= 0) {
             e.dead = true;
-            const sc = e.type === 'shield' ? 25 : e.type === 'fast' ? 15 : e.type === 'mage' ? 20 : 10;
-            // 경험치 공유: 방의 모든 살아있는 플레이어에게 분배
-            room.players.forEach((plr) => {
-              if (plr.dead) return;
-              plr.exp += Math.floor(sc / 2);
-              if (plr.exp >= plr.expNext) { plr.lv++; plr.exp -= plr.expNext; plr.expNext = Math.floor(plr.expNext * 1.4); plr.maxHp += 20; plr.hp = Math.min(plr.hp + 30, plr.maxHp); plr.lvUp = true; }
-            });
-            bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
+            const h = room.players.get(ws);
+            if (h) {
+              const sc = e.type === 'shield' ? 25 : e.type === 'fast' ? 15 : e.type === 'mage' ? 20 : 10;
+              h.exp += Math.floor(sc / 2);
+              if (h.exp >= h.expNext) { h.lv++; h.exp -= h.expNext; h.expNext = Math.floor(h.expNext * 1.4); h.maxHp += 20; h.hp = Math.min(h.hp + 30, h.maxHp); h.lvUp = true; }
+              bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
+            }
           }
         }
       }
-    }
-    else if (msg.t === 'pause') {
-      const room = rooms.get(ws.roomCode); if (!room) return;
-      const p = room.players.get(ws); if (!p) return;
-      p.paused = true;
-    }
-    else if (msg.t === 'resume') {
-      const room = rooms.get(ws.roomCode); if (!room) return;
-      const p = room.players.get(ws); if (!p) return;
-      p.paused = false;
-    }
-    else if (msg.t === 'projHit') {
-      const room = rooms.get(ws.roomCode); if (!room) return;
-      const p = room.players.get(ws); if (!p || p.dead) return;
-      const dmg = (msg.dmg || 0) * (1 - (p.armor || 0));
-      p.hp -= dmg;
-      if (p.hp <= 0) { p.hp = 0; p.dead = true; }
-    }
-    else if (msg.t === 'regen') {
-      const room = rooms.get(ws.roomCode); if (!room) return;
-      const p = room.players.get(ws); if (!p || p.dead) return;
-      p.hp = Math.min(p.hp + (msg.amount || 0), p.maxHp);
     }
     else if (msg.t === 'atk') {
       const room = rooms.get(ws.roomCode); if (!room) return;
