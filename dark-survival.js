@@ -3,7 +3,7 @@ var http=require('http');
 var ws=require('ws');
 var PORT=process.env.PORT||3000;
 
-var const HTML=`<!DOCTYPE html>
+var HTML=`<!DOCTYPE html>
 
 <html lang="ko">
 <head>
