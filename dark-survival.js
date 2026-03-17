@@ -306,8 +306,6 @@ function rollTraits(){
 
 function showTraitSelect(){
   if(!running)return;
-  running=false;
-  send({t:'pause'}); // 서버에 pause 알림 → 몬스터 공격 중단
   const traits=rollTraits();
   const cards=document.getElementById('traitCards');
   cards.innerHTML='';
@@ -322,8 +320,6 @@ function showTraitSelect(){
 
 function pickTrait(tr){
   document.getElementById('lvlUpScreen').style.display='none';
-  running=true;
-  send({t:'resume'}); // 서버에 resume 알림
   myTraits.push(tr.id);
   applyTrait(tr.id);
   updateTraitList();
@@ -417,21 +413,16 @@ function handleMsg(msg){
     myId=msg.id;isHost=true;
     document.getElementById('codeDisplay').textContent=msg.code;
     document.getElementById('joinRow').style.display='none';
-    document.getElementById('nameInp').style.display='none';
-    document.querySelector('#lobbyScreen .sub').style.display='none';
-    // waitRoom 바깥의 버튼만 숨기기 (방 만들기, 입장하기)
-    document.querySelectorAll('#lobbyScreen > div:not(#waitRoom) .btn, #lobbyScreen > .btn').forEach(el=>el.style.display='none');
     document.getElementById('waitRoom').style.display='flex';
+    document.querySelectorAll('#lobbyScreen .btn,#lobbyScreen input.inp,#lobbyScreen .sub').forEach(el=>el.style.display='none');
   }
   else if(msg.t==='joined'){
     myId=msg.id;
     document.getElementById('codeDisplay').textContent=msg.code;
     document.getElementById('joinRow').style.display='none';
-    document.getElementById('nameInp').style.display='none';
-    document.querySelector('#lobbyScreen .sub').style.display='none';
-    document.querySelectorAll('#lobbyScreen > div:not(#waitRoom) .btn, #lobbyScreen > .btn').forEach(el=>el.style.display='none');
     document.getElementById('startBtn').style.display='none';
     document.getElementById('waitRoom').style.display='flex';
+    document.querySelectorAll('#lobbyScreen .btn,#lobbyScreen input.inp,#lobbyScreen .sub').forEach(el=>el.style.display='none');
   }
   else if(msg.t==='lobby'){document.getElementById('playerListEl').innerHTML='참가자: '+msg.players.map(p=>'<b>'+p.name+'</b>').join(', ');}
   else if(msg.t==='err'){showErr(msg.msg);}
@@ -1148,7 +1139,7 @@ function tickRoom(code) {
   for (const e of room.enemies) {
     if (e.dead) continue;
     let near = null, md = Infinity;
-    for (const p of arr) { if (p.dead || p.paused) continue; const dx = p.x - e.x, dy = p.y - e.y, d = Math.sqrt(dx * dx + dy * dy); if (d < md) { md = d; near = p; } }
+    for (const p of arr) { if (p.dead) continue; const dx = p.x - e.x, dy = p.y - e.y, d = Math.sqrt(dx * dx + dy * dy); if (d < md) { md = d; near = p; } }
     if (!near) continue;
     const dx = near.x - e.x, dy = near.y - e.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
 
@@ -1350,26 +1341,16 @@ wss.on('connection', ws => {
           if (e.hp <= 0) {
             e.dead = true;
             const sc = e.type === 'shield' ? 25 : e.type === 'fast' ? 15 : e.type === 'mage' ? 20 : 10;
-            // 경험치 공유: 방의 모든 살아있는 플레이어에게 분배
-            room.players.forEach((plr) => {
-              if (plr.dead) return;
-              plr.exp += Math.floor(sc / 2);
-              if (plr.exp >= plr.expNext) { plr.lv++; plr.exp -= plr.expNext; plr.expNext = Math.floor(plr.expNext * 1.4); plr.maxHp += 20; plr.hp = Math.min(plr.hp + 30, plr.maxHp); plr.lvUp = true; }
-            });
+            // 처치한 플레이어만 경험치 획득
+            const killer = room.players.get(ws);
+            if (killer && !killer.dead) {
+              killer.exp += sc;
+              if (killer.exp >= killer.expNext) { killer.lv++; killer.exp -= killer.expNext; killer.expNext = Math.floor(killer.expNext * 1.4); killer.maxHp += 20; killer.hp = Math.min(killer.hp + 30, killer.maxHp); killer.lvUp = true; }
+            }
             bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
           }
         }
       }
-    }
-    else if (msg.t === 'pause') {
-      const room = rooms.get(ws.roomCode); if (!room) return;
-      const p = room.players.get(ws); if (!p) return;
-      p.paused = true;
-    }
-    else if (msg.t === 'resume') {
-      const room = rooms.get(ws.roomCode); if (!room) return;
-      const p = room.players.get(ws); if (!p) return;
-      p.paused = false;
     }
     else if (msg.t === 'projHit') {
       const room = rooms.get(ws.roomCode); if (!room) return;
