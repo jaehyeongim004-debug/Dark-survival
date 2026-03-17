@@ -227,19 +227,19 @@ function doStart(){send({t:'start'});}
 // ── Classes ──────────────────────────────────────────────────
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',
-    stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.3,multishot:0,magnetRange:1,armor:0.1,crit:false},
+    stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.3,multishot:0,magnetRange:1,armor:0.1,crit:false,critRate:0,expMult:1},
     weapon:{name:'검',type:'sword',baseDmg:70,baseCd:650,baseRange:140,color:'#66ccff'}
   },
   gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
-    stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
+    stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
     weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:900,baseRange:500,color:'#ffee44',spd:15}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
-    stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
+    stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
     weapon:{name:'마법',type:'magic',baseDmg:55,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}
   },
   assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',
-    stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0,multishot:0,magnetRange:1,armor:0,crit:true},
+    stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0,multishot:0,magnetRange:1,armor:0,crit:true,critRate:30,expMult:1},
     weapon:{name:'단검',type:'dagger',baseDmg:28,baseCd:280,baseRange:85,color:'#ff88aa',spd:12}
   }
 };
@@ -271,28 +271,77 @@ function doReady(){
 
 // ── Traits ─────────────────────────────────────────────────
 const ALL_TRAITS=[
-  {id:'hp',icon:'❤',name:'강철 체력',desc:'최대 HP +40, 즉시 회복'},
-  {id:'spd',icon:'💨',name:'질풍',desc:'이동속도 +20%'},
-  {id:'dmg',icon:'⚔',name:'살육자',desc:'모든 무기 데미지 +25%'},
-  {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +20%'},
-  {id:'range',icon:'🎯',name:'저격수',desc:'사거리 +30%'},
-  {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP 0.5 회복'},
-  {id:'multishot',icon:'🔱',name:'다중사격',desc:'발사체 +1 (원거리: 동시, 근접: 연속)'},
-  {id:'magnet',icon:'🧲',name:'자석',desc:'경험치 흡수 범위 3배'},
-  {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -20%'},
-  {id:'crit',icon:'💥',name:'치명타',desc:'30% 확률로 2배 데미지'},
+  {id:'hp',icon:'❤',name:'강철 체력',desc:'최대 HP +{value}, 즉시 회복',min:5,max:40},
+  {id:'spd',icon:'💨',name:'질풍',desc:'이동속도 +{value}%',min:3,max:10},
+  {id:'dmg',icon:'⚔',name:'살육자',desc:'모든 무기 데미지 +{value}%',min:3,max:10},
+  {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +{value}%',min:3,max:10},
+  {id:'range',icon:'🎯',name:'저격수',desc:'사거리 +{value}%',min:5,max:20},
+  {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP {value} 회복',min:0.1,max:1},
+  {id:'multishot',icon:'🔱',name:'다중사격',desc:'발사체 +1 (원거리: 동시, 근접: 연속, 마법: 산탄)'},
+  {id:'magnet',icon:'📘',name:'수학의 정석',desc:'받는 경험치 +{value}%',min:5,max:10},
+  {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -{value}%',min:2,max:5},
+  {id:'crit',icon:'💥',name:'치명타',desc:'치명타율 +{value}%',min:3,max:10},
   {id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 향상'},
 ];
 
 function rollTraits(){
   const pool=[...ALL_TRAITS];
+  
   // weapon 특성은 3회까지만 가능
+  let weaponTrait = null;
   const weaponIdx = pool.findIndex(t=>t.id==='weapon');
-  if(weaponUpgradeLevel>=3 && weaponIdx !== -1) {
-    pool.splice(weaponIdx, 1);
+  if(weaponIdx !== -1) {
+    if(weaponUpgradeLevel >= 3) {
+      pool.splice(weaponIdx, 1);
+    } else {
+      // 무기 강화 특성을 별도로 분리 (1/10 확률)
+      weaponTrait = pool.splice(weaponIdx, 1)[0];
+    }
   }
+  
+  // armor가 80% 이상이면 제외
+  const armorIdx = pool.findIndex(t=>t.id==='armor');
+  if(armorIdx !== -1 && myStats.armor >= 0.8) {
+    pool.splice(armorIdx, 1);
+  }
+  
+  // crit가 100% 이상이면 제외
+  const critIdx = pool.findIndex(t=>t.id==='crit');
+  if(critIdx !== -1 && myStats.critRate >= 100) {
+    pool.splice(critIdx, 1);
+  }
+  
   const result=[];
-  while(result.length<3&&pool.length>0){const i=Math.floor(Math.random()*pool.length);result.push(pool.splice(i,1)[0]);}
+  while(result.length<3&&(pool.length>0||weaponTrait)){
+    // 10% 확률로 무기 강화 시도
+    if(weaponTrait && !result.includes(weaponTrait) && Math.random() < 0.1){
+      const trait = {...weaponTrait};
+      result.push(trait);
+      weaponTrait = null; // 한 번 선택되면 제거
+    } else if(pool.length > 0) {
+      const i=Math.floor(Math.random()*pool.length);
+      const trait = pool.splice(i,1)[0];
+      
+      // 랜덤 수치 생성
+      if(trait.min !== undefined && trait.max !== undefined) {
+        if(trait.id === 'regen') {
+          trait.value = Math.round((trait.min + Math.random() * (trait.max - trait.min)) * 10) / 10;
+        } else {
+          trait.value = Math.floor(trait.min + Math.random() * (trait.max - trait.min + 1));
+        }
+      }
+      
+      result.push(trait);
+    } else {
+      break;
+    }
+  }
+  
+  // 3개가 안 채워졌고 무기 강화가 남아있으면 추가
+  if(result.length < 3 && weaponTrait && !result.includes(weaponTrait)){
+    result.push(weaponTrait);
+  }
+  
   return result;
 }
 
@@ -305,6 +354,12 @@ function showTraitSelect(){
   for(const tr of traits){
     const div=document.createElement('div');div.className='traitCard';
     let desc=tr.desc;
+    
+    // 수치가 있으면 치환
+    if(tr.value !== undefined) {
+      desc = desc.replace('{value}', tr.value);
+    }
+    
     if(tr.id==='weapon'){
       if(weaponUpgradeLevel===0)desc='무기 능력치 강화';
       else if(weaponUpgradeLevel===1)desc='속성 부여 (화염/독/냉기)';
@@ -321,34 +376,57 @@ function pickTrait(tr){
   document.getElementById('lvlUpScreen').style.display='none';
   running=true;
   myTraits.push(tr.id);
-  applyTrait(tr.id);
+  applyTrait(tr.id, tr.value);
   updateTraitList();
   // 서버에 특성 선택 알림
-  send({t:'traitPicked',trait:tr.id});
+  send({t:'traitPicked',trait:tr.id,value:tr.value});
 }
 
-function applyTrait(id){
+function applyTrait(id, value){
   const s=myStats;
   if(id==='hp'){
-    s.maxHp+=40;
-    s.hp=Math.min(s.hp+40,s.maxHp);
+    const hpInc = value || 40;
+    s.maxHp += hpInc;
+    s.hp = Math.min(s.hp + hpInc, s.maxHp);
     send({t:'updateMaxHp',maxHp:s.maxHp,hp:s.hp});
   }
-  else if(id==='spd')s.spd*=1.2;
-  else if(id==='dmg')s.dmgMult*=1.25;
-  else if(id==='cd')s.cdMult*=0.8;
-  else if(id==='range')s.rangeMult*=1.3;
+  else if(id==='spd'){
+    const spdInc = (value || 20) / 100;
+    s.spd *= (1 + spdInc);
+  }
+  else if(id==='dmg'){
+    const dmgInc = (value || 25) / 100;
+    s.dmgMult *= (1 + dmgInc);
+  }
+  else if(id==='cd'){
+    const cdInc = (value || 20) / 100;
+    s.cdMult *= (1 - cdInc);
+  }
+  else if(id==='range'){
+    const rangeInc = (value || 30) / 100;
+    s.rangeMult *= (1 + rangeInc);
+  }
   else if(id==='regen'){
-    s.regen+=0.5;
+    const regenInc = value || 0.5;
+    s.regen += regenInc;
     send({t:'updateRegen',regen:s.regen});
   }
   else if(id==='multishot')s.multishot+=1;
-  else if(id==='magnet')s.magnetRange*=3;
+  else if(id==='magnet'){
+    const expInc = (value || 10) / 100;
+    s.expMult *= (1 + expInc);
+    send({t:'updateExpMult',expMult:s.expMult});
+  }
   else if(id==='armor'){
-    s.armor=Math.min(s.armor+0.2,0.6);
+    const armorInc = (value || 20) / 100;
+    s.armor = Math.min(s.armor + armorInc, 0.8);
     send({t:'updateArmor',armor:s.armor});
   }
-  else if(id==='crit')s.crit=true;
+  else if(id==='crit'){
+    const critInc = value || 30;
+    s.critRate += critInc;
+    if(s.critRate > 0) s.crit = true;
+  }
   else if(id==='weapon'){
     weaponUpgradeLevel++;
     if(weaponUpgradeLevel===1){
@@ -398,13 +476,13 @@ function updateTraitList(){
 // ── Weapon helper ──────────────────────────────────────────
 function getW(){
   const w=myWeapon,s=myStats;
-  const critHit=s.crit&&Math.random()<0.3;
+  const critHit=s.crit&&Math.random()<(s.critRate/100);
   return{
     ...w,
     dmg:w.baseDmg*s.dmgMult*(critHit?2:1),
     cd:w.baseCd*s.cdMult,
     range:w.baseRange*s.rangeMult,
-    count:1+(w.type!=='magic'?s.multishot:0), // 근접도 multishot 적용
+    count:1+(w.type!=='magic'?s.multishot:0), // 마법도 multishot 적용
     crit:critHit
   };
 }
@@ -430,7 +508,32 @@ function handleMsg(msg){
   else if(msg.t==='start'){/* game loop starts after allReady */}
   else if(msg.t==='state'){applyState(msg);}
   else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);}
-  else if(msg.t==='midBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);}
+  else if(msg.t==='midBossDead'){
+    bossAlive=false;
+    document.getElementById('bossBar').style.display='none';
+    showPop('중간 보스 처치!',3000);
+    // 무기 강화 특성 부여
+    if(weaponUpgradeLevel < 3) {
+      setTimeout(() => {
+        running = false;
+        const weaponTrait = {id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 향상'};
+        const cards = document.getElementById('traitCards');
+        cards.innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'traitCard';
+        let desc = weaponTrait.desc;
+        if(weaponUpgradeLevel===0) desc='무기 능력치 강화';
+        else if(weaponUpgradeLevel===1) desc='속성 부여 (화염/독/냉기)';
+        else if(weaponUpgradeLevel===2) desc='속성 2배 강화 + 이펙트';
+        div.innerHTML='<div class="traitIcon">'+weaponTrait.icon+'</div><div class="traitName">'+weaponTrait.name+'</div><div class="traitDesc">'+desc+'</div>';
+        div.onclick=()=>pickTrait(weaponTrait);
+        cards.appendChild(div);
+        document.getElementById('lvlUpTitle').textContent='보스 보상!';
+        document.getElementById('lvlUpSub').textContent='무기가 강화됩니다';
+        document.getElementById('lvlUpScreen').style.display='flex';
+      }, 1000);
+    }
+  }
   else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
@@ -445,6 +548,7 @@ function handleMsg(msg){
   else if(msg.t==='fireZone'){fireZones.push({x:msg.x,y:msg.y,dmg:msg.dmg,life:2000,maxLife:2000});}
   else if(msg.t==='turrets'){turrets=msg.turrets||[];}
   else if(msg.t==='turretHp'){const t=turrets.find(tt=>tt.id===msg.id);if(t)t.hp=msg.hp;}
+  else if(msg.t==='weaponUpgrade'){showPop(msg.msg,3000);}
 }
 
 function showClassScreen(){
@@ -573,13 +677,13 @@ function tryShoot(){
       setTimeout(()=>{
         if(!myPlayer||myPlayer.dead)return;
         doMelee(ang,w);
-      }, i*50); // 50ms 간격으로 연속 공격
+      }, i*25); // 25ms 간격으로 연속 공격
     }
     return;
   }
   
   if(w.type==='magic'){
-    const multishotCount=myStats.multishot;
+    const multishotCount=w.count - 1; // count에 이미 1 + multishot 포함
     if(multishotCount>0){
       // 중앙탄 + 양옆 탄환
       projs.push({
@@ -919,7 +1023,7 @@ function drawEnemies(){
     // Status icons
     let statusX=e.x+r+2;
     if(e.poison&&e.poison>0){ctx.font='8px serif';ctx.fillStyle='#44ff44';ctx.fillText(STATUS_ICONS.poison,statusX,e.y-r);statusX+=10;}
-    if(e.ice){ctx.font='8px serif';ctx.fillStyle='#44ddff';ctx.fillText(STATUS_ICONS.ice,statusX,e.y-r);statusX+=10;}
+    if(e.iceEnd && e.iceEnd > performance.now()){ctx.font='8px serif';ctx.fillStyle='#44ddff';ctx.fillText(STATUS_ICONS.ice,statusX,e.y-r);statusX+=10;}
     if(e.atkSlow){ctx.font='8px serif';ctx.fillStyle='#ffaa44';ctx.fillText(STATUS_ICONS.atkSlow,statusX,e.y-r);}
     if(E_ICONS[e.type]){ctx.font='8px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(E_ICONS[e.type],e.x,e.y+r+6);}
     ctx.restore();
@@ -942,6 +1046,10 @@ function drawBoss(){
   ctx.fillStyle='#fff';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
   ctx.fillText(isFinal?'☠ FINAL BOSS':'⚠ MID BOSS',b.x,b.y-48);
   if(b.phase===2){ctx.fillStyle='#ff4444';ctx.font='bold 8px monospace';ctx.fillText('PHASE 2',b.x,b.y+58);}
+  // 냉기 상태 표시
+  if(b.iceEnd && b.iceEnd > performance.now()){
+    ctx.fillStyle='#44ddff';ctx.font='12px serif';ctx.fillText('❄',b.x+50,b.y-48);
+  }
   ctx.restore();
 }
 
@@ -1160,7 +1268,8 @@ function spawnBoss(room, isFinal) {
     ang: 0, phase: 1, isFinal: isF,
     playerCount: playerCount,
     lastHeavy: 0,
-    lastHpThreshold: 100 // 보스 HP 비율 추적용
+    lastHpThreshold: 100, // 보스 HP 비율 추적용
+    armor: isF ? 0.6 : 0.4 // 중간보스 40%, 최종보스 60%
   };
   room.enemies = [];
   
@@ -1236,6 +1345,11 @@ function tickRoom(code) {
       if (e.hp <= 1) e.hp = 1;
     }
     
+    // Ice effect check (3초 지속)
+    const isIced = e.iceEnd && e.iceEnd > now;
+    const spdMult = isIced ? 0.85 : 1; // 15% 이속 감소
+    const dmgMult = isIced ? 0.85 : 1; // 15% 공격력 감소
+    
     let near = null, md = Infinity;
     for (const p of arr) { 
       if (p.dead) continue; 
@@ -1244,14 +1358,12 @@ function tickRoom(code) {
     }
     if (!near) continue;
     const dx = near.x - e.x, dy = near.y - e.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-    
-    const spdMult = e.ice ? 0.7 : 1;
 
     if (e.type === 'ranged') {
       if (d > 180) { e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60; }
       else if (d < 120) { e.x -= dx / d * e.spd * spdMult * dt * 60; e.y -= dy / d * e.spd * spdMult * dt * 60; }
       e.lastShot += dt;
-      const shootCd = e.atkSlow ? 3.3 : 2.2;
+      const shootCd = (e.atkSlow ? 3.3 : 2.2) * (isIced ? 1.176 : 1); // 15% 공속 감소
       if (e.lastShot > shootCd) { 
         e.lastShot = 0; 
         bcastAll(room, { t: 'pat', i: -1, bx: e.x, by: e.y, ang: Math.atan2(dy, dx), phase: 0, etype: 'ranged' }); 
@@ -1260,7 +1372,7 @@ function tickRoom(code) {
       if (d > 220) { e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60; }
       else if (d < 160) { e.x -= dx / d * e.spd * 0.8 * spdMult * dt * 60; e.y -= dy / d * e.spd * 0.8 * spdMult * dt * 60; }
       e.lastShot += dt;
-      const shootCd = e.atkSlow ? 4.2 : 2.8;
+      const shootCd = (e.atkSlow ? 4.2 : 2.8) * (isIced ? 1.176 : 1); // 15% 공속 감소
       if (e.lastShot > shootCd) { 
         e.lastShot = 0; 
         bcastAll(room, { t: 'pat', i: -1, bx: e.x, by: e.y, ang: Math.atan2(dy, dx), phase: 0, etype: 'mage' }); 
@@ -1269,7 +1381,6 @@ function tickRoom(code) {
       e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60;
     }
     
-    const dmgMult = e.ice ? 0.7 : 1;
     if (d < e.r + 14) { 
       const finalDmg = 0.35 * e.dmgMult * dmgMult * dt * 60;
       const actualDmg = finalDmg * (1 - (near.armor || 0));
@@ -1304,6 +1415,11 @@ function tickRoom(code) {
       b.hp = Math.min(b.hp + b.maxHp * 0.05 * dt, b.maxHp);
     }
     
+    // 냉기 효과 체크
+    const isIced = b.iceEnd && b.iceEnd > now;
+    const bossSpdMult = isIced ? 0.85 : 1; // 15% 이속 감소
+    const bossDmgMult = isIced ? 0.85 : 1; // 15% 공격력 감소
+    
     let near = null, md = Infinity;
     for (const p of arr) { 
       if (p.dead) continue; 
@@ -1312,11 +1428,11 @@ function tickRoom(code) {
     }
     if (near) {
       const dx = near.x - b.x, dy = near.y - b.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-      const bspd = b.isFinal ? 2.0 : 1.6;
+      const bspd = (b.isFinal ? 2.0 : 1.6) * bossSpdMult;
       b.x += dx / d * bspd * dt * 60; b.y += dy / d * bspd * dt * 60;
       const contactDmg = b.isFinal ? (b.phase === 1 ? 0.4 : 0.6) : (b.phase === 1 ? 0.3 : 0.45);
       if (d < b.r + 14) { 
-        const finalDmg = contactDmg * dt * 60;
+        const finalDmg = contactDmg * bossDmgMult * dt * 60;
         const actualDmg = finalDmg * (1 - (near.armor || 0));
         near.hp -= actualDmg;
         if (near.hp <= 0) {
@@ -1327,14 +1443,15 @@ function tickRoom(code) {
       
       // Heavy projectile
       b.lastHeavy = (b.lastHeavy || 0) + dt;
-      if (b.lastHeavy > 4) {
+      const heavyCd = isIced ? 4.7 : 4; // 냉기 시 공속 감소
+      if (b.lastHeavy > heavyCd) {
         b.lastHeavy = 0;
         bcastAll(room, { t: 'pat', i: -2, bx: b.x, by: b.y, ang: Math.atan2(dy, dx), phase: b.phase });
       }
     }
     
     room.patT = (room.patT || 0) + dt;
-    const patInterval = b.isFinal ? (b.phase === 1 ? 1.3 : 0.9) : (b.phase === 1 ? 1.8 : 1.3);
+    const patInterval = (b.isFinal ? (b.phase === 1 ? 1.3 : 0.9) : (b.phase === 1 ? 1.8 : 1.3)) * (isIced ? 1.176 : 1); // 냉기 시 패턴 간격 증가
     if (room.patT > patInterval) {
       room.patT = 0;
       bcastAll(room, { t: 'pat', i: (room.patI || 0) % (b.phase === 1 ? 3 : 5), bx: b.x, by: b.y, ang: b.ang, phase: b.phase });
@@ -1348,7 +1465,7 @@ function tickRoom(code) {
     const ps = [];
     room.players.forEach(p => ps.push({ 
       id: p.id, x: Math.round(p.x), y: Math.round(p.y), hp: p.hp, maxHp: p.maxHp, 
-      lv: p.lv, dead: p.dead, name: p.name, exp: p.exp, expNext: p.expNext, lvUp: p.lvUp, cls: p.cls 
+      lv: p.lv, dead: p.dead, name: p.name, exp: p.exp, expNext: p.expNext, lvUp: p.lvUp, cls: p.cls, dmgBonus: p.dmgBonus || 1
     }));
     room.players.forEach(p => { if (p.lvUp) p.lvUp = false; });
     bcastAll(room, {
@@ -1356,11 +1473,12 @@ function tickRoom(code) {
       enemies: room.enemies.filter(e => !e.dead).map(e => ({ 
         id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
         maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
-        poison: e.poison, ice: e.ice, atkSlow: e.atkSlow
+        poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
       })),
       boss: room.boss && !room.boss.dead ? { 
         x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp, 
-        maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal 
+        maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal,
+        iceEnd: room.boss.iceEnd
       } : null,
       turrets: room.turrets ? room.turrets.filter(t => t.hp > 0).map(t => ({
         id: t.id, x: t.x, y: t.y, hp: t.hp, maxHp: t.maxHp, r: t.r, isTurret: true
@@ -1396,7 +1514,7 @@ wss.on('connection', ws => {
       ws.roomCode = code;
       rooms.get(code).players.set(ws, { 
         id: ws.pid, x: 0, y: 0, hp: 100, maxHp: 100, lv: 1, exp: 0, expNext: 50, 
-        dead: false, name: msg.name || 'Player', lvUp: false, cls: null, regen: 0, armor: 0
+        dead: false, name: msg.name || 'Player', lvUp: false, cls: null, regen: 0, armor: 0, expMult: 1, critRate: 0, dmgBonus: 1
       });
       ws.send(JSON.stringify({ t: 'created', code, id: ws.pid }));
       bcastAll(rooms.get(code), { t: 'lobby', players: [...rooms.get(code).players.values()].map(p => ({ id: p.id, name: p.name })) });
@@ -1409,7 +1527,7 @@ wss.on('connection', ws => {
       const idx = room.players.size, sp = [{ x: 0, y: 0 }, { x: 60, y: -40 }, { x: -60, y: 40 }, { x: 40, y: 60 }][idx % 4];
       room.players.set(ws, { 
         id: ws.pid, x: sp.x, y: sp.y, hp: 100, maxHp: 100, lv: 1, exp: 0, expNext: 50, 
-        dead: false, name: msg.name || ('P' + (idx + 1)), lvUp: false, cls: null, regen: 0, armor: 0
+        dead: false, name: msg.name || ('P' + (idx + 1)), lvUp: false, cls: null, regen: 0, armor: 0, expMult: 1, critRate: 0, dmgBonus: 1
       });
       ws.send(JSON.stringify({ t: 'joined', code, id: ws.pid }));
       bcastAll(room, { t: 'lobby', players: [...room.players.values()].map(p => ({ id: p.id, name: p.name })) });
@@ -1425,16 +1543,18 @@ wss.on('connection', ws => {
       
       // 직업별 초기 스탯 설정
       const CLASSES = {
-        warrior: { hp: 150, maxHp: 150, regen: 0.3, armor: 0.1 },
-        gunner: { hp: 80, maxHp: 80, regen: 0, armor: 0 },
-        mage: { hp: 65, maxHp: 65, regen: 0, armor: 0 },
-        assassin: { hp: 85, maxHp: 85, regen: 0, armor: 0 }
+        warrior: { hp: 150, maxHp: 150, regen: 0.3, armor: 0.1, critRate: 0, expMult: 1 },
+        gunner: { hp: 80, maxHp: 80, regen: 0, armor: 0, critRate: 0, expMult: 1 },
+        mage: { hp: 65, maxHp: 65, regen: 0, armor: 0, critRate: 0, expMult: 1 },
+        assassin: { hp: 85, maxHp: 85, regen: 0, armor: 0, critRate: 30, expMult: 1 }
       };
       const cls = CLASSES[p.cls] || CLASSES.warrior;
       p.hp = cls.hp;
       p.maxHp = cls.maxHp;
       p.regen = cls.regen;
       p.armor = cls.armor;
+      p.critRate = cls.critRate;
+      p.expMult = cls.expMult;
       
       room.readyCount = (room.readyCount || 0) + 1;
       if (room.readyCount >= room.players.size) {
@@ -1474,6 +1594,11 @@ wss.on('connection', ws => {
       const p = room.players.get(ws); if (!p) return;
       p.armor = msg.armor;
     }
+    else if (msg.t === 'updateExpMult') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p) return;
+      p.expMult = msg.expMult;
+    }
     else if (msg.t === 'hit') {
       const room = rooms.get(ws.roomCode); if (!room) return;
       const element = msg.element;
@@ -1481,12 +1606,33 @@ wss.on('connection', ws => {
       
       if (msg.target === 'boss') {
         if (room.boss && !room.boss.dead) {
-          room.boss.hp -= msg.dmg;
+          let finalDmg = msg.dmg;
+          
+          // 냉기 속성 피해 감소
+          if (msg.element === 'ice') {
+            const reduction = room.boss.isFinal ? 0.6 : 0.4; // 최종보스 60%, 중간보스 40%
+            finalDmg *= (1 - reduction);
+            // 냉기 상태 적용 (3초)
+            if (tier >= 2) {
+              room.boss.iceEnd = Date.now() + 3000;
+            }
+          }
+          
+          // 보스 방어력 적용 (중간보스 40%, 최종보스 60%)
+          const actualDmg = finalDmg * (1 - (room.boss.armor || 0));
+          room.boss.hp -= actualDmg;
           if (room.boss.hp <= 0) {
             room.boss.dead = true;
             const isFinal = room.boss.isFinal;
             if (isFinal) {
+              // 무기 강화: 모든 플레이어 데미지 25% 증가
+              room.players.forEach(p => {
+                if (!p.dmgBonus) p.dmgBonus = 1;
+                p.dmgBonus *= 1.25;
+              });
+              
               if (room.currentStage < 3) {
+                bcastAll(room, { t: 'weaponUpgrade', msg: '최종 보스 처치! 모든 플레이어의 무기가 대폭 강화되었습니다! (+25% 데미지)' });
                 bcastAll(room, { t: 'stageClear', stage: room.currentStage, next: room.currentStage + 1 });
                 setTimeout(() => {
                   room.currentStage++;
@@ -1497,6 +1643,7 @@ wss.on('connection', ws => {
                   bcastAll(room, { t: 'stageStart', stage: room.currentStage });
                 }, 5500);
               } else {
+                bcastAll(room, { t: 'weaponUpgrade', msg: '최종 보스 처치! 승리!' });
                 bcastAll(room, { t: 'over', win: true });
                 clearInterval(room.tick); rooms.delete(ws.roomCode);
               }
@@ -1505,6 +1652,12 @@ wss.on('connection', ws => {
               room.boss = null;
               bcastAll(room, { t: 'midBossDead' });
               bcastAll(room, { t: 'bossHp', hp: 0 });
+              // 무기 강화: 모든 플레이어 데미지 15% 증가
+              room.players.forEach(p => {
+                if (!p.dmgBonus) p.dmgBonus = 1;
+                p.dmgBonus *= 1.15;
+              });
+              bcastAll(room, { t: 'weaponUpgrade', msg: '중간 보스 처치! 모든 플레이어의 무기가 강화되었습니다! (+15% 데미지)' });
             }
           } else {
             bcastAll(room, { t: 'bossHp', hp: room.boss.hp });
@@ -1539,8 +1692,8 @@ wss.on('connection', ws => {
           if (element === 'poison' && tier >= 2) {
             e.poison = Math.min(e.poison + 1, 5);
           } else if (element === 'ice' && tier >= 2) {
-            e.ice = true;
-            e.atkSlow = true;
+            e.iceEnd = Date.now() + 3000; // 3초 지속
+            e.iceSlow = 0.15; // 15% 감소
           }
           
           e.hp -= dmg;
@@ -1549,7 +1702,8 @@ wss.on('connection', ws => {
             const h = room.players.get(ws);
             if (h) {
               const sc = e.type === 'shield' ? 25 : e.type === 'fast' ? 15 : e.type === 'mage' ? 20 : 10;
-              h.exp += Math.floor(sc / 2);
+              const expGain = Math.floor(sc / 2 * (h.expMult || 1));
+              h.exp += expGain;
               if (h.exp >= h.expNext) { 
                 h.lv++; 
                 h.exp -= h.expNext; 
