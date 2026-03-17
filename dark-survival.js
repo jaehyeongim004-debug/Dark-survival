@@ -1,4 +1,4 @@
-// dark-survival-updated.js — node dark-survival-updated.js
+// dark-survival-final.js — node dark-survival-final.js
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
@@ -95,6 +95,7 @@ input.inp:focus{border-color:#ffcc00;}
 #traitList span{color:#88aacc;}
 #classTag{position:absolute;top:48px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #classTag span{color:#ffcc00;}
+#weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 </style>
 </head>
 <body>
@@ -106,7 +107,7 @@ input.inp:focus{border-color:#ffcc00;}
         <div style="display:flex;gap:6px;align-items:center;">
           <span style="font-size:9px;color:#aa3333;">HP</span>
           <div class="barOuter"><div id="hpFill" style="width:100%"></div></div>
-          <span id="hpTxt" style="font-size:10px;color:#cc4444;">100</span>
+          <span id="hpTxt" style="font-size:10px;color:#cc4444;">100/100</span>
         </div>
         <div class="barOuter2"><div id="expFill" style="width:0%"></div></div>
         <div class="hs">Lv.<span id="lvTxt">1</span>&nbsp;<span id="killTxt" style="color:#ff8844;">0</span> kills</div>
@@ -118,12 +119,13 @@ input.inp:focus{border-color:#ffcc00;}
       </div>
       <div class="hudR">Wave <span id="waveTxt">1</span><br>Score <span id="scoreTxt">0</span></div>
     </div>
-    <div id="bossBar"><div id="bossLbl" id="bossLblEl">⚠ BOSS ⚠</div><div id="bossWrap"><div id="bossFill" style="width:100%"></div></div></div>
+    <div id="bossBar"><div id="bossLbl">⚠ BOSS ⚠</div><div id="bossWrap"><div id="bossFill" style="width:100%"></div></div></div>
   </div>
   <div id="killFeed"></div>
   <div id="msgPop"></div>
   <div id="traitList"></div>
   <div id="classTag"></div>
+  <div id="weaponElement"></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="atkBtn">⚔</div>
 
@@ -163,9 +165,9 @@ input.inp:focus{border-color:#ffcc00;}
       <div class="classCard" onclick="pickClass('gunner')">
         <div class="classIcon">🔫</div>
         <div class="classInfo">
-          <div class="className">총사</div>
-          <div class="classDesc">빠른 연사로 원거리 적을 제압합니다.<br>높은 공격속도와 긴 사거리.</div>
-          <div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●○○ &nbsp; 속도: ●●●●○</div>
+          <div class="className">저격수</div>
+          <div class="classDesc">강력한 저격으로 원거리 적을 제압합니다.<br>높은 데미지와 긴 사거리.</div>
+          <div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●●○○</div>
         </div>
       </div>
       <div class="classCard" onclick="pickClass('mage')">
@@ -228,9 +230,9 @@ const CLASSES={
     stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.3,multishot:0,magnetRange:1,armor:0.1,crit:false},
     weapon:{name:'검',type:'sword',baseDmg:50,baseCd:480,baseRange:140,color:'#66ccff'}
   },
-  gunner:{name:'총사',icon:'🔫',color:'#ffee44',
-    stats:{hp:80,maxHp:80,spd:3.4,dmgMult:1,cdMult:0.85,rangeMult:1.3,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
-    weapon:{name:'총',type:'bullet',baseDmg:24,baseCd:200,baseRange:420,color:'#ffee44',spd:10}
+  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
+    stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
+    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:900,baseRange:500,color:'#ffee44',spd:15}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
     stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
@@ -246,6 +248,10 @@ let myTraits=[];
 let myStats=null;
 let myWeapon=null;
 let weaponUpgradeLevel=0;
+let weaponElement=null; // 'fire', 'poison', 'ice'
+
+const ELEMENT_COLORS={fire:'#ff4400',poison:'#44ff44',ice:'#44ddff'};
+const ELEMENT_NAMES={fire:'🔥 화염',poison:'☠ 독',ice:'❄ 냉기'};
 
 function pickClass(cls){
   myClass=cls;
@@ -275,11 +281,12 @@ const ALL_TRAITS=[
   {id:'magnet',icon:'🧲',name:'자석',desc:'경험치 흡수 범위 3배'},
   {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -20%'},
   {id:'crit',icon:'💥',name:'치명타',desc:'30% 확률로 2배 데미지'},
-  {id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 대폭 향상 + 이펙트 강화'},
+  {id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 향상'},
 ];
 
 function rollTraits(){
   const pool=[...ALL_TRAITS];
+  if(weaponUpgradeLevel>=3)pool.splice(pool.findIndex(t=>t.id==='weapon'),1);
   const result=[];
   while(result.length<3&&pool.length>0){const i=Math.floor(Math.random()*pool.length);result.push(pool.splice(i,1)[0]);}
   return result;
@@ -293,7 +300,13 @@ function showTraitSelect(){
   cards.innerHTML='';
   for(const tr of traits){
     const div=document.createElement('div');div.className='traitCard';
-    div.innerHTML='<div class="traitIcon">'+tr.icon+'</div><div class="traitName">'+tr.name+'</div><div class="traitDesc">'+tr.desc+'</div>';
+    let desc=tr.desc;
+    if(tr.id==='weapon'){
+      if(weaponUpgradeLevel===0)desc='무기 능력치 강화';
+      else if(weaponUpgradeLevel===1)desc='속성 부여 (화염/독/냉기)';
+      else if(weaponUpgradeLevel===2)desc='속성 2배 강화 + 이펙트';
+    }
+    div.innerHTML='<div class="traitIcon">'+tr.icon+'</div><div class="traitName">'+tr.name+'</div><div class="traitDesc">'+desc+'</div>';
     div.onclick=()=>pickTrait(tr);
     cards.appendChild(div);
   }
@@ -322,21 +335,41 @@ function applyTrait(id){
   else if(id==='crit')s.crit=true;
   else if(id==='weapon'){
     weaponUpgradeLevel++;
-    if(myWeapon.type==='sword'){
-      myWeapon.baseDmg*=1.4;
-      myWeapon.baseRange*=1.3;
-    }else if(myWeapon.type==='bullet'){
-      myWeapon.baseDmg*=1.3;
-      myWeapon.baseCd*=0.7;
-      myWeapon.spd*=1.2;
-    }else if(myWeapon.type==='magic'){
-      myWeapon.baseDmg*=1.5;
-      myWeapon.explosionRadius*=1.4;
-    }else if(myWeapon.type==='dagger'){
-      myWeapon.baseDmg*=1.35;
-      myWeapon.baseCd*=0.75;
-      s.spd*=1.15;
+    if(weaponUpgradeLevel===1){
+      if(myWeapon.type==='sword'){
+        myWeapon.baseDmg*=1.4;
+        myWeapon.baseRange*=1.3;
+      }else if(myWeapon.type==='bullet'){
+        myWeapon.baseDmg*=1.2;
+        myWeapon.baseCd*=0.8;
+        myWeapon.spd*=1.2;
+      }else if(myWeapon.type==='magic'){
+        myWeapon.baseDmg*=1.5;
+        myWeapon.explosionRadius*=1.4;
+      }else if(myWeapon.type==='dagger'){
+        myWeapon.baseDmg*=1.35;
+        myWeapon.baseCd*=0.75;
+        s.spd*=1.15;
+      }
+    }else if(weaponUpgradeLevel===2){
+      const elements=['fire','poison','ice'];
+      weaponElement=elements[Math.floor(Math.random()*3)];
+      updateElementDisplay();
+    }else if(weaponUpgradeLevel===3){
+      // 속성 2배 강화
+      updateElementDisplay();
     }
+  }
+}
+
+function updateElementDisplay(){
+  const el=document.getElementById('weaponElement');
+  if(weaponElement){
+    const name=ELEMENT_NAMES[weaponElement];
+    const tier=weaponUpgradeLevel>=3?' ★★':'';
+    el.innerHTML='<span style="color:'+ELEMENT_COLORS[weaponElement]+'">'+name+tier+'</span>';
+  }else{
+    el.innerHTML='';
   }
 }
 
@@ -363,8 +396,8 @@ function getW(){
 // ── Game state ─────────────────────────────────────────────
 let running=false,stageTime=600,currentStage=1,midBossSpawned=false,finalBossSpawned=false,bossAlive=false;
 let kills=0,score=0,camX=0,camY=0;
-let myPlayer=null,allPlayers=[],enemies=[],bossData=null;
-let projs=[],parts=[],orbs=[],remoteEffects=[],explosions=[];
+let myPlayer=null,allPlayers=[],enemies=[],bossData=null,turrets=[];
+let projs=[],parts=[],orbs=[],remoteEffects=[],explosions=[],fireZones=[];
 let lastTime=0,jsActive=false,jsX=0,jsY=0,attackPressed=false,lastShot=0;
 
 const STAGE_BG=['#080810','#100808','#080e0a'];
@@ -381,7 +414,7 @@ function handleMsg(msg){
   else if(msg.t==='start'){/* game loop starts after allReady */}
   else if(msg.t==='state'){applyState(msg);}
   else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);}
-  else if(msg.t==='midBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치! 계속!',3000);}
+  else if(msg.t==='midBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);}
   else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
@@ -393,6 +426,9 @@ function handleMsg(msg){
   else if(msg.t==='over'){endGame(msg.win);}
   else if(msg.t==='fx'){remoteEffects.push(msg);}
   else if(msg.t==='explosion'){explosions.push({x:msg.x,y:msg.y,r:msg.r,dmg:msg.dmg,life:300,maxLife:300,color:msg.color||'#cc88ff'});}
+  else if(msg.t==='fireZone'){fireZones.push({x:msg.x,y:msg.y,dmg:msg.dmg,life:2000,maxLife:2000});}
+  else if(msg.t==='turrets'){turrets=msg.turrets||[];}
+  else if(msg.t==='turretHp'){const t=turrets.find(tt=>tt.id===msg.id);if(t)t.hp=msg.hp;}
 }
 
 function showClassScreen(){
@@ -410,13 +446,15 @@ function initGameState(){
   myWeapon={...cls.weapon};
   myTraits=[];
   weaponUpgradeLevel=0;
+  weaponElement=null;
   running=true;stageTime=600;currentStage=1;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;
-  kills=0;score=0;projs=[];parts=[];orbs=[];remoteEffects=[];explosions=[];
+  kills=0;score=0;projs=[];parts=[];orbs=[];remoteEffects=[];explosions=[];fireZones=[];turrets=[];
   myPlayer={x:0,y:0,hp:myStats.hp,maxHp:myStats.maxHp,lv:1,exp:0,expNext:50,dead:false};
   document.getElementById('classTag').innerHTML='<span>'+cls.icon+' '+cls.name+'</span>';
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
   updateTraitList();
+  updateElementDisplay();
   lastTime=performance.now();
   requestAnimationFrame(loop);
 }
@@ -425,9 +463,10 @@ function applyState(msg){
   allPlayers=msg.players||[];enemies=msg.enemies||[];
   bossData=msg.boss||null;stageTime=msg.st??stageTime;
   if(msg.stage)currentStage=msg.stage;
+  if(msg.turrets)turrets=msg.turrets;
   const me=allPlayers.find(p=>p.id===myId);
   if(me&&myPlayer){
-    myPlayer.hp=Math.max(0,me.hp*(1-myStats.armor));
+    myPlayer.hp=me.hp;
     myPlayer.maxHp=myStats.maxHp;
     myPlayer.lv=me.lv;myPlayer.dead=me.dead;
     myPlayer.exp=me.exp;myPlayer.expNext=me.expNext;
@@ -449,7 +488,7 @@ function showStageClear(stage,next){
 
 function nextStage(stage){
   currentStage=stage;stageTime=600;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;
-  bossData=null;enemies=[];projs=[];parts=[];orbs=[];explosions=[];
+  bossData=null;enemies=[];projs=[];parts=[];orbs=[];explosions=[];fireZones=[];turrets=[];
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[Math.min(stage-1,2)];
   running=true;
@@ -500,53 +539,96 @@ function tryShoot(){
   if(w.type==='sword'||w.type==='dagger'){doMelee(ang,w);return;}
   
   if(w.type==='magic'){
-    projs.push({
-      x:myPlayer.x,y:myPlayer.y,
-      vx:Math.cos(ang)*(w.spd||6),
-      vy:Math.sin(ang)*(w.spd||6),
-      dmg:w.dmg,range:w.range,traveled:0,gone:false,
-      color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
-      isMagic:true,explosionRadius:w.explosionRadius||80
-    });
+    const multishotCount=myStats.multishot;
+    if(multishotCount>0){
+      // 중앙탄 + 양옆 탄환
+      projs.push({
+        x:myPlayer.x,y:myPlayer.y,
+        vx:Math.cos(ang)*(w.spd||6),
+        vy:Math.sin(ang)*(w.spd||6),
+        dmg:w.dmg,range:w.range,traveled:0,gone:false,
+        color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
+        isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
+      });
+      for(let i=1;i<=multishotCount;i++){
+        const offset=i*0.3;
+        projs.push({
+          x:myPlayer.x,y:myPlayer.y,
+          vx:Math.cos(ang+offset)*(w.spd||6),
+          vy:Math.sin(ang+offset)*(w.spd||6),
+          dmg:w.dmg,range:w.range,traveled:0,gone:false,
+          color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
+          isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
+        });
+        projs.push({
+          x:myPlayer.x,y:myPlayer.y,
+          vx:Math.cos(ang-offset)*(w.spd||6),
+          vy:Math.sin(ang-offset)*(w.spd||6),
+          dmg:w.dmg,range:w.range,traveled:0,gone:false,
+          color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
+          isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
+        });
+      }
+    }else{
+      projs.push({
+        x:myPlayer.x,y:myPlayer.y,
+        vx:Math.cos(ang)*(w.spd||6),
+        vy:Math.sin(ang)*(w.spd||6),
+        dmg:w.dmg,range:w.range,traveled:0,gone:false,
+        color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
+        isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
+      });
+    }
   }else{
     for(let i=0;i<w.count;i++){
       const a=ang+(i-(w.count-1)/2)*0.28;
-      projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:4+weaponUpgradeLevel,enemy:false});
+      projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:4+weaponUpgradeLevel,enemy:false,element:weaponElement});
     }
   }
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count});
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
 
 function doMelee(ang,w){
   const isDagger=w.type==='dagger';
   const spread=isDagger?0.5:1.1,step=isDagger?0.18:0.2,pR=isDagger?4:5;
-  const col=isDagger?'#ff88aacc':w.color;
+  let col=isDagger?'#ff88aacc':w.color;
+  if(weaponElement&&weaponUpgradeLevel>=3)col=ELEMENT_COLORS[weaponElement];
   const effectMult=1+weaponUpgradeLevel*0.3;
   for(let a=ang-spread;a<=ang+spread;a+=step)
     for(let r=18;r<w.range*effectMult;r+=isDagger?12:14)
       parts.push({x:myPlayer.x+Math.cos(a)*r,y:myPlayer.y+Math.sin(a)*r,vx:0,vy:0,life:isDagger?120:160,maxLife:isDagger?120:160,r:pR+weaponUpgradeLevel,color:col});
-  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38}]:enemies;
+  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38},...turrets]:enemies;
   for(const e of allE){
     const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);
-    if(d<w.range){const ea=Math.atan2(dy,dx),diff=Math.abs(((ea-ang)+Math.PI*3)%(Math.PI*2)-Math.PI);if(diff<(isDagger?0.6:1.3))reportHit(e.id==='boss'?'boss':e.id,w.dmg);}
+    if(d<w.range){const ea=Math.atan2(dy,dx),diff=Math.abs(((ea-ang)+Math.PI*3)%(Math.PI*2)-Math.PI);if(diff<(isDagger?0.6:1.3)){
+      if(e.id==='boss')reportHit('boss',w.dmg,weaponElement);
+      else if(e.isTurret)reportHit('turret',w.dmg,weaponElement,e.id);
+      else reportHit(e.id,w.dmg,weaponElement);
+    }}
   }
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1});
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
 
-function reportHit(id,dmg){id==='boss'?send({t:'hit',target:'boss',dmg}):send({t:'hit',eid:id,dmg});}
+function reportHit(id,dmg,element,turretId){
+  if(id==='boss')send({t:'hit',target:'boss',dmg,element,elementTier:weaponUpgradeLevel});
+  else if(id==='turret')send({t:'hit',target:'turret',dmg,tid:turretId,element,elementTier:weaponUpgradeLevel});
+  else send({t:'hit',eid:id,dmg,element,elementTier:weaponUpgradeLevel});
+}
 
 // ── Explosion ──────────────────────────────────────────────
-function createExplosion(x,y,radius,dmg,color){
+function createExplosion(x,y,radius,dmg,color,element){
   explosions.push({x,y,r:radius,dmg,life:300,maxLife:300,color:color||'#cc88ff'});
-  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38}]:enemies;
+  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38},...turrets]:enemies;
   for(const e of allE){
     const dx=e.x-x,dy=e.y-y,d=Math.sqrt(dx*dx+dy*dy);
-    if(d<radius+e.r){
-      const hitDmg=dmg*(1-d/(radius+e.r)*0.5);
-      reportHit(e.id==='boss'?'boss':e.id,hitDmg);
+    if(d<radius+(e.r||10)){
+      const hitDmg=dmg*(1-d/(radius+(e.r||10))*0.5);
+      if(e.id==='boss')reportHit('boss',hitDmg,element);
+      else if(e.isTurret)reportHit('turret',hitDmg,element,e.id);
+      else reportHit(e.id,hitDmg,element);
     }
   }
-  send({t:'explosion',x,y,r:radius,dmg,color});
+  send({t:'explosion',x,y,r:radius,dmg,color,element,elementTier:weaponUpgradeLevel});
 }
 
 // ── Boss patterns ──────────────────────────────────────────
@@ -563,9 +645,14 @@ function doBossPat(msg){
     }
     return;
   }
+  if(i===-2){
+    // Heavy projectile
+    mkBB(bx,by,Math.cos(ang)*2.8,Math.sin(ang)*2.8,35,'#ff2200',18);
+    return;
+  }
   [bossSpiral,bossBlast,bossCross,bossRapid,bossRing][Math.min(i,4)](bx,by,ang,phase);
 }
-function mkBB(bx,by,vx,vy,dmg,col,r){projs.push({x:bx,y:by,vx,vy,dmg,range:550,traveled:0,gone:false,color:col,r,enemy:true});}
+function mkBB(bx,by,vx,vy,dmg,col,r){projs.push({x:bx,y:by,vx,vy,dmg,range:600,traveled:0,gone:false,color:col,r,enemy:true});}
 function bossSpiral(bx,by,ang,phase){const cnt=phase===2?14:10;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*4.2,Math.sin(a)*4.2,18,'#ff6600',8);}}
 function bossBlast(bx,by){for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2;mkBB(bx,by,Math.cos(a)*2.6,Math.sin(a)*2.6,22,'#ff2200',10);}spawnParts(bx,by,'#ff6600',16);}
 function bossCross(bx,by,ang,phase){const dirs=[[1,0],[-1,0],[0,1],[0,-1],[.71,.71],[-.71,.71],[.71,-.71],[-.71,-.71]];const cnt=phase===2?4:3;dirs.forEach(([dx,dy])=>{for(let n=0;n<cnt;n++)setTimeout(()=>mkBB(bx,by,dx*5.5,dy*5.5,20,'#cc44ff',7),n*150);});}
@@ -611,7 +698,7 @@ function update(dt){
     p.x+=p.vx*spF;p.y+=p.vy*spF;p.traveled+=Math.sqrt(p.vx*p.vx+p.vy*p.vy)*spF;
     if(p.traveled>p.range){
       if(p.isMagic&&!p.visual&&!p.enemy){
-        createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color);
+        createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);
         spawnParts(p.x,p.y,p.color,12);
       }
       p.gone=true;continue;
@@ -622,10 +709,11 @@ function update(dt){
         const dx=p.x-e.x,dy=p.y-e.y;
         if(Math.sqrt(dx*dx+dy*dy)<(e.r||10)+p.r){
           if(p.isMagic){
-            createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color);
+            createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);
             spawnParts(p.x,p.y,p.color,12);
           }else{
-            reportHit(e.id,p.dmg);
+            reportHit(e.id,p.dmg,p.element);
+            if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});
             spawnParts(p.x,p.y,p.color,4);
           }
           p.gone=true;break;
@@ -635,17 +723,43 @@ function update(dt){
         const dx=p.x-bossData.x,dy=p.y-bossData.y;
         if(Math.sqrt(dx*dx+dy*dy)<38+p.r){
           if(p.isMagic){
-            createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color);
+            createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);
             spawnParts(p.x,p.y,p.color,12);
           }else{
-            reportHit('boss',p.dmg);
+            reportHit('boss',p.dmg,p.element);
+            if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});
             spawnParts(p.x,p.y,p.color,5);
           }
           p.gone=true;
         }
       }
+      if(!p.gone){
+        for(const t of turrets){
+          const dx=p.x-t.x,dy=p.y-t.y;
+          if(Math.sqrt(dx*dx+dy*dy)<t.r+p.r){
+            if(p.isMagic){
+              createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);
+              spawnParts(p.x,p.y,p.color,12);
+            }else{
+              reportHit('turret',p.dmg,p.element,t.id);
+              if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});
+              spawnParts(p.x,p.y,p.color,5);
+            }
+            p.gone=true;break;
+          }
+        }
+      }
     }else{
-      if(myPlayer&&!myPlayer.dead){const dx=p.x-myPlayer.x,dy=p.y-myPlayer.y;if(Math.sqrt(dx*dx+dy*dy)<14){const dmg=p.dmg*(1-myStats.armor);myPlayer.hp-=dmg;if(myPlayer.hp<0)myPlayer.hp=0;spawnParts(p.x,p.y,p.color,4);p.gone=true;}}
+      if(myPlayer&&!myPlayer.dead){
+        const dx=p.x-myPlayer.x,dy=p.y-myPlayer.y;
+        if(Math.sqrt(dx*dx+dy*dy)<14+p.r){
+          const dmg=p.dmg*(1-myStats.armor);
+          myPlayer.hp-=dmg;
+          if(myPlayer.hp<=0){myPlayer.hp=0;send({t:'playerDead'});}
+          spawnParts(p.x,p.y,p.color,4);
+          p.gone=true;
+        }
+      }
     }
   }
   projs=projs.filter(p=>!p.gone);
@@ -655,6 +769,9 @@ function update(dt){
   
   for(const ex of explosions){ex.life-=dt;}
   explosions=explosions.filter(ex=>ex.life>0);
+  
+  for(const fz of fireZones){fz.life-=dt;}
+  fireZones=fireZones.filter(fz=>fz.life>0);
   
   const magnetR=28*myStats.magnetRange,pullR=100*myStats.magnetRange;
   for(const o of orbs){
@@ -666,7 +783,7 @@ function update(dt){
   const me=allPlayers.find(p=>p.id===myId)||myPlayer;
   const hpPct=Math.max(0,(myPlayer.hp/myPlayer.maxHp)*100);
   document.getElementById('hpFill').style.width=hpPct+'%';
-  document.getElementById('hpTxt').textContent=Math.max(0,Math.floor(myPlayer.hp));
+  document.getElementById('hpTxt').textContent=Math.max(0,Math.floor(myPlayer.hp))+'/'+Math.floor(myPlayer.maxHp);
   document.getElementById('expFill').style.width=((me.exp||0)/(me.expNext||50)*100)+'%';
   document.getElementById('lvTxt').textContent=me.lv||1;
   document.getElementById('killTxt').textContent=kills;
@@ -684,8 +801,9 @@ function draw(){
   ctx.clearRect(0,0,W,H);
   const ox=W/2-camX,oy=H/2-camY;
   ctx.save();ctx.translate(ox,oy);
-  drawGrid();drawOrbs();drawParts();drawExplosions();drawEnemies();
+  drawGrid();drawFireZones();drawOrbs();drawParts();drawExplosions();drawEnemies();
   if(bossData)drawBoss();
+  drawTurrets();
   drawOthers();
   if(myPlayer&&!myPlayer.dead)drawMe();
   drawProjs();
@@ -738,6 +856,7 @@ const E_STYLES={
   mage:{fill:'#662288',eye:'#dd44ff',shadow:'#aa22ff'},
 };
 const E_ICONS={basic:'',ranged:'🎯',shield:'🛡',fast:'💨',mage:'🌀'};
+const STATUS_ICONS={poison:'☠',ice:'❄',atkSlow:'⬇'};
 
 function drawEnemies(){
   for(const e of enemies){
@@ -755,7 +874,12 @@ function drawEnemies(){
     ctx.beginPath();ctx.arc(e.x+r*0.25,e.y-r*0.2,r*0.28,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='#220000';ctx.fillRect(e.x-r,e.y-r-8,r*2,3);
     ctx.fillStyle=st.shadow;ctx.fillRect(e.x-r,e.y-r-8,r*2*(e.hp/e.maxHp),3);
-    if(E_ICONS[e.type]){ctx.font='8px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(E_ICONS[e.type],e.x,e.y+r+6);}
+    // Status icons
+    let statusX=e.x+r+2;
+    if(e.poison&&e.poison>0){ctx.font='8px serif';ctx.fillStyle='#44ff44';ctx.fillText(STATUS_ICONS.poison,statusX,e.y-r);statusX+=10;}
+    if(e.ice){ctx.font='8px serif';ctx.fillStyle='#44ddff';ctx.fillText(STATUS_ICONS.ice,statusX,e.y-r);statusX+=10;}
+    if(e.atkSlow){ctx.font='8px serif';ctx.fillStyle='#ffaa44';ctx.fillText(STATUS_ICONS.atkSlow,statusX,e.y-r);}
+    if(E_ICONS[e.type]){ctx.font='8px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(E_ICONS[e.type],e.x,e.y+r+6);}
     ctx.restore();
   }
 }
@@ -779,15 +903,35 @@ function drawBoss(){
   ctx.restore();
 }
 
+function drawTurrets(){
+  for(const t of turrets){
+    ctx.save();
+    ctx.fillStyle='#333344';
+    ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#6666ff';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#8888ff';
+    ctx.beginPath();ctx.arc(t.x,t.y,t.r*0.6,0,Math.PI*2);ctx.fill();
+    // HP bar
+    ctx.fillStyle='#220022';ctx.fillRect(t.x-t.r,t.y-t.r-10,t.r*2,4);
+    ctx.fillStyle='#8888ff';ctx.fillRect(t.x-t.r,t.y-t.r-10,t.r*2*(t.hp/t.maxHp),4);
+    ctx.fillStyle='#fff';ctx.font='bold 8px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+    ctx.fillText('⚡',t.x,t.y-t.r-12);
+    ctx.restore();
+  }
+}
+
 function drawProjs(){
   for(const p of projs){
     ctx.save();
     const blur=p.visual?4:(p.isMagic?12:8);
-    ctx.shadowColor=p.color;ctx.shadowBlur=blur;
+    let col=p.color;
+    if(p.element&&weaponUpgradeLevel>=2)col=ELEMENT_COLORS[p.element];
+    ctx.shadowColor=col;ctx.shadowBlur=blur;
     ctx.globalAlpha=p.visual?0.6:1;
-    ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
-    if(!p.visual&&!p.enemy&&weaponUpgradeLevel>0&&p.isMagic){
-      ctx.strokeStyle=p.color+'44';ctx.lineWidth=2;
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+    if(!p.visual&&!p.enemy&&weaponUpgradeLevel>=3&&p.isMagic){
+      ctx.strokeStyle=col+'44';ctx.lineWidth=2;
       ctx.beginPath();ctx.arc(p.x,p.y,p.r+3,0,Math.PI*2);ctx.stroke();
     }
     ctx.restore();
@@ -812,6 +956,19 @@ function drawExplosions(){
     ctx.globalAlpha=a*0.4;
     ctx.fillStyle=ex.color;
     ctx.beginPath();ctx.arc(ex.x,ex.y,cr*0.6,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+}
+function drawFireZones(){
+  for(const fz of fireZones){
+    const a=fz.life/fz.maxLife;
+    ctx.save();
+    ctx.globalAlpha=a*0.4;
+    ctx.fillStyle='#ff4400';
+    ctx.beginPath();ctx.arc(fz.x,fz.y,30,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=a*0.6;
+    ctx.strokeStyle='#ff6600';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(fz.x,fz.y,30,0,Math.PI*2);ctx.stroke();
     ctx.restore();
   }
 }
@@ -851,13 +1008,12 @@ window.addEventListener('resize',()=>{W=G.clientWidth;H=G.clientHeight;canvas.wi
 </body>
 </html>`;
 
-// ── HTTP ───────────────────────────────────────────────────
+// ── SERVER ─────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
   res.end(HTML);
 });
 
-// ── WebSocket ──────────────────────────────────────────────
 const wss = new WebSocketServer({ server });
 const rooms = new Map();
 
@@ -909,7 +1065,8 @@ function spawnEnemies(room) {
       spd: et.spd * (1 + (room.currentStage - 1) * 0.3 + gameProgress * 0.4),
       type: et.type, r: et.r, dead: false, lastShot: 0,
       shieldHp: et.shieldHp ? Math.floor(baseHp * 0.5) : 0,
-      dmgMult: et.dmgMult * (1 + gameProgress * 0.3)
+      dmgMult: et.dmgMult * (1 + gameProgress * 0.3),
+      poison: 0, ice: false, atkSlow: false
     };
     room.enemies.push(e);
   }
@@ -927,11 +1084,34 @@ function spawnBoss(room, isFinal) {
   room.boss = { 
     hp, maxHp: hp, x: ref.x + 320, y: ref.y, r: 42, dead: false, 
     ang: 0, phase: 1, isFinal: isF,
-    playerCount: playerCount
+    playerCount: playerCount,
+    lastHeavy: 0
   };
   room.enemies = [];
-  if (isF) { room.finalBossAlive = true; bcastAll(room, { t: 'finalBoss', boss: room.boss }); }
-  else { room.midBossAlive = true; bcastAll(room, { t: 'midBoss', boss: room.boss }); }
+  
+  if (isF) {
+    // Spawn turrets
+    const turretCount = 5 + playerCount;
+    room.turrets = [];
+    for (let i = 0; i < turretCount; i++) {
+      const angle = (i / turretCount) * Math.PI * 2;
+      const dist = 250 + Math.random() * 100;
+      room.turrets.push({
+        id: 'turret_' + i,
+        x: ref.x + Math.cos(angle) * dist,
+        y: ref.y + Math.sin(angle) * dist,
+        hp: 5000,
+        maxHp: 5000,
+        r: 25,
+        isTurret: true
+      });
+    }
+    bcastAll(room, { t: 'finalBoss', boss: room.boss });
+    bcastAll(room, { t: 'turrets', turrets: room.turrets });
+  } else {
+    room.midBossAlive = true;
+    bcastAll(room, { t: 'midBoss', boss: room.boss });
+  }
 }
 
 function tickRoom(code) {
@@ -964,8 +1144,16 @@ function tickRoom(code) {
 
   const arr = [...room.players.values()];
 
+  // Enemy AI
   for (const e of room.enemies) {
     if (e.dead) continue;
+    
+    // Poison damage
+    if (e.poison > 0) {
+      e.hp -= e.maxHp * 0.004 * e.poison * dt;
+      if (e.hp <= 1) e.hp = 1;
+    }
+    
     let near = null, md = Infinity;
     for (const p of arr) { 
       if (p.dead) continue; 
@@ -974,34 +1162,50 @@ function tickRoom(code) {
     }
     if (!near) continue;
     const dx = near.x - e.x, dy = near.y - e.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    
+    const spdMult = e.ice ? 0.7 : 1;
 
     if (e.type === 'ranged') {
-      if (d > 180) { e.x += dx / d * e.spd * dt * 60; e.y += dy / d * e.spd * dt * 60; }
-      else if (d < 120) { e.x -= dx / d * e.spd * dt * 60; e.y -= dy / d * e.spd * dt * 60; }
+      if (d > 180) { e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60; }
+      else if (d < 120) { e.x -= dx / d * e.spd * spdMult * dt * 60; e.y -= dy / d * e.spd * spdMult * dt * 60; }
       e.lastShot += dt;
-      if (e.lastShot > 2.2) { 
+      const shootCd = e.atkSlow ? 3.3 : 2.2;
+      if (e.lastShot > shootCd) { 
         e.lastShot = 0; 
         bcastAll(room, { t: 'pat', i: -1, bx: e.x, by: e.y, ang: Math.atan2(dy, dx), phase: 0, etype: 'ranged' }); 
       }
     } else if (e.type === 'mage') {
-      if (d > 220) { e.x += dx / d * e.spd * dt * 60; e.y += dy / d * e.spd * dt * 60; }
-      else if (d < 160) { e.x -= dx / d * e.spd * 0.8 * dt * 60; e.y -= dy / d * e.spd * 0.8 * dt * 60; }
+      if (d > 220) { e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60; }
+      else if (d < 160) { e.x -= dx / d * e.spd * 0.8 * spdMult * dt * 60; e.y -= dy / d * e.spd * 0.8 * spdMult * dt * 60; }
       e.lastShot += dt;
-      if (e.lastShot > 2.8) { 
+      const shootCd = e.atkSlow ? 4.2 : 2.8;
+      if (e.lastShot > shootCd) { 
         e.lastShot = 0; 
         bcastAll(room, { t: 'pat', i: -1, bx: e.x, by: e.y, ang: Math.atan2(dy, dx), phase: 0, etype: 'mage' }); 
       }
     } else {
-      e.x += dx / d * e.spd * dt * 60; e.y += dy / d * e.spd * dt * 60;
+      e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60;
     }
-    if (d < e.r + 14) { near.hp -= 0.35 * e.dmgMult * dt * 60; if (near.hp < 0) near.hp = 0; }
+    
+    const dmgMult = e.ice ? 0.7 : 1;
+    if (d < e.r + 14) { 
+      near.hp -= 0.35 * e.dmgMult * dmgMult * dt * 60; 
+      if (near.hp < 0) near.hp = 0; 
+    }
   }
 
+  // Boss AI
   if (room.boss && !room.boss.dead) {
     const b = room.boss;
     b.ang += dt * 1.5;
     const halfHp = b.maxHp / 2;
     if (b.hp < halfHp && b.phase === 1) { b.phase = 2; bcastAll(room, { t: 'phase2' }); }
+    
+    // Turret regen
+    if (b.isFinal && room.turrets && room.turrets.some(t => !t.dead && t.hp > 0)) {
+      b.hp = Math.min(b.hp + b.maxHp * 0.01 * dt, b.maxHp);
+    }
+    
     let near = null, md = Infinity;
     for (const p of arr) { 
       if (p.dead) continue; 
@@ -1017,7 +1221,15 @@ function tickRoom(code) {
         near.hp -= contactDmg * dt * 60; 
         if (near.hp < 0) near.hp = 0; 
       }
+      
+      // Heavy projectile
+      b.lastHeavy = (b.lastHeavy || 0) + dt;
+      if (b.lastHeavy > 4) {
+        b.lastHeavy = 0;
+        bcastAll(room, { t: 'pat', i: -2, bx: b.x, by: b.y, ang: Math.atan2(dy, dx), phase: b.phase });
+      }
     }
+    
     room.patT = (room.patT || 0) + dt;
     const patInterval = b.isFinal ? (b.phase === 1 ? 1.3 : 0.9) : (b.phase === 1 ? 1.8 : 1.3);
     if (room.patT > patInterval) {
@@ -1032,7 +1244,7 @@ function tickRoom(code) {
     room.syncT = 0;
     const ps = [];
     room.players.forEach(p => ps.push({ 
-      id: p.id, x: Math.round(p.x), y: Math.round(p.y), hp: Math.round(p.hp), maxHp: p.maxHp, 
+      id: p.id, x: Math.round(p.x), y: Math.round(p.y), hp: p.hp, maxHp: p.maxHp, 
       lv: p.lv, dead: p.dead, name: p.name, exp: p.exp, expNext: p.expNext, lvUp: p.lvUp, cls: p.cls 
     }));
     room.players.forEach(p => { if (p.lvUp) p.lvUp = false; });
@@ -1040,12 +1252,16 @@ function tickRoom(code) {
       t: 'state', players: ps,
       enemies: room.enemies.filter(e => !e.dead).map(e => ({ 
         id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
-        maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp 
+        maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
+        poison: e.poison, ice: e.ice, atkSlow: e.atkSlow
       })),
       boss: room.boss && !room.boss.dead ? { 
         x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp, 
         maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal 
       } : null,
+      turrets: room.turrets ? room.turrets.filter(t => t.hp > 0).map(t => ({
+        id: t.id, x: t.x, y: t.y, hp: t.hp, maxHp: t.maxHp, r: t.r, isTurret: true
+      })) : [],
       st: room.stageTime, stage: room.currentStage
     });
   }
@@ -1068,7 +1284,7 @@ wss.on('connection', ws => {
     if (msg.t === 'create') {
       const code = genCode();
       rooms.set(code, {
-        players: new Map(), enemies: [], boss: null,
+        players: new Map(), enemies: [], boss: null, turrets: [],
         stageTime: 600, currentStage: 1, started: false,
         midBossSpawned: false, finalBossSpawned: false,
         midBossAlive: false, finalBossAlive: false,
@@ -1117,6 +1333,9 @@ wss.on('connection', ws => {
     }
     else if (msg.t === 'hit') {
       const room = rooms.get(ws.roomCode); if (!room) return;
+      const element = msg.element;
+      const tier = msg.elementTier || 0;
+      
       if (msg.target === 'boss') {
         if (room.boss && !room.boss.dead) {
           room.boss.hp -= msg.dmg;
@@ -1131,7 +1350,7 @@ wss.on('connection', ws => {
                   room.stageTime = 600;
                   room.midBossSpawned = false; room.finalBossSpawned = false;
                   room.midBossAlive = false; room.finalBossAlive = false;
-                  room.boss = null; room.enemies = [];
+                  room.boss = null; room.enemies = []; room.turrets = [];
                   bcastAll(room, { t: 'stageStart', stage: room.currentStage });
                 }, 5500);
               } else {
@@ -1148,6 +1367,13 @@ wss.on('connection', ws => {
             bcastAll(room, { t: 'bossHp', hp: room.boss.hp });
           }
         }
+      } else if (msg.target === 'turret') {
+        const t = room.turrets ? room.turrets.find(tt => tt.id === msg.tid) : null;
+        if (t && t.hp > 0) {
+          t.hp -= msg.dmg;
+          if (t.hp <= 0) t.hp = 0;
+          bcastAll(room, { t: 'turretHp', id: t.id, hp: t.hp });
+        }
       } else {
         const e = room.enemies.find(e => e.id === msg.eid && !e.dead);
         if (e) {
@@ -1157,6 +1383,15 @@ wss.on('connection', ws => {
             e.shieldHp -= absorbed; 
             dmg -= absorbed; 
           }
+          
+          // Apply element effects
+          if (element === 'poison' && tier >= 2) {
+            e.poison = Math.min(e.poison + 1, 5);
+          } else if (element === 'ice' && tier >= 2) {
+            e.ice = true;
+            e.atkSlow = true;
+          }
+          
           e.hp -= dmg;
           if (e.hp <= 0) {
             e.dead = true;
@@ -1168,8 +1403,8 @@ wss.on('connection', ws => {
                 h.lv++; 
                 h.exp -= h.expNext; 
                 h.expNext = Math.floor(h.expNext * 1.4); 
-                h.maxHp += 20; 
-                h.hp = Math.min(h.hp + 30, h.maxHp); 
+                h.maxHp += 15; // Reduced from 20
+                h.hp = Math.min(h.hp + 20, h.maxHp); // Reduced from 30
                 h.lvUp = true; 
               }
               bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
@@ -1186,6 +1421,10 @@ wss.on('connection', ws => {
       const room = rooms.get(ws.roomCode); if (!room) return;
       bcast(room, { t: 'explosion', x: msg.x, y: msg.y, r: msg.r, dmg: msg.dmg, color: msg.color }, ws);
     }
+    else if (msg.t === 'fireZone') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      bcast(room, { t: 'fireZone', x: msg.x, y: msg.y, dmg: msg.dmg }, ws);
+    }
   });
 
   ws.on('close', () => {
@@ -1196,4 +1435,4 @@ wss.on('connection', ws => {
   });
 });
 
-server.listen(PORT, () => console.log('Dark Survival Updated → http://localhost:' + PORT));
+server.listen(PORT, () => console.log('Dark Survival Final → http://localhost:' + PORT));
