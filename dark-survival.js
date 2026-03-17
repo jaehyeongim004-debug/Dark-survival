@@ -568,13 +568,12 @@ function tryShoot(){
 }
 
 function doMagic(ang,w){
-  // 마법구 발사 — 착탄 시 폭발 광역
   const explodeR=(w.explodeR||60)*(1+myStats.multishot*0.3);
   projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(ang)*w.spd,vy:Math.sin(ang)*w.spd,
     dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:8,enemy:false,
     magic:true,explodeR});
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx??myPlayer.x+Math.cos(ang)*200,ay:ty??myPlayer.y+Math.sin(ang)*200,w:myClass,cnt:1,wtype:'magic'});
-}
+  const ax=myPlayer.x+Math.cos(ang)*200,ay=myPlayer.y+Math.sin(ang)*200;
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax,ay,w:myClass,cnt:1,wtype:'magic'});
 }
 
 function doMelee(ang,w){
