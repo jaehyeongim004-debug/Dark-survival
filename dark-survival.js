@@ -224,19 +224,14 @@ const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),G=document
 let W=G.clientWidth,H=G.clientHeight;
 canvas.width=W;canvas.height=H;
 
-const WS_URL=(location.protocol==='https:'?'wss://':'ws://')+location.hostname+(location.port?':'+location.port:'');
+const WS_URL=(location.protocol==='https:'?'wss://':'ws://')+location.host;
 let ws=null,myId=null,isHost=false,myClass=null,classReady=false;
 function connect(cb){
-  if(ws&&ws.readyState===0){showErr('연결 중...');return;}
-  if(ws&&ws.readyState===1){cb();return;}
-  showErr('연결 시도 중... ('+WS_URL+')');
-  try{
-    ws=new WebSocket(WS_URL);
-    ws.onopen=()=>{showErr('');cb();};
-    ws.onmessage=e=>handleMsg(JSON.parse(e.data));
-    ws.onerror=(e)=>{showErr('❌ 연결 실패: '+WS_URL);};
-    ws.onclose=(e)=>{if(!myId){showErr('❌ 연결 끊김 코드:'+e.code+' / '+WS_URL);}};
-  }catch(err){showErr('❌ 오류: '+err.message);}
+  ws=new WebSocket(WS_URL);
+  ws.onopen=cb;
+  ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+  ws.onerror=()=>showErr('서버 연결 실패');
+  ws.onclose=()=>{if(!myId)showErr('연결 끊김 - 새로고침 해주세요');};
 }
 function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
 function showErr(m){document.getElementById('errMsg').textContent=m;}
