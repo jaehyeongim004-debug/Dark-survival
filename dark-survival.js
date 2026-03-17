@@ -172,7 +172,6 @@ const ALL_TRAITS=[
   {id:'dmg',icon:'⚔',name:'살육자',desc:'모든 무기 데미지 +25%'},
   {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +20%'},
   {id:'range',icon:'🎯',name:'저격수',desc:'사거리 +30%'},
-  {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP 0.5 회복'},
   {id:'multishot',icon:'🔱',name:'다중사격',desc:'총/활/마법 발사체 +1'},
   {id:'magnet',icon:'🧲',name:'자석',desc:'경험치 흡수 범위 3배'},
   {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -20%'},
@@ -223,7 +222,6 @@ function applyTrait(id){
   else if(id==='dmg')s.dmgMult*=1.25;
   else if(id==='cd')s.cdMult*=0.8;
   else if(id==='range')s.rangeMult*=1.3;
-  else if(id==='regen')s.regen+=0.5;
   else if(id==='multishot')s.multishot+=1;
   else if(id==='magnet')s.magnetRange*=3;
   else if(id==='armor')s.armor=Math.min(s.armor+0.2,0.6);
@@ -239,12 +237,12 @@ function updateTraitList(){
   }).join('<br>');
 }
 
-// ── Weapons ────────────────────────────────────────────────
+  // ── Weapons ────────────────────────────────────────────────
 const WEAPONS=[
   {name:'검',color:'#66ccff',type:'sword',baseDmg:40,baseCd:500,baseRange:90},
-  {name:'총',color:'#ffee44',type:'bullet',baseDmg:28,baseCd:250,baseRange:380,spd:9},
-  {name:'활',color:'#88ff88',type:'arrow',baseDmg:22,baseCd:450,baseRange:320,spd:7},
-  {name:'마법',color:'#cc88ff',type:'magic',baseDmg:35,baseCd:700,baseRange:260,spd:5}
+  {name:'총',color:'#ffee44',type:'bullet',baseDmg:120,baseCd:1300,baseRange:380,spd:11},
+  {name:'활',color:'#88ff88',type:'arrow',baseDmg:8,baseCd:100,baseRange:320,spd:7},
+  {name:'마법',color:'#cc88ff',type:'magic',baseDmg:60,baseCd:700,baseRange:260,spd:3}
 ];
 function getW(idx){
   const w=WEAPONS[idx],s=myStats;
