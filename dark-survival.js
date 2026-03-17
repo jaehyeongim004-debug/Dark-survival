@@ -417,16 +417,21 @@ function handleMsg(msg){
     myId=msg.id;isHost=true;
     document.getElementById('codeDisplay').textContent=msg.code;
     document.getElementById('joinRow').style.display='none';
+    document.getElementById('nameInp').style.display='none';
+    document.querySelector('#lobbyScreen .sub').style.display='none';
+    // waitRoom 바깥의 버튼만 숨기기 (방 만들기, 입장하기)
+    document.querySelectorAll('#lobbyScreen > div:not(#waitRoom) .btn, #lobbyScreen > .btn').forEach(el=>el.style.display='none');
     document.getElementById('waitRoom').style.display='flex';
-    document.querySelectorAll('#lobbyScreen .btn,#lobbyScreen input.inp,#lobbyScreen .sub').forEach(el=>el.style.display='none');
   }
   else if(msg.t==='joined'){
     myId=msg.id;
     document.getElementById('codeDisplay').textContent=msg.code;
     document.getElementById('joinRow').style.display='none';
+    document.getElementById('nameInp').style.display='none';
+    document.querySelector('#lobbyScreen .sub').style.display='none';
+    document.querySelectorAll('#lobbyScreen > div:not(#waitRoom) .btn, #lobbyScreen > .btn').forEach(el=>el.style.display='none');
     document.getElementById('startBtn').style.display='none';
     document.getElementById('waitRoom').style.display='flex';
-    document.querySelectorAll('#lobbyScreen .btn,#lobbyScreen input.inp,#lobbyScreen .sub').forEach(el=>el.style.display='none');
   }
   else if(msg.t==='lobby'){document.getElementById('playerListEl').innerHTML='참가자: '+msg.players.map(p=>'<b>'+p.name+'</b>').join(', ');}
   else if(msg.t==='err'){showErr(msg.msg);}
