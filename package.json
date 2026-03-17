@@ -1,0 +1,6 @@
+{
+  "name": "dark-survival",
+  "version": "2.0.0",
+  "scripts": { "start": "node dark-survival.js" },
+  "dependencies": { "ws": "^8.16.0" }
+}
