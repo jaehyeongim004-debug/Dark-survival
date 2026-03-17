@@ -473,6 +473,8 @@ function initGameState(){
   myPlayer={x:0,y:0,hp:myStats.hp,maxHp:myStats.maxHp,lv:1,exp:0,expNext:50,dead:false};
   document.getElementById('classTag').innerHTML='<span>'+cls.icon+' '+cls.name+'</span>';
   document.getElementById('hud').style.display='block';
+  document.getElementById('jsWrap').style.display='block';
+  document.getElementById('atkBtn').style.display='flex';
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
   updateTraitList();
