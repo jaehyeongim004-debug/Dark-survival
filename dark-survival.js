@@ -313,8 +313,8 @@ function rollTraits(){
   
   const result=[];
   while(result.length<3&&(pool.length>0||weaponTrait)){
-    // 10% 확률로 무기 강화 시도
-    if(weaponTrait && !result.includes(weaponTrait) && Math.random() < 0.1){
+    // 1% 확률로 무기 강화 시도
+    if(weaponTrait && !result.includes(weaponTrait) && Math.random() < 0.01){
       const trait = {...weaponTrait};
       result.push(trait);
       weaponTrait = null; // 한 번 선택되면 제거
@@ -348,6 +348,7 @@ function rollTraits(){
 function showTraitSelect(){
   if(!running)return;
   running=false;
+  invincible=true; // 무적 시작
   const traits=rollTraits();
   const cards=document.getElementById('traitCards');
   cards.innerHTML='';
@@ -380,6 +381,9 @@ function pickTrait(tr){
   updateTraitList();
   // 서버에 특성 선택 알림
   send({t:'traitPicked',trait:tr.id,value:tr.value});
+  
+  // 특성 선택 후 2초간 무적 유지
+  invincibleEnd=performance.now()+2000;
 }
 
 function applyTrait(id, value){
@@ -493,6 +497,7 @@ let kills=0,score=0,camX=0,camY=0;
 let myPlayer=null,allPlayers=[],enemies=[],bossData=null,turrets=[];
 let projs=[],parts=[],orbs=[],remoteEffects=[],explosions=[],fireZones=[];
 let lastTime=0,jsActive=false,jsX=0,jsY=0,attackPressed=false,lastShot=0;
+let invincible=false,invincibleEnd=0; // 무적 상태
 
 const STAGE_BG=['#080810','#100808','#080e0a'];
 const STAGE_GRID=['#0d0d1a','#1a0808','#081408'];
@@ -826,6 +831,13 @@ let regenTimer=0;
 function update(dt){
   if(!running||!myPlayer||myPlayer.dead||!myStats)return;
   
+  // 무적 상태 체크
+  const now=performance.now();
+  if(invincibleEnd>0&&now>=invincibleEnd){
+    invincible=false;
+    invincibleEnd=0;
+  }
+  
   // 체력 재생은 클라이언트에서만 표시, 서버에서 처리됨
   // (서버에서 보내는 HP 값으로 동기화됨)
   
@@ -898,7 +910,7 @@ function update(dt){
       }
     }else{
       // 적 탄환이 플레이어에게 맞는 경우 - 서버로 전송
-      if(myPlayer&&!myPlayer.dead){
+      if(myPlayer&&!myPlayer.dead&&!invincible){
         const dx=p.x-myPlayer.x,dy=p.y-myPlayer.y;
         if(Math.sqrt(dx*dx+dy*dy)<14+p.r){
           send({t:'enemyHit',dmg:p.dmg});
@@ -969,6 +981,19 @@ function drawMe(){
   const{x,y}=myPlayer;
   const cls=CLASSES[myClass];
   ctx.save();
+  
+  // 무적 상태 시각 효과 (깜빡임)
+  if(invincible||invincibleEnd>performance.now()){
+    const alpha=Math.sin(performance.now()*0.01)>0?1:0.3;
+    ctx.globalAlpha=alpha;
+    // 무적 테두리
+    ctx.strokeStyle='#ffcc00';
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.arc(x,y,15,0,Math.PI*2);
+    ctx.stroke();
+  }
+  
   const glow=14+weaponUpgradeLevel*4;
   ctx.shadowColor=cls.color;ctx.shadowBlur=glow;
   ctx.fillStyle=cls.color;ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();
