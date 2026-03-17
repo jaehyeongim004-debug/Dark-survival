@@ -228,7 +228,7 @@ function doStart(){send({t:'start'});}
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',
     stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.3,multishot:0,magnetRange:1,armor:0.1,crit:false},
-    weapon:{name:'검',type:'sword',baseDmg:50,baseCd:480,baseRange:140,color:'#66ccff'}
+    weapon:{name:'검',type:'sword',baseDmg:70,baseCd:650,baseRange:140,color:'#66ccff'}
   },
   gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
     stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false},
@@ -277,7 +277,7 @@ const ALL_TRAITS=[
   {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +20%'},
   {id:'range',icon:'🎯',name:'저격수',desc:'사거리 +30%'},
   {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP 0.5 회복'},
-  {id:'multishot',icon:'🔱',name:'다중사격',desc:'발사체 +1 (원거리)'},
+  {id:'multishot',icon:'🔱',name:'다중사격',desc:'발사체 +1 (원거리: 동시, 근접: 연속)'},
   {id:'magnet',icon:'🧲',name:'자석',desc:'경험치 흡수 범위 3배'},
   {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -20%'},
   {id:'crit',icon:'💥',name:'치명타',desc:'30% 확률로 2배 데미지'},
@@ -286,7 +286,11 @@ const ALL_TRAITS=[
 
 function rollTraits(){
   const pool=[...ALL_TRAITS];
-  if(weaponUpgradeLevel>=3)pool.splice(pool.findIndex(t=>t.id==='weapon'),1);
+  // weapon 특성은 3회까지만 가능
+  const weaponIdx = pool.findIndex(t=>t.id==='weapon');
+  if(weaponUpgradeLevel>=3 && weaponIdx !== -1) {
+    pool.splice(weaponIdx, 1);
+  }
   const result=[];
   while(result.length<3&&pool.length>0){const i=Math.floor(Math.random()*pool.length);result.push(pool.splice(i,1)[0]);}
   return result;
@@ -319,19 +323,31 @@ function pickTrait(tr){
   myTraits.push(tr.id);
   applyTrait(tr.id);
   updateTraitList();
+  // 서버에 특성 선택 알림
+  send({t:'traitPicked',trait:tr.id});
 }
 
 function applyTrait(id){
   const s=myStats;
-  if(id==='hp'){s.maxHp+=40;s.hp=Math.min(s.hp+40,s.maxHp);}
+  if(id==='hp'){
+    s.maxHp+=40;
+    s.hp=Math.min(s.hp+40,s.maxHp);
+    send({t:'updateMaxHp',maxHp:s.maxHp,hp:s.hp});
+  }
   else if(id==='spd')s.spd*=1.2;
   else if(id==='dmg')s.dmgMult*=1.25;
   else if(id==='cd')s.cdMult*=0.8;
   else if(id==='range')s.rangeMult*=1.3;
-  else if(id==='regen')s.regen+=0.5;
+  else if(id==='regen'){
+    s.regen+=0.5;
+    send({t:'updateRegen',regen:s.regen});
+  }
   else if(id==='multishot')s.multishot+=1;
   else if(id==='magnet')s.magnetRange*=3;
-  else if(id==='armor')s.armor=Math.min(s.armor+0.2,0.6);
+  else if(id==='armor'){
+    s.armor=Math.min(s.armor+0.2,0.6);
+    send({t:'updateArmor',armor:s.armor});
+  }
   else if(id==='crit')s.crit=true;
   else if(id==='weapon'){
     weaponUpgradeLevel++;
@@ -348,7 +364,7 @@ function applyTrait(id){
         myWeapon.explosionRadius*=1.4;
       }else if(myWeapon.type==='dagger'){
         myWeapon.baseDmg*=1.35;
-        myWeapon.baseCd*=0.75;
+        myWeapon.baseCd*=1.15; // 공속 감소 → 증가
         s.spd*=1.15;
       }
     }else if(weaponUpgradeLevel===2){
@@ -388,7 +404,7 @@ function getW(){
     dmg:w.baseDmg*s.dmgMult*(critHit?2:1),
     cd:w.baseCd*s.cdMult,
     range:w.baseRange*s.rangeMult,
-    count:1+(w.type!=='sword'&&w.type!=='dagger'&&w.type!=='magic'?s.multishot:0),
+    count:1+(w.type!=='magic'?s.multishot:0), // 근접도 multishot 적용
     crit:critHit
   };
 }
@@ -466,13 +482,27 @@ function applyState(msg){
   if(msg.turrets)turrets=msg.turrets;
   const me=allPlayers.find(p=>p.id===myId);
   if(me&&myPlayer){
+    // 서버의 HP를 우선시 (서버가 권위있는 소스)
     myPlayer.hp=me.hp;
-    myPlayer.maxHp=myStats.maxHp;
-    myPlayer.lv=me.lv;myPlayer.dead=me.dead;
-    myPlayer.exp=me.exp;myPlayer.expNext=me.expNext;
+    myPlayer.maxHp=me.maxHp;
+    myPlayer.lv=me.lv;
+    myPlayer.dead=me.dead;
+    myPlayer.exp=me.exp;
+    myPlayer.expNext=me.expNext;
+    
+    // maxHp가 변경되었으면 로컬 스탯도 업데이트
+    if(myStats.maxHp!==me.maxHp){
+      myStats.maxHp=me.maxHp;
+    }
+    
     if(me.lvUp)showTraitSelect();
+    
+    // 죽었으면 게임 종료
+    if(me.dead&&running){
+      running=false;
+      endGame(false);
+    }
   }
-  if(me&&me.dead&&running){running=false;endGame(false);}
 }
 
 // ── Stage transitions ──────────────────────────────────────
@@ -536,7 +566,17 @@ function tryShoot(){
   else if(jsActive){tx=myPlayer.x+jsX*200;ty=myPlayer.y+jsY*200;}
   else{tx=mouseX+camX-W/2;ty=mouseY+camY-H/2;}
   const ang=Math.atan2(ty-myPlayer.y,tx-myPlayer.x);
-  if(w.type==='sword'||w.type==='dagger'){doMelee(ang,w);return;}
+  
+  if(w.type==='sword'||w.type==='dagger'){
+    // 근접 무기 연속 공격
+    for(let i=0;i<w.count;i++){
+      setTimeout(()=>{
+        if(!myPlayer||myPlayer.dead)return;
+        doMelee(ang,w);
+      }, i*50); // 50ms 간격으로 연속 공격
+    }
+    return;
+  }
   
   if(w.type==='magic'){
     const multishotCount=myStats.multishot;
@@ -681,7 +721,10 @@ function spawnRemoteFx(fx){
 let regenTimer=0;
 function update(dt){
   if(!running||!myPlayer||myPlayer.dead||!myStats)return;
-  if(myStats.regen>0){regenTimer+=dt;if(regenTimer>1000){regenTimer=0;myPlayer.hp=Math.min(myPlayer.hp+myStats.regen,myPlayer.maxHp);}}
+  
+  // 체력 재생은 클라이언트에서만 표시, 서버에서 처리됨
+  // (서버에서 보내는 HP 값으로 동기화됨)
+  
   let mx=jsX,my=jsY;
   if(keys['w']||keys['arrowup'])my=-1;if(keys['s']||keys['arrowdown'])my=1;
   if(keys['a']||keys['arrowleft'])mx=-1;if(keys['d']||keys['arrowright'])mx=1;
@@ -750,12 +793,11 @@ function update(dt){
         }
       }
     }else{
+      // 적 탄환이 플레이어에게 맞는 경우 - 서버로 전송
       if(myPlayer&&!myPlayer.dead){
         const dx=p.x-myPlayer.x,dy=p.y-myPlayer.y;
         if(Math.sqrt(dx*dx+dy*dy)<14+p.r){
-          const dmg=p.dmg*(1-myStats.armor);
-          myPlayer.hp-=dmg;
-          if(myPlayer.hp<=0){myPlayer.hp=0;send({t:'playerDead'});}
+          send({t:'enemyHit',dmg:p.dmg});
           spawnParts(p.x,p.y,p.color,4);
           p.gone=true;
         }
@@ -1073,6 +1115,38 @@ function spawnEnemies(room) {
   if (room.enemies.length > 200) room.enemies = room.enemies.filter(e => !e.dead).slice(-200);
 }
 
+// 최종 보스용 잡몹 스폰 (원거리 80%, 탱커 20%)
+function spawnBossMobs(room) {
+  const playerCount = room.players.size;
+  const cnt = 3 + playerCount * 2; // 플레이어 수 비례
+  
+  const arr = [...room.players.values()].filter(p => !p.dead);
+  if (!arr.length) return;
+  const bossRef = room.boss || { x: 0, y: 0 };
+  
+  for (let i = 0; i < cnt; i++) {
+    const a = Math.random() * Math.PI * 2, r = 200 + Math.random() * 150;
+    // 80% 원거리, 20% 탱커
+    const isRanged = Math.random() < 0.8;
+    const et = isRanged ? ETYPES[1] : ETYPES[2]; // ranged or shield
+    
+    const baseHp = (30 + Math.random() * 20) * (1 + (playerCount - 1) * 0.3);
+    const e = {
+      id: room.eid++, 
+      x: bossRef.x + Math.cos(a) * r, 
+      y: bossRef.y + Math.sin(a) * r,
+      hp: baseHp * et.hpMult, 
+      maxHp: baseHp * et.hpMult,
+      spd: et.spd * 1.2,
+      type: et.type, r: et.r, dead: false, lastShot: 0,
+      shieldHp: et.shieldHp ? Math.floor(baseHp * 0.5) : 0,
+      dmgMult: et.dmgMult * 1.3,
+      poison: 0, ice: false, atkSlow: false
+    };
+    room.enemies.push(e);
+  }
+}
+
 function spawnBoss(room, isFinal) {
   const arr = [...room.players.values()];
   const ref = arr[0] || { x: 0, y: 0 };
@@ -1085,7 +1159,8 @@ function spawnBoss(room, isFinal) {
     hp, maxHp: hp, x: ref.x + 320, y: ref.y, r: 42, dead: false, 
     ang: 0, phase: 1, isFinal: isF,
     playerCount: playerCount,
-    lastHeavy: 0
+    lastHeavy: 0,
+    lastHpThreshold: 100 // 보스 HP 비율 추적용
   };
   room.enemies = [];
   
@@ -1100,10 +1175,11 @@ function spawnBoss(room, isFinal) {
         id: 'turret_' + i,
         x: ref.x + Math.cos(angle) * dist,
         y: ref.y + Math.sin(angle) * dist,
-        hp: 5000,
-        maxHp: 5000,
+        hp: 1000,
+        maxHp: 1000,
         r: 25,
-        isTurret: true
+        isTurret: true,
+        dead: false
       });
     }
     bcastAll(room, { t: 'finalBoss', boss: room.boss });
@@ -1121,6 +1197,12 @@ function tickRoom(code) {
   const dt = Math.min((now - room.lastTick) / 1000, 0.1);
   room.lastTick = now;
   room.stageTime -= dt;
+
+  // 플레이어 체력 재생 처리
+  room.players.forEach((p, ws) => {
+    if (p.dead || !p.regen) return;
+    p.hp = Math.min(p.hp + p.regen * dt, p.maxHp);
+  });
 
   if (!room.midBossAlive && !room.finalBossAlive) {
     room.spawnT = (room.spawnT || 0) + dt;
@@ -1189,8 +1271,13 @@ function tickRoom(code) {
     
     const dmgMult = e.ice ? 0.7 : 1;
     if (d < e.r + 14) { 
-      near.hp -= 0.35 * e.dmgMult * dmgMult * dt * 60; 
-      if (near.hp < 0) near.hp = 0; 
+      const finalDmg = 0.35 * e.dmgMult * dmgMult * dt * 60;
+      const actualDmg = finalDmg * (1 - (near.armor || 0));
+      near.hp -= actualDmg;
+      if (near.hp <= 0) {
+        near.hp = 0;
+        near.dead = true;
+      }
     }
   }
 
@@ -1201,9 +1288,20 @@ function tickRoom(code) {
     const halfHp = b.maxHp / 2;
     if (b.hp < halfHp && b.phase === 1) { b.phase = 2; bcastAll(room, { t: 'phase2' }); }
     
+    // 최종 보스 HP 체크 및 잡몹 스폰 (10%씩 감소할 때마다)
+    if (b.isFinal) {
+      const hpPercent = Math.floor((b.hp / b.maxHp) * 100);
+      const threshold = Math.floor(hpPercent / 10) * 10;
+      
+      if (threshold < b.lastHpThreshold) {
+        b.lastHpThreshold = threshold;
+        spawnBossMobs(room);
+      }
+    }
+    
     // Turret regen
     if (b.isFinal && room.turrets && room.turrets.some(t => !t.dead && t.hp > 0)) {
-      b.hp = Math.min(b.hp + b.maxHp * 0.01 * dt, b.maxHp);
+      b.hp = Math.min(b.hp + b.maxHp * 0.05 * dt, b.maxHp);
     }
     
     let near = null, md = Infinity;
@@ -1218,8 +1316,13 @@ function tickRoom(code) {
       b.x += dx / d * bspd * dt * 60; b.y += dy / d * bspd * dt * 60;
       const contactDmg = b.isFinal ? (b.phase === 1 ? 0.4 : 0.6) : (b.phase === 1 ? 0.3 : 0.45);
       if (d < b.r + 14) { 
-        near.hp -= contactDmg * dt * 60; 
-        if (near.hp < 0) near.hp = 0; 
+        const finalDmg = contactDmg * dt * 60;
+        const actualDmg = finalDmg * (1 - (near.armor || 0));
+        near.hp -= actualDmg;
+        if (near.hp <= 0) {
+          near.hp = 0;
+          near.dead = true;
+        }
       }
       
       // Heavy projectile
@@ -1293,7 +1396,7 @@ wss.on('connection', ws => {
       ws.roomCode = code;
       rooms.get(code).players.set(ws, { 
         id: ws.pid, x: 0, y: 0, hp: 100, maxHp: 100, lv: 1, exp: 0, expNext: 50, 
-        dead: false, name: msg.name || 'Player', lvUp: false, cls: null 
+        dead: false, name: msg.name || 'Player', lvUp: false, cls: null, regen: 0, armor: 0
       });
       ws.send(JSON.stringify({ t: 'created', code, id: ws.pid }));
       bcastAll(rooms.get(code), { t: 'lobby', players: [...rooms.get(code).players.values()].map(p => ({ id: p.id, name: p.name })) });
@@ -1306,7 +1409,7 @@ wss.on('connection', ws => {
       const idx = room.players.size, sp = [{ x: 0, y: 0 }, { x: 60, y: -40 }, { x: -60, y: 40 }, { x: 40, y: 60 }][idx % 4];
       room.players.set(ws, { 
         id: ws.pid, x: sp.x, y: sp.y, hp: 100, maxHp: 100, lv: 1, exp: 0, expNext: 50, 
-        dead: false, name: msg.name || ('P' + (idx + 1)), lvUp: false, cls: null 
+        dead: false, name: msg.name || ('P' + (idx + 1)), lvUp: false, cls: null, regen: 0, armor: 0
       });
       ws.send(JSON.stringify({ t: 'joined', code, id: ws.pid }));
       bcastAll(room, { t: 'lobby', players: [...room.players.values()].map(p => ({ id: p.id, name: p.name })) });
@@ -1319,6 +1422,20 @@ wss.on('connection', ws => {
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p) return;
       p.cls = msg.cls || 'warrior';
+      
+      // 직업별 초기 스탯 설정
+      const CLASSES = {
+        warrior: { hp: 150, maxHp: 150, regen: 0.3, armor: 0.1 },
+        gunner: { hp: 80, maxHp: 80, regen: 0, armor: 0 },
+        mage: { hp: 65, maxHp: 65, regen: 0, armor: 0 },
+        assassin: { hp: 85, maxHp: 85, regen: 0, armor: 0 }
+      };
+      const cls = CLASSES[p.cls] || CLASSES.warrior;
+      p.hp = cls.hp;
+      p.maxHp = cls.maxHp;
+      p.regen = cls.regen;
+      p.armor = cls.armor;
+      
       room.readyCount = (room.readyCount || 0) + 1;
       if (room.readyCount >= room.players.size) {
         room.started = true; room.lastTick = Date.now();
@@ -1330,6 +1447,32 @@ wss.on('connection', ws => {
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p || p.dead) return;
       p.x = msg.x; p.y = msg.y;
+    }
+    else if (msg.t === 'enemyHit') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p || p.dead) return;
+      const actualDmg = msg.dmg * (1 - (p.armor || 0));
+      p.hp -= actualDmg;
+      if (p.hp <= 0) {
+        p.hp = 0;
+        p.dead = true;
+      }
+    }
+    else if (msg.t === 'updateMaxHp') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p) return;
+      p.maxHp = msg.maxHp;
+      p.hp = msg.hp;
+    }
+    else if (msg.t === 'updateRegen') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p) return;
+      p.regen = msg.regen;
+    }
+    else if (msg.t === 'updateArmor') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p) return;
+      p.armor = msg.armor;
     }
     else if (msg.t === 'hit') {
       const room = rooms.get(ws.roomCode); if (!room) return;
@@ -1370,8 +1513,16 @@ wss.on('connection', ws => {
       } else if (msg.target === 'turret') {
         const t = room.turrets ? room.turrets.find(tt => tt.id === msg.tid) : null;
         if (t && t.hp > 0) {
+          const wasAlive = !t.dead;
           t.hp -= msg.dmg;
-          if (t.hp <= 0) t.hp = 0;
+          if (t.hp <= 0) {
+            t.hp = 0;
+            t.dead = true;
+            // 포탑 파괴 시 잡몹 스폰
+            if (wasAlive && room.boss && room.boss.isFinal) {
+              spawnBossMobs(room);
+            }
+          }
           bcastAll(room, { t: 'turretHp', id: t.id, hp: t.hp });
         }
       } else {
@@ -1403,8 +1554,8 @@ wss.on('connection', ws => {
                 h.lv++; 
                 h.exp -= h.expNext; 
                 h.expNext = Math.floor(h.expNext * 1.4); 
-                h.maxHp += 15; // Reduced from 20
-                h.hp = Math.min(h.hp + 20, h.maxHp); // Reduced from 30
+                h.maxHp += 15;
+                h.hp = Math.min(h.hp + 20, h.maxHp);
                 h.lvUp = true; 
               }
               bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
@@ -1424,6 +1575,12 @@ wss.on('connection', ws => {
     else if (msg.t === 'fireZone') {
       const room = rooms.get(ws.roomCode); if (!room) return;
       bcast(room, { t: 'fireZone', x: msg.x, y: msg.y, dmg: msg.dmg }, ws);
+    }
+    else if (msg.t === 'playerDead') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p) return;
+      p.dead = true;
+      p.hp = 0;
     }
   });
 
