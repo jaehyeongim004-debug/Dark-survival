@@ -1,5 +1,6 @@
 // dark-survival v2 - node dark-survival.js
-const http=require(‘http’),{WebSocketServer}=require(‘ws’);
+const http=require('http');
+const WebSocketServer=require('ws').Server;
 const PORT=process.env.PORT||3000;
 
 const HTML=`<!DOCTYPE html>
