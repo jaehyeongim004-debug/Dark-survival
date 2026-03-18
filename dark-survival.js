@@ -247,20 +247,20 @@ function doStart(){send({t:'start'});}
 // ── Classes ──────────────────────────────────────────────────
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',
-    stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.3,multishot:0,magnetRange:1,armor:0.1,crit:false,critRate:0,expMult:1},
-    weapon:{name:'검',type:'sword',baseDmg:60,baseCd:1000,baseRange:140,color:'#66ccff'}
+    stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.5,multishot:0,magnetRange:1,armor:0.1,crit:false,critRate:0,expMult:1},
+    weapon:{name:'검',type:'sword',baseDmg:40,baseCd:1000,baseRange:140,color:'#66ccff'}
   },
   gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
-    stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
+    stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
     weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:20}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
-    stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
+    stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
     weapon:{name:'마법',type:'magic',baseDmg:55,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}
   },
   assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',
-    stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0,multishot:0,magnetRange:1,armor:0,crit:true,critRate:30,expMult:1},
-    weapon:{name:'단검',type:'dagger',baseDmg:28,baseCd:280,baseRange:85,color:'#ff88aa',spd:12}
+    stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:30,expMult:1},
+    weapon:{name:'단검',type:'dagger',baseDmg:34,baseCd:280,baseRange:85,color:'#ff88aa',spd:12}
   }
 };
 
@@ -461,7 +461,9 @@ function applyTrait(id, value){
     s.rangeMult *= (1 + rangeInc);
   }
   else if(id==='regen'){
-    const regenInc = value || 0.5;
+    let regenInc = value || 0.5;
+    // [FIX] 마법사/저격수는 재생 특성 절반만 적용
+    if(myClass==='mage'||myClass==='gunner') regenInc *= 0.5;
     s.regen += regenInc;
     send({t:'updateRegen',regen:s.regen});
   }
@@ -479,13 +481,13 @@ function applyTrait(id, value){
   else if(id==='crit'){
     const critInc = value || 30;
     s.critRate += critInc;
-    if(s.critRate > 0) s.crit = true;
-    // [FIX] 암살자 치명타 100% 초과분 → 공격력 증가 (클라이언트 동기화)
     if(s.critRate > 100){
       const overflow = s.critRate - 100;
       s.dmgMult *= (1 + overflow / 100);
       s.critRate = 100;
     }
+    // [FIX] 서버에 critRate 동기화 (이후 applyState에서 서버값이 더 크지 않으면 덮어쓰지 않음)
+    send({t:'updateCritRate', critRate: s.critRate});
   }
   else if(id==='weapon'){
     weaponUpgradeLevel++;
@@ -557,13 +559,13 @@ function updateStatsPanel(){
 // ── Weapon helper ──────────────────────────────────────────
 function getW(){
   const w=myWeapon,s=myStats;
-  const critHit=s.crit&&Math.random()<(s.critRate/100);
+  // [FIX] s.crit 플래그 의존 제거 - critRate > 0이면 항상 치명타 판정
+  const critHit=s.critRate>0&&Math.random()<(s.critRate/100);
   return{
     ...w,
     dmg:w.baseDmg*s.dmgMult*(critHit?2:1),
     cd:w.baseCd*s.cdMult,
     range:w.baseRange*s.rangeMult,
-    // [FIX] 마법도 multishot 적용 (이전엔 magic 타입은 0으로 고정이었음)
     count:1+s.multishot,
     crit:critHit
   };
@@ -664,6 +666,7 @@ function initGameState(){
   if(!myClass)myClass='warrior';
   const cls=CLASSES[myClass];
   myStats={...cls.stats};
+  myStats._lastDmgBonus=1;
   myWeapon={...cls.weapon};
   myTraits=[];
   weaponUpgradeLevel=0;
@@ -731,14 +734,18 @@ function applyState(msg){
       myStats.maxHp=me.maxHp;
       if(me.armor !== undefined) myStats.armor = me.armor;
       if(me.regen !== undefined) myStats.regen = me.regen;
-      // rangeMult, cdMult, spd, dmgMult 는 클라이언트에서만 관리
-      // 서버에서 덮어쓰면 특성으로 올린 스탯이 리셋되는 버그 발생
+      // [FIX] dmgBonus: 서버에서 보스처치/레벨업으로 올린 경우만 반영
+      // 클라이언트 특성으로 올린 dmgMult는 별도 관리이므로 dmgBonus 비율로만 반영
+      if(me.dmgBonus !== undefined && me.dmgBonus !== (myStats._lastDmgBonus||1)){
+        const prevBonus = myStats._lastDmgBonus || 1;
+        const ratio = me.dmgBonus / prevBonus;
+        myStats.dmgMult *= ratio;
+        myStats._lastDmgBonus = me.dmgBonus;
+      }
       if(me.critRate !== undefined){
-        myStats.critRate = me.critRate;
-        if(myStats.critRate > 100){
-          const overflow = myStats.critRate - 100;
-          myStats.dmgMult *= (1 + overflow / 100);
-          myStats.critRate = 100;
+        if(me.critRate > myStats.critRate){
+          myStats.critRate = me.critRate;
+          if(myStats.critRate > 0) myStats.crit = true;
         }
       }
       updateStatsPanel();
@@ -979,30 +986,32 @@ function createExplosion(x,y,radius,dmg,color,element){
 
 // ── Boss patterns ──────────────────────────────────────────
 function doBossPat(msg){
-  const{i,bx,by,ang,phase,etype}=msg;
+  const{i,bx,by,ang,phase,etype,isFinal}=msg;
+  // 중간보스: range 1200 (2배), 최종보스: range 600
+  const bRange = isFinal ? 600 : 1200;
   if(i===-1){
     if(etype==='ranged'){
-      mkBB(bx,by,Math.cos(ang)*4.5,Math.sin(ang)*4.5,12,'#ffaa44',5);
+      mkBB(bx,by,Math.cos(ang)*4.5,Math.sin(ang)*4.5,12,'#ffaa44',5,bRange);
     }else if(etype==='mage'){
       for(let j=-1;j<=1;j++){
         const a=ang+j*0.4;
-        mkBB(bx,by,Math.cos(a)*3.2,Math.sin(a)*3.2,15,'#dd44ff',6);
+        mkBB(bx,by,Math.cos(a)*3.2,Math.sin(a)*3.2,15,'#dd44ff',6,bRange);
       }
     }
     return;
   }
   if(i===-2){
-    mkBB(bx,by,Math.cos(ang)*2.8,Math.sin(ang)*2.8,35,'#ff2200',18);
+    mkBB(bx,by,Math.cos(ang)*2.8,Math.sin(ang)*2.8,35,'#ff2200',18,bRange);
     return;
   }
-  [bossSpiral,bossBlast,bossCross,bossRapid,bossRing][Math.min(i,4)](bx,by,ang,phase);
+  [bossSpiral,bossBlast,bossCross,bossRapid,bossRing][Math.min(i,4)](bx,by,ang,phase,bRange);
 }
-function mkBB(bx,by,vx,vy,dmg,col,r){projs.push({x:bx,y:by,vx,vy,dmg,range:600,traveled:0,gone:false,color:col,r,enemy:true});}
-function bossSpiral(bx,by,ang,phase){const cnt=phase===2?14:10;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*4.2,Math.sin(a)*4.2,18,'#ff6600',8);}}
-function bossBlast(bx,by){for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2;mkBB(bx,by,Math.cos(a)*2.6,Math.sin(a)*2.6,22,'#ff2200',10);}spawnParts(bx,by,'#ff6600',16);}
-function bossCross(bx,by,ang,phase){const dirs=[[1,0],[-1,0],[0,1],[0,-1],[.71,.71],[-.71,.71],[.71,-.71],[-.71,-.71]];const cnt=phase===2?4:3;dirs.forEach(([dx,dy])=>{for(let n=0;n<cnt;n++)setTimeout(()=>mkBB(bx,by,dx*5.5,dy*5.5,20,'#cc44ff',7),n*150);});}
-function bossRapid(bx,by){if(!myPlayer)return;const cnt=8;for(let n=0;n<cnt;n++)setTimeout(()=>{if(!myPlayer)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1,a=Math.atan2(dy,dx)+(Math.random()-.5)*.6;mkBB(bx,by,Math.cos(a)*6.5,Math.sin(a)*6.5,16,'#ff4444',6);},n*90);}
-function bossRing(bx,by,ang,phase){const cnt=phase===2?20:16;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang*2,s=2.2+Math.random()*2.2;mkBB(bx,by,Math.cos(a)*s,Math.sin(a)*s,24,'#ffaa00',9);}}
+function mkBB(bx,by,vx,vy,dmg,col,r,range=600){projs.push({x:bx,y:by,vx,vy,dmg,range,traveled:0,gone:false,color:col,r,enemy:true});}
+function bossSpiral(bx,by,ang,phase,range=600){const cnt=phase===2?14:10;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*4.2,Math.sin(a)*4.2,18,'#ff6600',8,range);}}
+function bossBlast(bx,by,ang,phase,range=600){for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2;mkBB(bx,by,Math.cos(a)*2.6,Math.sin(a)*2.6,22,'#ff2200',10,range);}spawnParts(bx,by,'#ff6600',16);}
+function bossCross(bx,by,ang,phase,range=600){const dirs=[[1,0],[-1,0],[0,1],[0,-1],[.71,.71],[-.71,.71],[.71,-.71],[-.71,-.71]];const cnt=phase===2?4:3;dirs.forEach(([dx,dy])=>{for(let n=0;n<cnt;n++)setTimeout(()=>mkBB(bx,by,dx*5.5,dy*5.5,20,'#cc44ff',7,range),n*150);});}
+function bossRapid(bx,by,ang,phase,range=600){if(!myPlayer)return;const cnt=8;for(let n=0;n<cnt;n++)setTimeout(()=>{if(!myPlayer)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1,a=Math.atan2(dy,dx)+(Math.random()-.5)*.6;mkBB(bx,by,Math.cos(a)*6.5,Math.sin(a)*6.5,16,'#ff4444',6,range);},n*90);}
+function bossRing(bx,by,ang,phase,range=600){const cnt=phase===2?20:16;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang*2,s=2.2+Math.random()*2.2;mkBB(bx,by,Math.cos(a)*s,Math.sin(a)*s,24,'#ffaa00',9,range);}}
 
 // ── Remote FX ──────────────────────────────────────────────
 function spawnRemoteFx(fx){
@@ -1798,7 +1807,7 @@ function tickRoom(code) {
       const heavyCd = isIced ? 4.7 : 4;
       if (b.lastHeavy > heavyCd) {
         b.lastHeavy = 0;
-        bcastAll(room, { t: 'pat', i: -2, bx: b.x, by: b.y, ang: Math.atan2(dy, dx), phase: b.phase });
+        bcastAll(room, { t: 'pat', i: -2, bx: b.x, by: b.y, ang: Math.atan2(dy, dx), phase: b.phase, isFinal: b.isFinal });
       }
     }
 
@@ -1806,7 +1815,7 @@ function tickRoom(code) {
     const patInterval = (b.isFinal ? (b.phase === 1 ? 1.3 : 0.9) : (b.phase === 1 ? 1.8 : 1.3)) * (isIced ? 1.176 : 1);
     if (room.patT > patInterval) {
       room.patT = 0;
-      bcastAll(room, { t: 'pat', i: (room.patI || 0) % (b.phase === 1 ? 3 : 5), bx: b.x, by: b.y, ang: b.ang, phase: b.phase });
+      bcastAll(room, { t: 'pat', i: (room.patI || 0) % (b.phase === 1 ? 3 : 5), bx: b.x, by: b.y, ang: b.ang, phase: b.phase, isFinal: b.isFinal });
       room.patI = (room.patI || 0) + 1;
     }
   }
@@ -1913,10 +1922,10 @@ wss.on('connection', ws => {
       p.cls = msg.cls || 'warrior';
       
       const CLASSES = {
-        warrior: { hp: 150, maxHp: 150, regen: 0.3, armor: 0.1, critRate: 0, expMult: 1 },
-        gunner: { hp: 80, maxHp: 80, regen: 0, armor: 0, critRate: 0, expMult: 1 },
-        mage: { hp: 65, maxHp: 65, regen: 0, armor: 0, critRate: 0, expMult: 1 },
-        assassin: { hp: 85, maxHp: 85, regen: 0, armor: 0, critRate: 30, expMult: 1 }
+        warrior: { hp: 150, maxHp: 150, regen: 0.5, armor: 0.1, critRate: 0, expMult: 1 },
+        gunner:  { hp: 80,  maxHp: 80,  regen: 0.2, armor: 0,   critRate: 0, expMult: 1 },
+        mage:    { hp: 65,  maxHp: 65,  regen: 0.2, armor: 0,   critRate: 0, expMult: 1 },
+        assassin:{ hp: 85,  maxHp: 85,  regen: 0.2, armor: 0,   critRate: 30,expMult: 1 }
       };
       const cls = CLASSES[p.cls] || CLASSES.warrior;
       p.hp = cls.hp;
@@ -1976,6 +1985,11 @@ wss.on('connection', ws => {
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p) return;
       p.expMult = msg.expMult;
+    }
+    else if (msg.t === 'updateCritRate') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p) return;
+      p.critRate = msg.critRate;
     }
     else if (msg.t === 'hit') {
       const room = rooms.get(ws.roomCode); if (!room) return;
