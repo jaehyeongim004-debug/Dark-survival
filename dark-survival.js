@@ -96,11 +96,6 @@ input.inp:focus{border-color:#ffcc00;}
 #classTag{position:absolute;top:48px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #classTag span{color:#ffcc00;}
 #weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
-#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:none;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;}
-#statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
-#statsPanel .statName{color:#888;}
-#statsPanel .statVal{color:#ffcc00;font-weight:bold;}
-#minimap{position:absolute;bottom:20px;right:20px;width:150px;height:150px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
 </style>
 </head>
 <body>
@@ -131,8 +126,6 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="traitList"></div>
   <div id="classTag"></div>
   <div id="weaponElement"></div>
-  <div id="statsPanel"></div>
-  <div id="minimap"><canvas id="minimapCanvas" width="150" height="150"></canvas></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="atkBtn">⚔</div>
 
@@ -218,7 +211,6 @@ input.inp:focus{border-color:#ffcc00;}
 
 <script>
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),G=document.getElementById('G');
-const minimapCanvas=document.getElementById('minimapCanvas'),minimapCtx=minimapCanvas.getContext('2d');
 let W=G.clientWidth,H=G.clientHeight;
 canvas.width=W;canvas.height=H;
 
@@ -240,7 +232,7 @@ const CLASSES={
   },
   gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
     stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
-    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:20}
+    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:15}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
     stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
@@ -280,37 +272,20 @@ function doReady(){
 // ── Traits ─────────────────────────────────────────────────
 const ALL_TRAITS=[
   {id:'hp',icon:'❤',name:'강철 체력',desc:'최대 HP +{value}, 즉시 회복',min:5,max:40},
-  {id:'spd',icon:'💨',name:'질풍',desc:'이동속도 +{value}%',min:3,max:15},
-  {id:'dmg',icon:'⚔',name:'살육자',desc:'모든 무기 데미지 +{value}%',min:3,max:15},
-  {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +{value}%',min:3,max:15},
-  {id:'range',icon:'🎯',name:'저격수',desc:'사거리 +{value}%',min:5,max:30},
+  {id:'spd',icon:'💨',name:'질풍',desc:'이동속도 +{value}%',min:3,max:10},
+  {id:'dmg',icon:'⚔',name:'살육자',desc:'모든 무기 데미지 +{value}%',min:3,max:10},
+  {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +{value}%',min:3,max:10},
+  {id:'range',icon:'🎯',name:'저격수',desc:'사거리 +{value}%',min:5,max:20},
   {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP {value} 회복',min:0.1,max:1},
   {id:'multishot',icon:'🔱',name:'다중사격',desc:'발사체 +1 (원거리: 동시, 근접: 연속, 마법: 산탄)'},
-  {id:'magnet',icon:'📘',name:'수학의 정석',desc:'받는 경험치 +{value}%',min:5,max:20},
+  {id:'magnet',icon:'📘',name:'수학의 정석',desc:'받는 경험치 +{value}%',min:5,max:10},
   {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -{value}%',min:2,max:5},
-  {id:'crit',icon:'💥',name:'치명타',desc:'치명타율 +{value}%',min:3,max:15},
+  {id:'crit',icon:'💥',name:'치명타',desc:'치명타율 +{value}%',min:3,max:10},
   {id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 향상'},
 ];
 
-function getTraitGrade(trait,value){
-  if(!trait.min||!trait.max||value===undefined)return'';
-  const range=trait.max-trait.min;
-  const norm=(value-trait.min)/range;
-  if(norm>=0.9)return'S';
-  if(norm>=0.75)return'A';
-  if(norm>=0.5)return'B';
-  if(norm>=0.25)return'C';
-  return'D';
-}
-
 function rollTraits(){
   const pool=[...ALL_TRAITS];
-  
-  // 다중사격은 보스 보상으로만 지급 (레벨업 풀에서 제외)
-  const multishotIdx = pool.findIndex(t=>t.id==='multishot');
-  if(multishotIdx !== -1) {
-    pool.splice(multishotIdx, 1);
-  }
   
   // weapon 특성은 3회까지만 가능
   let weaponTrait = null;
@@ -392,10 +367,7 @@ function showTraitSelect(){
       else if(weaponUpgradeLevel===1)desc='속성 부여 (화염/독/냉기)';
       else if(weaponUpgradeLevel===2)desc='속성 2배 강화 + 이펙트';
     }
-    const g=getTraitGrade(tr,tr.value);
-    const gc={S:'#ff6b6b',A:'#ffa500',B:'#ffd700',C:'#90ee90',D:'#87ceeb'};
-    const gb=g?' <span style="color:'+gc[g]+';font-weight:bold;">['+g+']</span>':'';
-    div.innerHTML='<div class="traitIcon">'+tr.icon+'</div><div class="traitName">'+tr.name+gb+'</div><div class="traitDesc">'+desc+'</div>';
+    div.innerHTML='<div class="traitIcon">'+tr.icon+'</div><div class="traitName">'+tr.name+'</div><div class="traitDesc">'+desc+'</div>';
     div.onclick=()=>pickTrait(tr);
     cards.appendChild(div);
   }
@@ -408,7 +380,6 @@ function pickTrait(tr){
   myTraits.push(tr.id);
   applyTrait(tr.id, tr.value);
   updateTraitList();
-  updateStatsPanel();
   // 서버에 특성 선택 알림
   send({t:'traitPicked',trait:tr.id,value:tr.value});
   
@@ -488,7 +459,6 @@ function applyTrait(id, value){
       // 속성 2배 강화
       updateElementDisplay();
     }
-    updateStatsPanel();
   }
 }
 
@@ -507,29 +477,6 @@ function updateTraitList(){
   const el=document.getElementById('traitList');
   if(myTraits.length===0){el.innerHTML='';return;}
   el.innerHTML=myTraits.map(id=>{const tr=ALL_TRAITS.find(t=>t.id===id);return tr?'<span>'+tr.icon+' '+tr.name+'</span>':'';}).join('<br>');
-}
-
-function updateStatsPanel(){
-  if(!myStats||!myWeapon)return;
-  const s=myStats;
-  const w=myWeapon;
-  const dmg=(w.baseDmg*s.dmgMult).toFixed(1);
-  const armor=(s.armor*100).toFixed(0);
-  const regen=s.regen.toFixed(1);
-  const crit=s.critRate.toFixed(0);
-  const exp=((s.expMult-1)*100).toFixed(0);
-  const atkSpd=(100/s.cdMult).toFixed(0);
-  const moveSpd=(s.spd).toFixed(1);
-  
-  document.getElementById('statsPanel').innerHTML=
-    '<div class="statLine"><span class="statName">공격력</span><span class="statVal">'+dmg+'</span></div>'+
-    '<div class="statLine"><span class="statName">공속</span><span class="statVal">'+atkSpd+'%</span></div>'+
-    '<div class="statLine"><span class="statName">이속</span><span class="statVal">'+moveSpd+'</span></div>'+
-    '<div class="statLine"><span class="statName">방어력</span><span class="statVal">'+armor+'%</span></div>'+
-    '<div class="statLine"><span class="statName">재생</span><span class="statVal">'+regen+'/s</span></div>'+
-    '<div class="statLine"><span class="statName">치명타</span><span class="statVal">'+crit+'%</span></div>'+
-    '<div class="statLine"><span class="statName">경험치</span><span class="statVal">+'+exp+'%</span></div>'+
-    '<div class="statLine"><span class="statName">다중사격</span><span class="statVal">+'+s.multishot+'</span></div>';
 }
 
 // ── Weapon helper ──────────────────────────────────────────
@@ -557,7 +504,6 @@ let invincible=false,invincibleEnd=0; // 무적 상태
 const STAGE_BG=['#080810','#100808','#080e0a'];
 const STAGE_GRID=['#0d0d1a','#1a0808','#081408'];
 const STAGE_NAMES=['어둠의 황야','혈염의 성','마계의 심연'];
-const MAP_SIZE=3500; // 맵 크기 (중심에서 각 방향으로 3500픽셀 = 7000x7000)
 
 function handleMsg(msg){
   if(msg.t==='created'){myId=msg.id;isHost=true;document.getElementById('codeDisplay').textContent=msg.code;document.getElementById('joinRow').style.display='none';document.getElementById('waitRoom').style.display='flex';}
@@ -573,13 +519,6 @@ function handleMsg(msg){
     bossAlive=false;
     document.getElementById('bossBar').style.display='none';
     showPop('중간 보스 처치!',3000);
-    
-    // 다중사격 자동 부여
-    myStats.multishot += 1;
-    updateTraitList();
-    updateStatsPanel();
-    showPop('🔱 다중사격 획득!', 2000);
-    
     // 무기 강화 특성 부여
     if(weaponUpgradeLevel < 3) {
       setTimeout(() => {
@@ -603,17 +542,6 @@ function handleMsg(msg){
     }
   }
   else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
-  else if(msg.t==='finalBossDead'){
-    bossAlive=false;
-    document.getElementById('bossBar').style.display='none';
-    showPop('최종 보스 처치!',3000);
-    
-    // 다중사격 자동 부여
-    myStats.multishot += 1;
-    updateTraitList();
-    updateStatsPanel();
-    showPop('🔱 다중사격 획득!', 2000);
-  }
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
   else if(msg.t==='pat'){doBossPat(msg);}
@@ -653,15 +581,13 @@ function initGameState(){
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
   updateTraitList();
-  updateStatsPanel();
   updateElementDisplay();
   lastTime=performance.now();
   requestAnimationFrame(loop);
 }
 
 function applyState(msg){
-  allPlayers=msg.players||[];
-  if(msg.enemies !== undefined) enemies=msg.enemies; // 적 데이터가 있을 때만 업데이트
+  allPlayers=msg.players||[];enemies=msg.enemies||[];
   bossData=msg.boss||null;stageTime=msg.st??stageTime;
   if(msg.stage)currentStage=msg.stage;
   if(msg.turrets)turrets=msg.turrets;
@@ -684,9 +610,6 @@ function applyState(msg){
       if(me.cdMult !== undefined) myStats.cdMult = me.cdMult;
       if(me.spdMult !== undefined) myStats.spd = (CLASSES[myClass]?.stats.spd || 3.0) * me.spdMult;
       if(me.dmgBonus !== undefined) myStats.dmgMult = (CLASSES[myClass]?.stats.dmgMult || 1) * me.dmgBonus;
-      if(me.critRate !== undefined) myStats.critRate = me.critRate;
-      // 스탯 동기화 후 패널 업데이트
-      updateStatsPanel();
     }
     
     if(me.lvUp)showTraitSelect();
@@ -819,7 +742,7 @@ function tryShoot(){
       projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:4+weaponUpgradeLevel,enemy:false,element:weaponElement});
     }
   }
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,range:w.range,element:weaponElement,elementTier:weaponUpgradeLevel});
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
 
 function doMelee(ang,w){
@@ -840,7 +763,7 @@ function doMelee(ang,w){
       else reportHit(e.id,w.dmg,weaponElement);
     }}
   }
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1,range:w.range,element:weaponElement,elementTier:weaponUpgradeLevel});
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
 
 function reportHit(id,dmg,element,turretId){
@@ -904,14 +827,7 @@ function spawnRemoteFx(fx){
   const cls=CLASSES[fx.w]||CLASSES.warrior,wc=cls.weapon;
   if(wc.type==='sword'||wc.type==='dagger'){
     const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x);
-    // fx.range를 사용하거나 기본값 사용
-    const range = fx.range || wc.baseRange || 80;
-    const spread = wc.type==='dagger' ? 0.5 : 0.9;
-    const step = wc.type==='dagger' ? 0.18 : 0.25;
-    const particleStep = wc.type==='dagger' ? 12 : 16;
-    for(let a=ang-spread;a<=ang+spread;a+=step)
-      for(let r=18;r<range;r+=particleStep)
-        parts.push({x:fx.x+Math.cos(a)*r,y:fx.y+Math.sin(a)*r,vx:0,vy:0,life:140,maxLife:140,r:4,color:wc.color+'88'});
+    for(let a=ang-0.9;a<=ang+0.9;a+=0.25)for(let r=22;r<80;r+=16)parts.push({x:fx.x+Math.cos(a)*r,y:fx.y+Math.sin(a)*r,vx:0,vy:0,life:140,maxLife:140,r:4,color:wc.color+'88'});
   }else if(wc.type==='magic'){
     const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x);
     projs.push({x:fx.x,y:fx.y,vx:Math.cos(ang)*(wc.spd||6),vy:Math.sin(ang)*(wc.spd||6),dmg:0,range:wc.baseRange||300,traveled:0,gone:false,color:wc.color+'aa',r:8,enemy:false,visual:true,isMagic:true});
@@ -943,13 +859,7 @@ function update(dt){
   if(keys['w']||keys['arrowup'])my=-1;if(keys['s']||keys['arrowdown'])my=1;
   if(keys['a']||keys['arrowleft'])mx=-1;if(keys['d']||keys['arrowright'])mx=1;
   const ml=Math.sqrt(mx*mx+my*my)||1;
-  if(mx||my){
-    myPlayer.x+=mx/ml*myStats.spd*(dt/16);
-    myPlayer.y+=my/ml*myStats.spd*(dt/16);
-    // 맵 경계 제한
-    myPlayer.x=Math.max(-MAP_SIZE,Math.min(MAP_SIZE,myPlayer.x));
-    myPlayer.y=Math.max(-MAP_SIZE,Math.min(MAP_SIZE,myPlayer.y));
-  }
+  if(mx||my){myPlayer.x+=mx/ml*myStats.spd*(dt/16);myPlayer.y+=my/ml*myStats.spd*(dt/16);}
   send({t:'move',x:Math.round(myPlayer.x),y:Math.round(myPlayer.y)});
   if(attackPressed||mouseDown||keys[' ']||keys['f']||(enemies.length>0&&running))tryShoot();
   camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
@@ -1070,71 +980,6 @@ function draw(){
   if(myPlayer&&!myPlayer.dead)drawMe();
   drawProjs();
   ctx.restore();
-  drawMinimap();
-}
-
-function drawMinimap(){
-  if(!myPlayer||!running)return;
-  const mCtx=minimapCtx;
-  const size=150;
-  mCtx.clearRect(0,0,size,size);
-  
-  // 맵 경계선
-  mCtx.fillStyle='rgba(20,20,30,0.8)';
-  mCtx.fillRect(0,0,size,size);
-  mCtx.strokeStyle='#444';
-  mCtx.lineWidth=1;
-  mCtx.strokeRect(0,0,size,size);
-  
-  // 스케일 (맵 크기 4000 -> 미니맵 150)
-  const scale=size/(MAP_SIZE*2);
-  const centerX=size/2,centerY=size/2;
-  
-  // 맵 중심점 표시
-  mCtx.strokeStyle='#333';
-  mCtx.beginPath();
-  mCtx.moveTo(centerX,0);
-  mCtx.lineTo(centerX,size);
-  mCtx.moveTo(0,centerY);
-  mCtx.lineTo(size,centerY);
-  mCtx.stroke();
-  
-  // 다른 플레이어들
-  allPlayers.forEach((p,i)=>{
-    if(p.id===myId||p.dead)return;
-    const mx=centerX+p.x*scale;
-    const my=centerY+p.y*scale;
-    const cls=CLASSES[p.cls];
-    mCtx.fillStyle=cls?cls.color:'#66aaff';
-    mCtx.beginPath();
-    mCtx.arc(mx,my,4,0,Math.PI*2);
-    mCtx.fill();
-  });
-  
-  // 보스
-  if(bossData&&!bossData.dead){
-    const bx=centerX+bossData.x*scale;
-    const by=centerY+bossData.y*scale;
-    mCtx.fillStyle='#ff3300';
-    mCtx.beginPath();
-    mCtx.arc(bx,by,6,0,Math.PI*2);
-    mCtx.fill();
-    mCtx.strokeStyle='#ff6600';
-    mCtx.lineWidth=2;
-    mCtx.stroke();
-  }
-  
-  // 내 위치 (마지막에 그려서 항상 보이게)
-  const myX=centerX+myPlayer.x*scale;
-  const myY=centerY+myPlayer.y*scale;
-  const myCls=CLASSES[myClass];
-  mCtx.fillStyle=myCls?myCls.color:'#ffcc00';
-  mCtx.beginPath();
-  mCtx.arc(myX,myY,5,0,Math.PI*2);
-  mCtx.fill();
-  mCtx.strokeStyle='#fff';
-  mCtx.lineWidth=2;
-  mCtx.stroke();
 }
 
 function drawGrid(){
@@ -1169,19 +1014,6 @@ function drawMe(){
   ctx.shadowBlur=0;
   ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText(cls.icon,x,y);
-  
-  // 캐릭터 위 체력바
-  const hpPct=Math.max(0,myPlayer.hp/myPlayer.maxHp);
-  const barW=30,barH=4;
-  const barX=x-barW/2,barY=y-22;
-  ctx.fillStyle='#1a0000';
-  ctx.fillRect(barX,barY,barW,barH);
-  ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';
-  ctx.fillRect(barX,barY,barW*hpPct,barH);
-  ctx.strokeStyle='#000';
-  ctx.lineWidth=1;
-  ctx.strokeRect(barX,barY,barW,barH);
-  
   ctx.restore();
 }
 
@@ -1195,23 +1027,8 @@ function drawOthers(){
     ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);ctx.fill();
     ctx.shadowBlur=0;
     if(cls){ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,p.x,p.y);}
-    
-    // 이름 표시
     ctx.fillStyle='#ffffffcc';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-    ctx.fillText(p.name||'?',p.x,p.y-28);
-    
-    // 체력바
-    const hpPct=Math.max(0,p.hp/(p.maxHp||100));
-    const barW=30,barH=4;
-    const barX=p.x-barW/2,barY=p.y-20;
-    ctx.fillStyle='#1a0000';
-    ctx.fillRect(barX,barY,barW,barH);
-    ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';
-    ctx.fillRect(barX,barY,barW*hpPct,barH);
-    ctx.strokeStyle='#000';
-    ctx.lineWidth=1;
-    ctx.strokeRect(barX,barY,barW,barH);
-    
+    ctx.fillText(p.name||'?',p.x,p.y-16);
     ctx.restore();
   });
 }
@@ -1442,7 +1259,7 @@ function spawnEnemies(room) {
     };
     room.enemies.push(e);
   }
-  if (room.enemies.length > 150) room.enemies = room.enemies.filter(e => !e.dead).slice(-150);
+  if (room.enemies.length > 200) room.enemies = room.enemies.filter(e => !e.dead).slice(-200);
 }
 
 // 최종 보스용 잡몹 스폰 (원거리 80%, 탱커 20%)
@@ -1528,9 +1345,6 @@ function tickRoom(code) {
   const dt = Math.min((now - room.lastTick) / 1000, 0.1);
   room.lastTick = now;
   room.stageTime -= dt;
-  
-  // 상태 전송 카운터 (3틱마다 전송)
-  room.stateTick = (room.stateTick || 0) + 1;
 
   // 플레이어 체력 재생 처리 및 무적 상태 업데이트
   room.players.forEach((p, ws) => {
@@ -1706,33 +1520,26 @@ function tickRoom(code) {
       id: p.id, x: Math.round(p.x), y: Math.round(p.y), hp: p.hp, maxHp: p.maxHp, 
       lv: p.lv, dead: p.dead, name: p.name, exp: p.exp, expNext: p.expNext, lvUp: p.lvUp, cls: p.cls, 
       dmgBonus: p.dmgBonus || 1, armor: p.armor || 0, regen: p.regen || 0, 
-      rangeMult: p.rangeMult || 1, cdMult: p.cdMult || 1, spdMult: p.spdMult || 1, critRate: p.critRate || 0
+      rangeMult: p.rangeMult || 1, cdMult: p.cdMult || 1, spdMult: p.spdMult || 1
     }));
     room.players.forEach(p => { if (p.lvUp) p.lvUp = false; });
-    
-    // 최적화: 플레이어/보스는 3틱마다, 적은 5틱마다 전송
-    if (room.stateTick % 3 === 0) {
-      const enemyData = room.stateTick % 3 === 0 ? 
-        room.enemies.filter(e => !e.dead).map(e => ({ 
-          id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
-          maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
-          poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
-        })) : undefined;
-      
-      bcastAll(room, {
-        t: 'state', players: ps,
-        enemies: enemyData,
-        boss: room.boss && !room.boss.dead ? { 
-          x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp, 
-          maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal,
-          iceEnd: room.boss.iceEnd
-        } : null,
-        turrets: room.turrets ? room.turrets.filter(t => t.hp > 0).map(t => ({
-          id: t.id, x: t.x, y: t.y, hp: t.hp, maxHp: t.maxHp, r: t.r, isTurret: true
-        })) : [],
-        st: room.stageTime, stage: room.currentStage
-      });
-    }
+    bcastAll(room, {
+      t: 'state', players: ps,
+      enemies: room.enemies.filter(e => !e.dead).map(e => ({ 
+        id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
+        maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
+        poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
+      })),
+      boss: room.boss && !room.boss.dead ? { 
+        x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp, 
+        maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal,
+        iceEnd: room.boss.iceEnd
+      } : null,
+      turrets: room.turrets ? room.turrets.filter(t => t.hp > 0).map(t => ({
+        id: t.id, x: t.x, y: t.y, hp: t.hp, maxHp: t.maxHp, r: t.r, isTurret: true
+      })) : [],
+      st: room.stageTime, stage: room.currentStage
+    });
   }
 
   const alive = arr.filter(p => !p.dead);
@@ -1815,15 +1622,13 @@ wss.on('connection', ws => {
       if (room.readyCount >= room.players.size) {
         room.started = true; room.lastTick = Date.now();
         bcastAll(room, { t: 'allReady' });
-        room.tick = setInterval(() => tickRoom(ws.roomCode), 60); // 60ms = 16.6 TPS
+        room.tick = setInterval(() => tickRoom(ws.roomCode), 50);
       }
     }
     else if (msg.t === 'move') {
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p || p.dead) return;
-      const MAP_SIZE = 3500;
-      p.x = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, msg.x));
-      p.y = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, msg.y));
+      p.x = msg.x; p.y = msg.y;
     }
     else if (msg.t === 'enemyHit') {
       const room = rooms.get(ws.roomCode); if (!room) return;
@@ -1831,9 +1636,7 @@ wss.on('connection', ws => {
       // 무적 상태가 아닐 때만 피해 적용
       const now = Date.now();
       if (!p.invincible && !(p.invincibleEnd > 0 && p.invincibleEnd > now)) {
-        // 저격수는 방어력 절반만 적용
-        const armorMult = p.cls === 'gunner' ? 0.5 : 1;
-        const actualDmg = msg.dmg * (1 - (p.armor || 0) * armorMult);
+        const actualDmg = msg.dmg * (1 - (p.armor || 0));
         p.hp -= actualDmg;
         if (p.hp <= 0) {
           p.hp = 0;
@@ -1974,14 +1777,8 @@ wss.on('connection', ws => {
             e.dead = true;
             const h = room.players.get(ws);
             if (h) {
-              // 체력 비례 경험치 (기본 10점 + 최대체력의 10%)
-              const baseExp = 10;
-              const hpBonus = Math.floor(e.maxHp * 0.1);
-              const sc = baseExp + hpBonus;
-              // 멀티플레이어 밸런스: 플레이어 수로 경험치 나누기
-              const playerCount = room.players.size;
-              const expDivider = playerCount >= 3 ? playerCount * 0.65 : playerCount * 0.6; // 완화된 페널티
-              const expGain = sc;
+              const sc = e.type === 'shield' ? 25 : e.type === 'fast' ? 15 : e.type === 'mage' ? 20 : 10;
+              const expGain = Math.floor(sc / 2 * (h.expMult || 1));
               h.exp += expGain;
               if (h.exp >= h.expNext) { 
                 h.lv++; 
@@ -1998,7 +1795,7 @@ wss.on('connection', ws => {
                   h.rangeMult *= 1.02; // 범위 2% 증가
                 } else if (h.cls === 'gunner') {
                   if (!h.dmgBonus) h.dmgBonus = 1;
-                  h.dmgBonus *= 1.05; // 공격력 5% 증가
+                  h.dmgBonus *= 1.04; // 공격력 4% 증가
                 } else if (h.cls === 'mage') {
                   if (!h.dmgBonus) h.dmgBonus = 1;
                   h.dmgBonus *= 1.03; // 공격력 3% 증가
@@ -2006,18 +1803,12 @@ wss.on('connection', ws => {
                   h.cdMult *= 0.98; // 공속 2% 증가 (쿨다운 감소)
                 } else if (h.cls === 'assassin') {
                   if (!h.spdMult) h.spdMult = 1;
-                  h.spdMult *= 1.02; // 이속 2% 증가
+                  h.spdMult *= 1.01; // 이속 1% 증가
                   if (!h.dmgBonus) h.dmgBonus = 1;
-                  h.dmgBonus *= 1.02; // 공격력 2% 증가
+                  h.dmgBonus *= 1.02; // 공격력 1% 증가
                   if (!h.cdMult) h.cdMult = 1;
-                  h.cdMult *= 0.98; // 공속 2% 증가 (쿨다운 감소)
-                  h.critRate = (h.critRate || 30) + 3; // 치명타율 3% 증가
-                  // 치명타 100% 초과 시 초과분만큼 공격력 증가
-                  if (h.critRate > 100) {
-                    const overflow = h.critRate - 100;
-                    h.dmgBonus *= 1 + (overflow / 100);
-                    h.critRate = 100;
-                  }
+                  h.cdMult *= 0.98; // 공속 1% 증가 (쿨다운 감소)
+                  h.critRate = Math.min((h.critRate || 30) + 1, 100); // 치명타율 1% 증가 (최대 100%)
                 }
                 
                 h.lvUp = true; 
@@ -2030,7 +1821,7 @@ wss.on('connection', ws => {
     }
     else if (msg.t === 'atk') {
       const room = rooms.get(ws.roomCode); if (!room) return;
-      bcast(room, { t: 'fx', x: msg.x, y: msg.y, ax: msg.ax, ay: msg.ay, w: msg.w, cnt: msg.cnt, range: msg.range }, ws);
+      bcast(room, { t: 'fx', x: msg.x, y: msg.y, ax: msg.ax, ay: msg.ay, w: msg.w, cnt: msg.cnt }, ws);
     }
     else if (msg.t === 'explosion') {
       const room = rooms.get(ws.roomCode); if (!room) return;
