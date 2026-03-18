@@ -442,10 +442,13 @@ function showTraitSelect(){
     // 줄바꿈을 <br> 태그로 변환
     desc = desc.replace(/\n/g, '<br>');
     
-    // 등급 계산 및 표시
-    const grade = getTraitGrade(tr, tr.value);
-    const gradeColor = {S:'#ff6b6b', A:'#ffa500', B:'#ffd700', C:'#90ee90', D:'#87ceeb'};
-    const gradeBadge = grade ? '<span style="color:'+gradeColor[grade]+';font-weight:bold;margin-left:4px;">['+grade+']</span>' : '';
+    // 등급 계산 및 표시 (value가 있는 특성만)
+    let gradeBadge = '';
+    if(tr.value !== undefined && tr.min !== undefined && tr.max !== undefined){
+      const grade = getTraitGrade(tr, tr.value);
+      const gradeColor = {S:'#ff6b6b', A:'#ffa500', B:'#ffd700', C:'#90ee90', D:'#87ceeb'};
+      if(grade) gradeBadge = '<span style="color:'+gradeColor[grade]+';font-weight:bold;margin-left:4px;">['+grade+']</span>';
+    }
     
     div.innerHTML='<div class="traitIcon">'+tr.icon+'</div><div class="traitName">'+tr.name+gradeBadge+'</div><div class="traitDesc">'+desc+'</div>';
     div.onclick=()=>pickTrait(tr);
@@ -1523,31 +1526,22 @@ function showPop(txt,dur){const el=document.getElementById('msgPop');el.textCont
 
 function showWeaponUpgrade(msg){
   // 화려한 무기 강화 알림 생성
-  const notification = document.createElement('div');
-  notification.style.position = 'fixed';
-  notification.style.top = '50%';
-  notification.style.left = '50%';
-  notification.style.transform = 'translate(-50%, -50%) scale(0)';
-  notification.style.background = 'linear-gradient(135deg, #ff6600, #ffaa00, #ffcc00)';
-  notification.style.color = '#fff';
-  notification.style.padding = '30px 50px';
-  notification.style.borderRadius = '20px';
-  notification.style.border = '4px solid #fff';
-  notification.style.fontSize = '24px';
-  notification.style.fontWeight = 'bold';
-  notification.style.textAlign = 'center';
-  notification.style.zIndex = '10001';
-  notification.style.boxShadow = '0 0 40px rgba(255, 170, 0, 0.8), 0 0 80px rgba(255, 170, 0, 0.4)';
-  notification.style.textShadow = '0 0 10px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3)';
-  notification.style.animation = 'weaponUpgradePulse 0.6s ease-out forwards';
-  notification.innerHTML = '🌟 ' + msg + ' 🌟';
-  document.body.appendChild(notification);
-  
-  // 3초 후 페이드아웃
-  setTimeout(() => {
-    notification.style.animation = 'weaponUpgradeFadeOut 0.5s ease-out forwards';
-    setTimeout(() => notification.remove(), 500);
-  }, 3000);
+  try {
+    const notification = document.createElement('div');
+    notification.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);background:linear-gradient(135deg,#ff6600,#ffaa00,#ffcc00);color:#fff;padding:30px 50px;border-radius:20px;border:4px solid #fff;font-size:24px;font-weight:bold;text-align:center;z-index:10001;box-shadow:0 0 40px rgba(255,170,0,0.8),0 0 80px rgba(255,170,0,0.4);text-shadow:0 0 10px rgba(0,0,0,0.5),0 2px 4px rgba(0,0,0,0.3);animation:weaponUpgradePulse 0.6s ease-out forwards';
+    notification.innerHTML = '🌟 ' + msg + ' 🌟';
+    document.body.appendChild(notification);
+    
+    // 3초 후 페이드아웃
+    setTimeout(() => {
+      notification.style.animation = 'weaponUpgradeFadeOut 0.5s ease-out forwards';
+      setTimeout(() => notification.remove(), 500);
+    }, 3000);
+  } catch(e) {
+    console.error('showWeaponUpgrade error:', e);
+    // 오류 시 기본 알림으로 대체
+    showPop(msg, 3000);
+  }
 }
 
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
