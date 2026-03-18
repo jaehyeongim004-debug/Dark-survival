@@ -298,6 +298,12 @@ function getTraitGrade(trait,value){
 function rollTraits(){
   const pool=[...ALL_TRAITS];
   
+  // 다중사격은 보스 보상으로만 지급 (레벨업 풀에서 제외)
+  const multishotIdx = pool.findIndex(t=>t.id==='multishot');
+  if(multishotIdx !== -1) {
+    pool.splice(multishotIdx, 1);
+  }
+  
   // weapon 특성은 3회까지만 가능
   let weaponTrait = null;
   const weaponIdx = pool.findIndex(t=>t.id==='weapon');
@@ -533,6 +539,12 @@ function handleMsg(msg){
     bossAlive=false;
     document.getElementById('bossBar').style.display='none';
     showPop('중간 보스 처치!',3000);
+    
+    // 다중사격 자동 부여
+    myStats.multishot += 1;
+    updateTraitList();
+    showPop('🔱 다중사격 획득!', 2000);
+    
     // 무기 강화 특성 부여
     if(weaponUpgradeLevel < 3) {
       setTimeout(() => {
@@ -556,6 +568,16 @@ function handleMsg(msg){
     }
   }
   else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
+  else if(msg.t==='finalBossDead'){
+    bossAlive=false;
+    document.getElementById('bossBar').style.display='none';
+    showPop('최종 보스 처치!',3000);
+    
+    // 다중사격 자동 부여
+    myStats.multishot += 1;
+    updateTraitList();
+    showPop('🔱 다중사격 획득!', 2000);
+  }
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
   else if(msg.t==='pat'){doBossPat(msg);}
@@ -1791,7 +1813,10 @@ wss.on('connection', ws => {
             e.dead = true;
             const h = room.players.get(ws);
             if (h) {
-              const sc = e.type === 'shield' ? 25 : e.type === 'fast' ? 15 : e.type === 'mage' ? 20 : 10;
+              // 체력 비례 경험치 (기본 10점 + 최대체력의 10%)
+              const baseExp = 10;
+              const hpBonus = Math.floor(e.maxHp * 0.1);
+              const sc = baseExp + hpBonus;
               const expGain = Math.floor(sc / 2 * (h.expMult || 1));
               h.exp += expGain;
               if (h.exp >= h.expNext) { 
