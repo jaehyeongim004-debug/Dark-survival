@@ -1712,11 +1712,12 @@ function tickRoom(code) {
     
     // 최적화: 플레이어/보스는 3틱마다, 적은 5틱마다 전송
     if (room.stateTick % 3 === 0) {
-  const enemyData = room.enemies.filter(e => !e.dead).map(e => ({
-      id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
-      maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
-      poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
-  }));
+      const enemyData = room.stateTick % 3 === 0 ? 
+        room.enemies.filter(e => !e.dead).map(e => ({ 
+          id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
+          maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
+          poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
+        })) : undefined;
       
       bcastAll(room, {
         t: 'state', players: ps,
@@ -1978,29 +1979,15 @@ wss.on('connection', ws => {
               const hpBonus = Math.floor(e.maxHp * 0.1);
               const sc = baseExp + hpBonus;
               // 멀티플레이어 밸런스: 플레이어 수로 경험치 나누기
-              // 1. 경험치 계산 (몬스터의 체력에 비례)
-const baseExp = 10;
-const hpBonus = Math.floor(e.maxHp * 0.1);
-const sc = baseExp + hpBonus;
-
-// 2. [수정] 인원수 나누기(expDivider)를 삭제하고 바로 경험치 획득
-// sc / 2는 기존 비율을 유지한 것이며, h.expMult(특성 등으로 인한 추가 경험치)를 곱해줍니다.
-const expGain = Math.floor((sc / 2) * (h.expMult || 1));
-h.exp += expGain;
-
-// 3. 레벨업 판단 및 특성 선택 버그 수정
-if (h.exp >= h.expNext) { 
-    h.lv++; 
-    h.exp -= h.expNext; 
-    h.expNext = Math.floor(h.expNext * 1.4);
-
-    // [핵심] 이 줄이 있어야 클라이언트 화면에 특성 선택창이 나타납니다.
-    h.choosingTrait = true; 
-    
-    // 선택하는 동안 몬스터에게 죽지 않도록 무적 상태를 함께 주는 것이 좋습니다.
-    h.invincible = true; 
-}
-              
+              const playerCount = room.players.size;
+              const expDivider = playerCount >= 3 ? playerCount * 0.65 : playerCount * 0.6; // 완화된 페널티
+              const expGain = sc;
+              h.exp += expGain;
+              if (h.exp >= h.expNext) { 
+                h.lv++; 
+                h.exp -= h.expNext; 
+                h.expNext = Math.floor(h.expNext * 1.4);
+                
                 // 직업별 레벨업 스탯 증가
                 if (h.cls === 'warrior') {
                   h.maxHp += 20;
