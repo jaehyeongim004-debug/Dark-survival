@@ -349,6 +349,7 @@ function showTraitSelect(){
   if(!running)return;
   running=false;
   invincible=true; // 무적 시작
+  send({t:'invincible',start:true}); // 서버에 무적 시작 알림
   const traits=rollTraits();
   const cards=document.getElementById('traitCards');
   cards.innerHTML='';
@@ -384,6 +385,7 @@ function pickTrait(tr){
   
   // 특성 선택 후 2초간 무적 유지
   invincibleEnd=performance.now()+2000;
+  send({t:'invincible',duration:2000}); // 서버에 2초 무적 알림
 }
 
 function applyTrait(id, value){
@@ -1332,10 +1334,18 @@ function tickRoom(code) {
   room.lastTick = now;
   room.stageTime -= dt;
 
-  // 플레이어 체력 재생 처리
+  // 플레이어 체력 재생 처리 및 무적 상태 업데이트
   room.players.forEach((p, ws) => {
-    if (p.dead || !p.regen) return;
-    p.hp = Math.min(p.hp + p.regen * dt, p.maxHp);
+    // 체력 재생
+    if (!p.dead && p.regen) {
+      p.hp = Math.min(p.hp + p.regen * dt, p.maxHp);
+    }
+    
+    // 무적 상태 체크
+    if (p.invincibleEnd > 0 && now >= p.invincibleEnd) {
+      p.invincible = false;
+      p.invincibleEnd = 0;
+    }
   });
 
   if (!room.midBossAlive && !room.finalBossAlive) {
@@ -1406,13 +1416,16 @@ function tickRoom(code) {
       e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60;
     }
     
-    if (d < e.r + 14) { 
-      const finalDmg = 0.35 * e.dmgMult * dmgMult * dt * 60;
-      const actualDmg = finalDmg * (1 - (near.armor || 0));
-      near.hp -= actualDmg;
-      if (near.hp <= 0) {
-        near.hp = 0;
-        near.dead = true;
+    if (d < e.r + 14) {
+      // 무적 상태가 아닐 때만 피해 적용
+      if (!near.invincible && !(near.invincibleEnd > 0 && near.invincibleEnd > now)) {
+        const finalDmg = 0.35 * e.dmgMult * dmgMult * dt * 60;
+        const actualDmg = finalDmg * (1 - (near.armor || 0));
+        near.hp -= actualDmg;
+        if (near.hp <= 0) {
+          near.hp = 0;
+          near.dead = true;
+        }
       }
     }
   }
@@ -1456,13 +1469,16 @@ function tickRoom(code) {
       const bspd = (b.isFinal ? 2.0 : 1.6) * bossSpdMult;
       b.x += dx / d * bspd * dt * 60; b.y += dy / d * bspd * dt * 60;
       const contactDmg = b.isFinal ? (b.phase === 1 ? 0.4 : 0.6) : (b.phase === 1 ? 0.3 : 0.45);
-      if (d < b.r + 14) { 
-        const finalDmg = contactDmg * bossDmgMult * dt * 60;
-        const actualDmg = finalDmg * (1 - (near.armor || 0));
-        near.hp -= actualDmg;
-        if (near.hp <= 0) {
-          near.hp = 0;
-          near.dead = true;
+      if (d < b.r + 14) {
+        // 무적 상태가 아닐 때만 피해 적용
+        if (!near.invincible && !(near.invincibleEnd > 0 && near.invincibleEnd > now)) {
+          const finalDmg = contactDmg * bossDmgMult * dt * 60;
+          const actualDmg = finalDmg * (1 - (near.armor || 0));
+          near.hp -= actualDmg;
+          if (near.hp <= 0) {
+            near.hp = 0;
+            near.dead = true;
+          }
         }
       }
       
@@ -1539,7 +1555,8 @@ wss.on('connection', ws => {
       ws.roomCode = code;
       rooms.get(code).players.set(ws, { 
         id: ws.pid, x: 0, y: 0, hp: 100, maxHp: 100, lv: 1, exp: 0, expNext: 50, 
-        dead: false, name: msg.name || 'Player', lvUp: false, cls: null, regen: 0, armor: 0, expMult: 1, critRate: 0, dmgBonus: 1
+        dead: false, name: msg.name || 'Player', lvUp: false, cls: null, regen: 0, armor: 0, expMult: 1, critRate: 0, dmgBonus: 1,
+        invincible: false, invincibleEnd: 0
       });
       ws.send(JSON.stringify({ t: 'created', code, id: ws.pid }));
       bcastAll(rooms.get(code), { t: 'lobby', players: [...rooms.get(code).players.values()].map(p => ({ id: p.id, name: p.name })) });
@@ -1552,7 +1569,8 @@ wss.on('connection', ws => {
       const idx = room.players.size, sp = [{ x: 0, y: 0 }, { x: 60, y: -40 }, { x: -60, y: 40 }, { x: 40, y: 60 }][idx % 4];
       room.players.set(ws, { 
         id: ws.pid, x: sp.x, y: sp.y, hp: 100, maxHp: 100, lv: 1, exp: 0, expNext: 50, 
-        dead: false, name: msg.name || ('P' + (idx + 1)), lvUp: false, cls: null, regen: 0, armor: 0, expMult: 1, critRate: 0, dmgBonus: 1
+        dead: false, name: msg.name || ('P' + (idx + 1)), lvUp: false, cls: null, regen: 0, armor: 0, expMult: 1, critRate: 0, dmgBonus: 1,
+        invincible: false, invincibleEnd: 0
       });
       ws.send(JSON.stringify({ t: 'joined', code, id: ws.pid }));
       bcastAll(room, { t: 'lobby', players: [...room.players.values()].map(p => ({ id: p.id, name: p.name })) });
@@ -1596,11 +1614,15 @@ wss.on('connection', ws => {
     else if (msg.t === 'enemyHit') {
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p || p.dead) return;
-      const actualDmg = msg.dmg * (1 - (p.armor || 0));
-      p.hp -= actualDmg;
-      if (p.hp <= 0) {
-        p.hp = 0;
-        p.dead = true;
+      // 무적 상태가 아닐 때만 피해 적용
+      const now = Date.now();
+      if (!p.invincible && !(p.invincibleEnd > 0 && p.invincibleEnd > now)) {
+        const actualDmg = msg.dmg * (1 - (p.armor || 0));
+        p.hp -= actualDmg;
+        if (p.hp <= 0) {
+          p.hp = 0;
+          p.dead = true;
+        }
       }
     }
     else if (msg.t === 'updateMaxHp') {
@@ -1760,6 +1782,17 @@ wss.on('connection', ws => {
       const p = room.players.get(ws); if (!p) return;
       p.dead = true;
       p.hp = 0;
+    }
+    else if (msg.t === 'invincible') {
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p) return;
+      if (msg.start) {
+        // 특성 선택 시작 - 무적 활성화
+        p.invincible = true;
+      } else if (msg.duration) {
+        // 특성 선택 후 - 지속시간 설정
+        p.invincibleEnd = Date.now() + msg.duration;
+      }
     }
   });
 
