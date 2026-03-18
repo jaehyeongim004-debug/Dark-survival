@@ -163,18 +163,18 @@ input.inp:focus{border-color:#ffcc00;}
     <p class="sub">3스테이지 · 보스 처치 · 최대 4인</p>
     <input class="inp" id="nameInp" placeholder="닉네임" maxlength="10"/>
     <div style="display:flex;gap:8px;margin-top:4px;">
-      <button class="btn" onclick="doCreate()">방 만들기</button>
-      <button class="btn btn2" onclick="showJoin()">입장하기</button>
+      <button class="btn" id="createBtn">방 만들기</button>
+      <button class="btn btn2" id="joinBtn">입장하기</button>
     </div>
     <div id="joinRow" style="display:none;flex-direction:column;align-items:center;gap:8px;margin-top:4px;">
       <input class="inp" id="codeInp" placeholder="방 코드 5자리" maxlength="5" style="letter-spacing:4px;text-transform:uppercase;"/>
-      <button class="btn" onclick="doJoin()">입장</button>
+      <button class="btn" id="doJoinBtn">입장</button>
     </div>
     <div id="waitRoom" style="display:none;flex-direction:column;align-items:center;gap:10px;margin-top:4px;">
       <p style="color:#555;font-size:10px;">친구에게 코드를 알려주세요</p>
       <div id="codeDisplay">----</div>
       <div id="playerListEl"></div>
-      <button class="btn" id="startBtn" onclick="doStart()">▶ 게임 시작</button>
+      <button class="btn" id="startBtn">▶ 게임 시작</button>
     </div>
     <div id="errMsg"></div>
   </div>
@@ -183,7 +183,7 @@ input.inp:focus{border-color:#ffcc00;}
     <div id="classTitle">직업 선택</div>
     <div id="classSub">전투 스타일을 고르세요</div>
     <div id="classCards">
-      <div class="classCard" onclick="pickClass('warrior')">
+      <div class="classCard" data-class="warrior">
         <div class="classIcon">⚔️</div>
         <div class="classInfo">
           <div class="className">검사</div>
@@ -192,7 +192,7 @@ input.inp:focus{border-color:#ffcc00;}
           <div class="classFeature">💪 <strong>강점:</strong> 최고 탱커, 레벨당 HP+20·방어+1%·재생+0.1<br>🎯 <strong>특징:</strong> 광역 검격, 4단계 검기 발사</div>
         </div>
       </div>
-      <div class="classCard" onclick="pickClass('gunner')">
+      <div class="classCard" data-class="gunner">
         <div class="classIcon">🔫</div>
         <div class="classInfo">
           <div class="className">저격수</div>
@@ -201,7 +201,7 @@ input.inp:focus{border-color:#ffcc00;}
           <div class="classFeature">💪 <strong>강점:</strong> 보스 킬러, 방어력 완전 무시, 레벨당 공격+4%<br>🎯 <strong>특징:</strong> 느린 공속, 4단계 폭발탄 (광역 50%)</div>
         </div>
       </div>
-      <div class="classCard" onclick="pickClass('mage')">
+      <div class="classCard" data-class="mage">
         <div class="classIcon">✨</div>
         <div class="classInfo">
           <div class="className">마법사</div>
@@ -210,7 +210,7 @@ input.inp:focus{border-color:#ffcc00;}
           <div class="classFeature">💪 <strong>강점:</strong> 최강 광역딜, 레벨당 공격+3%·공속+2%<br>🎯 <strong>특징:</strong> 폭발 범위 공격, 4단계 3연 폭발</div>
         </div>
       </div>
-      <div class="classCard" onclick="pickClass('assassin')">
+      <div class="classCard" data-class="assassin">
         <div class="classIcon">🗡️</div>
         <div class="classInfo">
           <div class="className">암살자</div>
@@ -220,7 +220,7 @@ input.inp:focus{border-color:#ffcc00;}
         </div>
       </div>
     </div>
-    <button class="btn" id="classReady" style="display:none;" onclick="doReady()">준비 완료</button>
+    <button class="btn" id="classReady" style="display:none;">준비 완료</button>
   </div>
 
   <div id="lvlUpScreen">
@@ -238,11 +238,36 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="goScreen">
     <div id="goTitle"></div>
     <div id="goStats"></div>
-    <button class="btn" style="margin-top:8px;" onclick="location.reload()">다시 시작</button>
+    <button class="btn" id="restartBtn" style="margin-top:8px;">다시 시작</button>
   </div>
 </div>
 
 <script>
+// DOM이 완전히 로드된 후 이벤트 핸들러 연결
+document.addEventListener('DOMContentLoaded', function() {
+  // 로비 화면 버튼들
+  document.getElementById('createBtn').addEventListener('click', doCreate);
+  document.getElementById('joinBtn').addEventListener('click', showJoin);
+  document.getElementById('doJoinBtn').addEventListener('click', doJoin);
+  document.getElementById('startBtn').addEventListener('click', doStart);
+  
+  // 직업 선택 카드들
+  document.querySelectorAll('.classCard').forEach(card => {
+    card.addEventListener('click', function() {
+      const cls = this.getAttribute('data-class');
+      if(cls) pickClass(cls);
+    });
+  });
+  
+  // 준비 완료 버튼
+  document.getElementById('classReady').addEventListener('click', doReady);
+  
+  // 다시 시작 버튼
+  document.getElementById('restartBtn').addEventListener('click', function() {
+    location.reload();
+  });
+});
+
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),G=document.getElementById('G');
 let W=G.clientWidth,H=G.clientHeight;
 canvas.width=W;canvas.height=H;
