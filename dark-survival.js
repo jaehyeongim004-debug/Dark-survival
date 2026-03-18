@@ -35,14 +35,14 @@ canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
 #bossWrap{height:9px;background:#1a0000;border:1px solid #880000;border-radius:2px;overflow:hidden;max-width:280px;margin:0 auto;}
 #bossFill{height:100%;background:#ff3300;transition:width .1s;}
 
-#jsWrap{position:absolute;bottom:30px;left:30px;z-index:5;pointer-events:all;}
+#jsWrap{position:absolute;bottom:30px;left:30px;z-index:5;pointer-events:none;}
 #jsBase{width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);position:relative;touch-action:none;}
 #jsKnob{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.4);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
-#js2Wrap{position:absolute;bottom:30px;right:30px;z-index:5;pointer-events:all;}
+#js2Wrap{position:absolute;bottom:30px;right:30px;z-index:5;pointer-events:none;}
 #js2Base{width:100px;height:100px;border-radius:50%;background:rgba(255,100,100,0.06);border:2px solid rgba(255,100,100,0.2);position:relative;touch-action:none;}
 #js2Knob{width:42px;height:42px;border-radius:50%;background:rgba(255,100,100,0.3);border:2px solid rgba(255,100,100,0.5);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
 #js2Wrap .js2Icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;pointer-events:none;z-index:1;}
-#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:all;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;}
+#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:none;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;display:none;}
 #statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
 #statsPanel .statName{color:#888;}
 #statsPanel .statVal{color:#ffcc00;font-weight:bold;}
@@ -106,7 +106,7 @@ input.inp:focus{border-color:#ffcc00;}
 #statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
 #statsPanel .statName{color:#888;}
 #statsPanel .statVal{color:#ffcc00;font-weight:bold;}
-#autoAimBtn{position:absolute;right:12px;top:230px;z-index:6;pointer-events:all;width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #444;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;}
+#autoAimBtn{position:absolute;right:12px;top:230px;z-index:6;pointer-events:all;width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #444;display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;}
 #autoAimBtn .aaIcon{font-size:20px;line-height:1;}
 #autoAimBtn .aaLabel{font-size:7px;color:#666;margin-top:2px;font-family:monospace;}
 #autoAimBtn.on{border-color:#44ff88;}
@@ -662,6 +662,18 @@ function showClassScreen(){
   document.getElementById('lobbyScreen').style.display='none';
   document.getElementById('classScreen').style.display='flex';
 }
+function showGameUI(){
+  document.getElementById('jsWrap').style.pointerEvents='all';
+  document.getElementById('js2Wrap').style.pointerEvents='all';
+  document.getElementById('statsPanel').style.display='block';
+  document.getElementById('autoAimBtn').style.display='flex';
+}
+function hideGameUI(){
+  document.getElementById('jsWrap').style.pointerEvents='none';
+  document.getElementById('js2Wrap').style.pointerEvents='none';
+  document.getElementById('statsPanel').style.display='none';
+  document.getElementById('autoAimBtn').style.display='none';
+}
 function hideClassScreen(){
   document.getElementById('classScreen').style.display='none';
 }
@@ -679,7 +691,8 @@ function initGameState(){
   running=true;stageTime=600;currentStage=1;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;
   kills=0;score=0;projs=[];parts=[];orbs=[];remoteEffects=[];explosions=[];fireZones=[];turrets=[];
   myPlayer={x:0,y:0,hp:myStats.hp,maxHp:myStats.maxHp,lv:1,exp:0,expNext:50,dead:false};
-  invincible=false;invincibleEnd=0; // [FIX] 게임 시작 시 무적 초기화
+  invincible=false;invincibleEnd=0;
+  showGameUI(); // 게임 시작 시 조이스틱/스탯창 활성화
   document.getElementById('classTag').innerHTML='<span>'+cls.icon+' '+cls.name+'</span>';
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
@@ -1514,7 +1527,9 @@ function showPop(txt,dur){const el=document.getElementById('msgPop');el.textCont
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
 
 function endGame(win){
-  running=false;const el=document.getElementById('goScreen');el.style.display='flex';
+  running=false;
+  hideGameUI(); // 게임 종료 시 조이스틱/스탯창 숨김
+  const el=document.getElementById('goScreen');el.style.display='flex';
   document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';
   document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';
   const stagesCleared=win?3:currentStage-1;
