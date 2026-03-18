@@ -11,9 +11,9 @@ const HTML = `<!DOCTYPE html>
 <title>Dark Survival</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:#000;overflow:hidden;font-family:monospace;touch-action:none;}
+body{background:#000;overflow:hidden;font-family:monospace;}
 #G{position:relative;width:100vw;height:100vh;background:#080810;overflow:hidden;}
-canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
+canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;touch-action:none;}
 #hud{position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:5;}
 #topRow{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px 0;}
 .hudL{display:flex;flex-direction:column;gap:4px;}
@@ -663,12 +663,14 @@ function showClassScreen(){
   document.getElementById('classScreen').style.display='flex';
 }
 function showGameUI(){
+  canvas.style.pointerEvents='all';
   document.getElementById('jsWrap').style.pointerEvents='all';
   document.getElementById('js2Wrap').style.pointerEvents='all';
   document.getElementById('statsPanel').style.display='block';
   document.getElementById('autoAimBtn').style.display='flex';
 }
 function hideGameUI(){
+  canvas.style.pointerEvents='none';
   document.getElementById('jsWrap').style.pointerEvents='none';
   document.getElementById('js2Wrap').style.pointerEvents='none';
   document.getElementById('statsPanel').style.display='none';
