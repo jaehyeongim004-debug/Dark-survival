@@ -1,4 +1,4 @@
-// dark-survival.js — node dark-survival.js
+// dark-survival-final.js — node dark-survival-final.js
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
