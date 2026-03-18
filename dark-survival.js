@@ -913,7 +913,7 @@ function reportHit(id,dmg,element,turretId){
   }
   if(id==='boss')send({t:'hit',target:'boss',dmg,element,elementTier:weaponUpgradeLevel,weaponType});
   else if(id==='turret')send({t:'hit',target:'turret',dmg,tid:turretId,element,elementTier:weaponUpgradeLevel,weaponType});
-  else send({t:'hit',eid:id,dmg,element,elementTier:weaponUpgradeLevel});
+  else send({t:'hit',eid:id,dmg,element,elementTier:weaponUpgradeLevel,weaponType});
 }
 
 // ── Explosion ──────────────────────────────────────────────
@@ -1542,7 +1542,11 @@ function tickRoom(code) {
   const now = Date.now();
   const dt = Math.min((now - room.lastTick) / 1000, 0.1);
   room.lastTick = now;
-  room.stageTime -= dt;
+  
+  // 중간 보스가 살아있으면 시간 감소 중지
+  if (!room.midBossAlive) {
+    room.stageTime -= dt;
+  }
 
   // 플레이어 체력 재생 처리 및 무적 상태 업데이트
   room.players.forEach((p, ws) => {
@@ -1566,10 +1570,6 @@ function tickRoom(code) {
   if (!room.midBossSpawned && room.stageTime <= 300) {
     room.midBossSpawned = true;
     spawnBoss(room, false);
-  }
-
-  if (room.midBossAlive) {
-    room.stageTime = Math.max(room.stageTime, 0.1);
   }
   
   if (!room.finalBossSpawned && !room.midBossAlive && room.midBossSpawned && room.stageTime <= 0) {
