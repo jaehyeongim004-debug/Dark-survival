@@ -100,7 +100,7 @@ input.inp:focus{border-color:#ffcc00;}
 #statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
 #statsPanel .statName{color:#888;}
 #statsPanel .statVal{color:#ffcc00;font-weight:bold;}
-#minimap{position:absolute;bottom:20px;right:20px;width:150px;height:150px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
+#minimap{position:absolute;top:80px;left:12px;width:120px;height:120px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
 </style>
 </head>
 <body>
@@ -132,7 +132,7 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="classTag"></div>
   <div id="weaponElement"></div>
   <div id="statsPanel"></div>
-  <div id="minimap"><canvas id="minimapCanvas" width="150" height="150"></canvas></div>
+  <div id="minimap"><canvas id="minimapCanvas" width="120" height="120"></canvas></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="atkBtn">⚔</div>
 
@@ -666,7 +666,35 @@ function initGameState(){
 
 function applyState(msg){
   allPlayers=msg.players||[];
-  if(msg.enemies !== undefined) enemies=msg.enemies;
+  // [FIX] 잡몹 보간 - 서버 위치를 targetX/Y로 저장, 기존 객체 재사용
+  if(msg.enemies !== undefined){
+    const newEnemies=msg.enemies;
+    const oldMap=new Map(enemies.map(e=>[e.id,e]));
+    const aliveIds=new Set(newEnemies.map(e=>e.id));
+    enemies=newEnemies.map(ne=>{
+      const old=oldMap.get(ne.id);
+      if(old){
+        // 기존 적: 렌더 위치 유지, 목표만 업데이트
+        old.targetX=ne.x;
+        old.targetY=ne.y;
+        old.hp=ne.hp;
+        // 전체 데이터(maxHp 포함)가 온 경우에만 나머지 필드 업데이트
+        if(ne.maxHp!==undefined)old.maxHp=ne.maxHp;
+        if(ne.type!==undefined)old.type=ne.type;
+        if(ne.r!==undefined)old.r=ne.r;
+        if(ne.poison!==undefined)old.poison=ne.poison;
+        if(ne.iceEnd!==undefined)old.iceEnd=ne.iceEnd;
+        if(ne.atkSlow!==undefined)old.atkSlow=ne.atkSlow;
+        if(ne.shieldHp!==undefined)old.shieldHp=ne.shieldHp;
+        return old;
+      }else{
+        // 새 적: 즉시 위치 설정 (보간 시작점)
+        return{...ne,targetX:ne.x,targetY:ne.y};
+      }
+    });
+    // 서버에서 사라진 적(죽은 적) 제거
+    enemies=enemies.filter(e=>aliveIds.has(e.id));
+  }
   bossData=msg.boss||null;stageTime=msg.st??stageTime;
   if(msg.stage)currentStage=msg.stage;
   if(msg.turrets)turrets=msg.turrets;
@@ -771,11 +799,9 @@ function tryShoot(){
   const ang=Math.atan2(ty-myPlayer.y,tx-myPlayer.x);
   
   if(w.type==='sword'||w.type==='dagger'){
+    // [FIX] 딜레이 제거 - 즉시 동시에 모든 공격 처리
     for(let i=0;i<w.count;i++){
-      setTimeout(()=>{
-        if(!myPlayer||myPlayer.dead)return;
-        doMelee(ang,w);
-      }, i*25);
+      doMelee(ang,w);
     }
     return;
   }
@@ -835,19 +861,22 @@ function doMelee(ang,w){
   let col=isDagger?'#ff88aacc':w.color;
   if(weaponElement&&weaponUpgradeLevel>=3)col=ELEMENT_COLORS[weaponElement];
   const effectMult=1+weaponUpgradeLevel*0.3;
+  // [FIX] 실제 판정 사거리도 effectMult 적용 (시각 이펙트와 일치)
+  const actualRange=w.range*effectMult;
   for(let a=ang-spread;a<=ang+spread;a+=step)
-    for(let r=18;r<w.range*effectMult;r+=isDagger?12:14)
+    for(let r=18;r<actualRange;r+=isDagger?12:14)
       parts.push({x:myPlayer.x+Math.cos(a)*r,y:myPlayer.y+Math.sin(a)*r,vx:0,vy:0,life:isDagger?120:160,maxLife:isDagger?120:160,r:pR+weaponUpgradeLevel,color:col});
   const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38},...turrets]:enemies;
   for(const e of allE){
     const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);
-    if(d<w.range){const ea=Math.atan2(dy,dx),diff=Math.abs(((ea-ang)+Math.PI*3)%(Math.PI*2)-Math.PI);if(diff<(isDagger?0.6:1.3)){
+    // [FIX] 판정 범위를 actualRange 기준으로 체크
+    if(d<actualRange){const ea=Math.atan2(dy,dx),diff=Math.abs(((ea-ang)+Math.PI*3)%(Math.PI*2)-Math.PI);if(diff<(isDagger?0.6:1.3)){
       if(e.id==='boss')reportHit('boss',w.dmg,weaponElement);
       else if(e.isTurret)reportHit('turret',w.dmg,weaponElement,e.id);
       else reportHit(e.id,w.dmg,weaponElement);
     }}
   }
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1,range:w.range,element:weaponElement,elementTier:weaponUpgradeLevel});
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1,range:actualRange,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
 
 function reportHit(id,dmg,element,turretId){
@@ -954,6 +983,13 @@ function update(dt){
   send({t:'move',x:Math.round(myPlayer.x),y:Math.round(myPlayer.y)});
   if(attackPressed||mouseDown||keys[' ']||keys['f']||(enemies.length>0&&running))tryShoot();
   camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
+  // [FIX] 잡몹 클라이언트 보간 - 서버 전송 없이 매 프레임 부드럽게 이동
+  const lerpT=Math.min(1, dt/60 * 12); // ~12 스텝/초로 수렴 (부드러움 조절)
+  for(const e of enemies){
+    if(e.targetX===undefined){e.targetX=e.x;e.targetY=e.y;}
+    e.x+=(e.targetX-e.x)*lerpT;
+    e.y+=(e.targetY-e.y)*lerpT;
+  }
   for(const fx of remoteEffects)spawnRemoteFx(fx);
   remoteEffects=[];
   const spF=dt/16;
@@ -1077,7 +1113,7 @@ function draw(){
 function drawMinimap(){
   if(!myPlayer||!running)return;
   const mCtx=minimapCtx;
-  const size=150;
+  const size=120;
   mCtx.clearRect(0,0,size,size);
   
   mCtx.fillStyle='rgba(20,20,30,0.8)';
@@ -1720,12 +1756,18 @@ function tickRoom(code) {
     });
 
     if (room.stateTick % 3 === 0) {
-      const enemyData = room.stateTick % 5 === 0 ? 
-        room.enemies.filter(e => !e.dead).map(e => ({ 
-          id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
-          maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
-          poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
-        })) : undefined;
+      // [FIX] 적 전송 최적화: 3틱마다 위치+HP, 5틱마다 전체 스탯
+      const enemyData = room.enemies.filter(e => !e.dead).map(e => {
+        if (room.stateTick % 5 === 0) {
+          // 전체 데이터
+          return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
+            maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
+            poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow };
+        } else {
+          // 위치+HP만 (보간에 필요한 최소 데이터)
+          return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp) };
+        }
+      });
       
       bcastAll(room, {
         t: 'state', players: ps,
