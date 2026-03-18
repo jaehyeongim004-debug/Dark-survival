@@ -66,8 +66,6 @@ input.inp:focus{border-color:#ffcc00;}
 .className{color:#ffcc00;font-size:14px;font-weight:bold;margin-bottom:3px;}
 .classDesc{color:#777;font-size:10px;line-height:1.5;}
 .classStat{color:#88aacc;font-size:9px;margin-top:4px;}
-.classFeature{color:#999;font-size:9px;margin-top:6px;line-height:1.6;border-top:1px solid #222;padding-top:6px;}
-.classFeature strong{color:#ffaa44;}
 #classReady{margin-top:4px;}
 
 #lvlUpScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:15;padding:20px;}
@@ -93,26 +91,11 @@ input.inp:focus{border-color:#ffcc00;}
 #killFeed{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;z-index:5;pointer-events:none;}
 .kf{font-size:10px;color:#ff8844;animation:kfade 2.5s forwards;}
 @keyframes kfade{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
-@keyframes weaponUpgradePulse{
-  0%{transform:translate(-50%,-50%) scale(0);opacity:0;}
-  50%{transform:translate(-50%,-50%) scale(1.1);opacity:1;}
-  100%{transform:translate(-50%,-50%) scale(1);opacity:1;}
-}
-@keyframes weaponUpgradeFadeOut{
-  0%{opacity:1;transform:translate(-50%,-50%) scale(1);}
-  100%{opacity:0;transform:translate(-50%,-50%) scale(0.8);}
-}
 #traitList{position:absolute;bottom:84px;left:12px;font-size:9px;color:#556;pointer-events:none;z-index:5;line-height:1.8;}
 #traitList span{color:#88aacc;}
 #classTag{position:absolute;top:48px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #classTag span{color:#ffcc00;}
 #weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
-
-#statsPanel{position:absolute;top:80px;right:12px;background:rgba(0,0,0,0.7);border:1px solid #333;border-radius:8px;padding:10px 12px;pointer-events:none;z-index:5;min-width:140px;}
-.statRow{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:9px;}
-.statRow:last-child{margin-bottom:0;}
-.statLabel{color:#888;}
-.statVal{color:#ffcc00;font-weight:bold;margin-left:10px;}
 </style>
 </head>
 <body>
@@ -138,18 +121,6 @@ input.inp:focus{border-color:#ffcc00;}
     </div>
     <div id="bossBar"><div id="bossLbl">⚠ BOSS ⚠</div><div id="bossWrap"><div id="bossFill" style="width:100%"></div></div></div>
   </div>
-  
-  <!-- 상세 스탯 패널 -->
-  <div id="statsPanel">
-    <div class="statRow"><span class="statLabel">⚔ 공격력</span><span id="statDmg" class="statVal">100%</span></div>
-    <div class="statRow"><span class="statLabel">⚡ 공격속도</span><span id="statAtkSpd" class="statVal">100%</span></div>
-    <div class="statRow"><span class="statLabel">💨 이동속도</span><span id="statSpd" class="statVal">3.0</span></div>
-    <div class="statRow"><span class="statLabel">🎯 사거리</span><span id="statRange" class="statVal">100%</span></div>
-    <div class="statRow"><span class="statLabel">🛡 방어력</span><span id="statArmor" class="statVal">0%</span></div>
-    <div class="statRow"><span class="statLabel">🌿 재생</span><span id="statRegen" class="statVal">0/s</span></div>
-    <div class="statRow"><span class="statLabel">💥 치명타</span><span id="statCrit" class="statVal">0%</span></div>
-  </div>
-  
   <div id="killFeed"></div>
   <div id="msgPop"></div>
   <div id="traitList"></div>
@@ -163,18 +134,18 @@ input.inp:focus{border-color:#ffcc00;}
     <p class="sub">3스테이지 · 보스 처치 · 최대 4인</p>
     <input class="inp" id="nameInp" placeholder="닉네임" maxlength="10"/>
     <div style="display:flex;gap:8px;margin-top:4px;">
-      <button class="btn" id="createBtn">방 만들기</button>
-      <button class="btn btn2" id="joinBtn">입장하기</button>
+      <button class="btn" onclick="doCreate()">방 만들기</button>
+      <button class="btn btn2" onclick="showJoin()">입장하기</button>
     </div>
     <div id="joinRow" style="display:none;flex-direction:column;align-items:center;gap:8px;margin-top:4px;">
       <input class="inp" id="codeInp" placeholder="방 코드 5자리" maxlength="5" style="letter-spacing:4px;text-transform:uppercase;"/>
-      <button class="btn" id="doJoinBtn">입장</button>
+      <button class="btn" onclick="doJoin()">입장</button>
     </div>
     <div id="waitRoom" style="display:none;flex-direction:column;align-items:center;gap:10px;margin-top:4px;">
       <p style="color:#555;font-size:10px;">친구에게 코드를 알려주세요</p>
       <div id="codeDisplay">----</div>
       <div id="playerListEl"></div>
-      <button class="btn" id="startBtn">▶ 게임 시작</button>
+      <button class="btn" id="startBtn" onclick="doStart()">▶ 게임 시작</button>
     </div>
     <div id="errMsg"></div>
   </div>
@@ -183,44 +154,40 @@ input.inp:focus{border-color:#ffcc00;}
     <div id="classTitle">직업 선택</div>
     <div id="classSub">전투 스타일을 고르세요</div>
     <div id="classCards">
-      <div class="classCard" data-class="warrior">
+      <div class="classCard" onclick="pickClass('warrior')">
         <div class="classIcon">⚔️</div>
         <div class="classInfo">
           <div class="className">검사</div>
           <div class="classDesc">강력한 근접 공격으로 적을 베어냅니다.<br>높은 체력과 넓은 광역 검격.</div>
           <div class="classStat">HP: ●●●●○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●○○○</div>
-          <div class="classFeature">💪 <strong>강점:</strong> 최고 탱커, 레벨당 HP+20·방어+1%·재생+0.1<br>🎯 <strong>특징:</strong> 광역 검격, 4단계 검기 발사</div>
         </div>
       </div>
-      <div class="classCard" data-class="gunner">
+      <div class="classCard" onclick="pickClass('gunner')">
         <div class="classIcon">🔫</div>
         <div class="classInfo">
           <div class="className">저격수</div>
           <div class="classDesc">강력한 저격으로 원거리 적을 제압합니다.<br>높은 데미지와 긴 사거리.</div>
           <div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●●○○</div>
-          <div class="classFeature">💪 <strong>강점:</strong> 보스 킬러, 방어력 완전 무시, 레벨당 공격+4%<br>🎯 <strong>특징:</strong> 느린 공속, 4단계 폭발탄 (광역 50%)</div>
         </div>
       </div>
-      <div class="classCard" data-class="mage">
+      <div class="classCard" onclick="pickClass('mage')">
         <div class="classIcon">✨</div>
         <div class="classInfo">
           <div class="className">마법사</div>
           <div class="classDesc">폭발하는 마법탄으로 광역 피해!<br>낮은 HP지만 강력한 범위 공격.</div>
           <div class="classStat">HP: ●○○○○ &nbsp; 공격: ●●●●● &nbsp; 속도: ●●●○○</div>
-          <div class="classFeature">💪 <strong>강점:</strong> 최강 광역딜, 레벨당 공격+3%·공속+2%<br>🎯 <strong>특징:</strong> 폭발 범위 공격, 4단계 3연 폭발</div>
         </div>
       </div>
-      <div class="classCard" data-class="assassin">
+      <div class="classCard" onclick="pickClass('assassin')">
         <div class="classIcon">🗡️</div>
         <div class="classInfo">
           <div class="className">암살자</div>
           <div class="classDesc">빠른 이동속도와 높은 치명타.<br>리스크와 리워드가 모두 높음.</div>
           <div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●○○ &nbsp; 속도: ●●●●●</div>
-          <div class="classFeature">💪 <strong>강점:</strong> 최고 DPS, 레벨당 이속+1%·공격+1%·치명타+1%<br>🎯 <strong>특징:</strong> 초고속 공격, 4단계 10초 보호막</div>
         </div>
       </div>
     </div>
-    <button class="btn" id="classReady" style="display:none;">준비 완료</button>
+    <button class="btn" id="classReady" style="display:none;" onclick="doReady()">준비 완료</button>
   </div>
 
   <div id="lvlUpScreen">
@@ -238,36 +205,11 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="goScreen">
     <div id="goTitle"></div>
     <div id="goStats"></div>
-    <button class="btn" id="restartBtn" style="margin-top:8px;">다시 시작</button>
+    <button class="btn" style="margin-top:8px;" onclick="location.reload()">다시 시작</button>
   </div>
 </div>
 
 <script>
-// DOM이 완전히 로드된 후 이벤트 핸들러 연결
-document.addEventListener('DOMContentLoaded', function() {
-  // 로비 화면 버튼들
-  document.getElementById('createBtn').addEventListener('click', doCreate);
-  document.getElementById('joinBtn').addEventListener('click', showJoin);
-  document.getElementById('doJoinBtn').addEventListener('click', doJoin);
-  document.getElementById('startBtn').addEventListener('click', doStart);
-  
-  // 직업 선택 카드들
-  document.querySelectorAll('.classCard').forEach(card => {
-    card.addEventListener('click', function() {
-      const cls = this.getAttribute('data-class');
-      if(cls) pickClass(cls);
-    });
-  });
-  
-  // 준비 완료 버튼
-  document.getElementById('classReady').addEventListener('click', doReady);
-  
-  // 다시 시작 버튼
-  document.getElementById('restartBtn').addEventListener('click', function() {
-    location.reload();
-  });
-});
-
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),G=document.getElementById('G');
 let W=G.clientWidth,H=G.clientHeight;
 canvas.width=W;canvas.height=H;
@@ -290,7 +232,7 @@ const CLASSES={
   },
   gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
     stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
-    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:20}
+    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:15}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
     stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
@@ -335,32 +277,17 @@ function doReady(){
 // ── Traits ─────────────────────────────────────────────────
 const ALL_TRAITS=[
   {id:'hp',icon:'❤',name:'강철 체력',desc:'최대 HP +{value}, 즉시 회복',min:5,max:40},
-  {id:'spd',icon:'💨',name:'질풍',desc:'이동속도 +{value}%',min:3,max:15},
-  {id:'dmg',icon:'⚔',name:'살육자',desc:'모든 무기 데미지 +{value}%',min:3,max:15},
-  {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +{value}%',min:3,max:15},
-  {id:'range',icon:'🎯',name:'명사수',desc:'사거리 +{value}%',min:5,max:30},
-  {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP {value} 회복',min:0.1,max:2},
-  {id:'multishot',icon:'🔱',name:'다중사격',desc:'발사체 +1 (추가 탄환 데미지 {value}%)',min:5,max:20},
-  {id:'magnet',icon:'📘',name:'수학의 정석',desc:'받는 경험치 +{value}%',min:5,max:20},
+  {id:'spd',icon:'💨',name:'질풍',desc:'이동속도 +{value}%',min:3,max:10},
+  {id:'dmg',icon:'⚔',name:'살육자',desc:'모든 무기 데미지 +{value}%',min:3,max:10},
+  {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +{value}%',min:3,max:10},
+  {id:'range',icon:'🎯',name:'저격수',desc:'사거리 +{value}%',min:5,max:20},
+  {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP {value} 회복',min:0.1,max:1},
+  {id:'multishot',icon:'🔱',name:'다중사격',desc:'발사체 +1 (원거리: 동시, 근접: 연속, 마법: 산탄)'},
+  {id:'magnet',icon:'📘',name:'수학의 정석',desc:'받는 경험치 +{value}%',min:5,max:10},
   {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -{value}%',min:2,max:5},
-  {id:'crit',icon:'💥',name:'치명타',desc:'치명타율 +{value}%',min:3,max:15},
-  {id:'weapon',icon:'🌟',name:'무기 강화',desc:'단계별 무기 성능 향상 (직업별 상이)'},
+  {id:'crit',icon:'💥',name:'치명타',desc:'치명타율 +{value}%',min:3,max:10},
+  {id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 향상'},
 ];
-
-function getTraitGrade(trait, value){
-  // 수치가 없는 특성은 등급 없음
-  if(trait.min === undefined || trait.max === undefined || value === undefined) return '';
-  
-  const range = trait.max - trait.min;
-  const normalized = (value - trait.min) / range; // 0 ~ 1
-  
-  // S: 90~100%, A: 75~90%, B: 50~75%, C: 25~50%, D: 0~25%
-  if(normalized >= 0.9) return 'S';
-  else if(normalized >= 0.75) return 'A';
-  else if(normalized >= 0.5) return 'B';
-  else if(normalized >= 0.25) return 'C';
-  else return 'D';
-}
 
 function rollTraits(){
   const pool=[...ALL_TRAITS];
@@ -444,38 +371,26 @@ function showTraitSelect(){
     if(tr.id==='weapon'){
       const cls = myWeapon.type;
       if(weaponUpgradeLevel===0){
-        // 1단계 설명 - 직업별 기본 강화
-        if(cls==='sword') desc='⚔ 검사: 최대 HP +100, 공격 범위 +30%';
-        else if(cls==='bullet') desc='🔫 저격수: 탄환 관통 +1, 공격력 +15%';
-        else if(cls==='magic') desc='✨ 마법사: 폭발 범위 +30%, 공격력 +10%';
-        else if(cls==='dagger') desc='🗡 암살자: 치명타 피해 2배 → 3배';
+        // 1단계 설명
+        if(cls==='sword') desc='최대 HP +100, 공격 범위 +30%';
+        else if(cls==='bullet') desc='탄환 관통 +1, 공격력 +15%';
+        else if(cls==='magic') desc='폭발 범위 +30%, 공격력 +10%';
+        else if(cls==='dagger') desc='치명타 피해 2배 → 3배';
       }else if(weaponUpgradeLevel===1){
-        // 2단계: 속성 랜덤 부여
-        desc='🎲 랜덤 속성 부여\n🔥 화염: 공격/공속/이속 +10%\n☠ 독: 스택당 지속피해\n❄ 냉기: 적 둔화 -15%';
+        // 2단계: 속성 랜덤 부여 예정이므로 일반 설명
+        desc='속성 부여 (화염/독/냉기 중 랜덤)';
       }else if(weaponUpgradeLevel===2){
         // 3단계: 현재 속성 2배 강화
-        const elName = weaponElement ? ELEMENT_NAMES[weaponElement] : '속성';
-        desc='⬆ ' + elName + ' 효과 2배 강화\n화염은 모든 보너스 2배\n독/냉기는 효과 2배';
+        desc='속성 효과 2배 강화';
       }else if(weaponUpgradeLevel===3){
-        // 4단계: 궁극기 - 직업별 특수 능력
-        if(cls==='sword') desc='⚔ 검사 궁극기\n💛 검기 발사: 공격 시 원거리 검기 추가\n(데미지 50%, 사거리 2배)';
-        else if(cls==='bullet') desc='🔫 저격수 궁극기\n💥 폭발탄: 탄환 크기 +50%\n명중 시 광역 폭발 (50% 피해, 반경 60)';
-        else if(cls==='magic') desc='✨ 마법사 궁극기\n💫 3연 폭발: 폭발이 3회 연속 발동\n(총 3배 피해, 0.15초 간격)';
-        else if(cls==='dagger') desc='🗡 암살자 궁극기\n🛡 자동 보호막: 10초마다 생성\n(다음 탄환 공격 1회 완전 무효)';
+        // 4단계: 궁극기
+        if(cls==='sword') desc='검기 발사 (데미지 50%, 범위 2배)';
+        else if(cls==='bullet') desc='탄환 크기 +50%, 명중 시 폭발 (50% 광역)';
+        else if(cls==='magic') desc='폭발 3회 연속 발동 (총 3배 피해)';
+        else if(cls==='dagger') desc='10초마다 보호막 (다음 공격 1회 무효)';
       }
     }
-    // 줄바꿈을 <br> 태그로 변환
-    desc = desc.replace(/\n/g, '<br>');
-    
-    // 등급 계산 및 표시 (value가 있는 특성만)
-    let gradeBadge = '';
-    if(tr.value !== undefined && tr.min !== undefined && tr.max !== undefined){
-      const grade = getTraitGrade(tr, tr.value);
-      const gradeColor = {S:'#ff6b6b', A:'#ffa500', B:'#ffd700', C:'#90ee90', D:'#87ceeb'};
-      if(grade) gradeBadge = '<span style="color:'+gradeColor[grade]+';font-weight:bold;margin-left:4px;">['+grade+']</span>';
-    }
-    
-    div.innerHTML='<div class="traitIcon">'+tr.icon+'</div><div class="traitName">'+tr.name+gradeBadge+'</div><div class="traitDesc">'+desc+'</div>';
+    div.innerHTML='<div class="traitIcon">'+tr.icon+'</div><div class="traitName">'+tr.name+'</div><div class="traitDesc">'+desc+'</div>';
     div.onclick=()=>pickTrait(tr);
     cards.appendChild(div);
   }
@@ -525,12 +440,7 @@ function applyTrait(id, value){
     s.regen += regenInc;
     send({t:'updateRegen',regen:s.regen});
   }
-  else if(id==='multishot'){
-    s.multishot+=1;
-    // 추가 탄환 데미지 배율 저장 (5~20%)
-    if(!s.multishotDmg) s.multishotDmg = [];
-    s.multishotDmg.push((value || 10) / 100); // 배율로 저장 (0.05 ~ 0.2)
-  }
+  else if(id==='multishot')s.multishot+=1;
   else if(id==='magnet'){
     const expInc = (value || 10) / 100;
     s.expMult *= (1 + expInc);
@@ -598,9 +508,6 @@ function applyTrait(id, value){
       }
     }
   }
-  
-  // 스탯 패널 업데이트
-  updateStatsPanel();
 }
 
 function applyElementBonus2x(element){
@@ -679,38 +586,6 @@ function updateTraitList(){
   el.innerHTML=myTraits.map(id=>{const tr=ALL_TRAITS.find(t=>t.id===id);return tr?'<span>'+tr.icon+' '+tr.name+'</span>':'';}).join('<br>');
 }
 
-function updateStatsPanel(){
-  if(!myStats) return;
-  const s = myStats;
-  
-  // 공격력 (%)
-  const dmgPercent = Math.round(s.dmgMult * 100);
-  document.getElementById('statDmg').textContent = dmgPercent + '%';
-  
-  // 공격속도 (%)
-  const atkSpdPercent = Math.round((1 / s.cdMult) * 100);
-  document.getElementById('statAtkSpd').textContent = atkSpdPercent + '%';
-  
-  // 이동속도
-  document.getElementById('statSpd').textContent = s.spd.toFixed(1);
-  
-  // 사거리 (%)
-  const rangePercent = Math.round(s.rangeMult * 100);
-  document.getElementById('statRange').textContent = rangePercent + '%';
-  
-  // 방어력 (%)
-  const armorPercent = Math.round((s.armor || 0) * 100);
-  document.getElementById('statArmor').textContent = armorPercent + '%';
-  
-  // 재생
-  const regenVal = (s.regen || 0).toFixed(1);
-  document.getElementById('statRegen').textContent = regenVal + '/s';
-  
-  // 치명타 (%)
-  const critPercent = Math.round(s.critRate || 0);
-  document.getElementById('statCrit').textContent = critPercent + '%';
-}
-
 // ── Weapon helper ──────────────────────────────────────────
 function getW(){
   const w=myWeapon,s=myStats;
@@ -721,7 +596,7 @@ function getW(){
     dmg:w.baseDmg*s.dmgMult*(critHit?critDmgMult:1),
     cd:w.baseCd*s.cdMult,
     range:w.baseRange*s.rangeMult,
-    count:1+s.multishot, // 모든 직업에 multishot 적용
+    count:1+(w.type!=='magic'?s.multishot:0), // 마법도 multishot 적용
     crit:critHit
   };
 }
@@ -788,17 +663,7 @@ function handleMsg(msg){
   else if(msg.t==='fireZone'){fireZones.push({x:msg.x,y:msg.y,dmg:msg.dmg,life:2000,maxLife:2000});}
   else if(msg.t==='turrets'){turrets=msg.turrets||[];}
   else if(msg.t==='turretHp'){const t=turrets.find(tt=>tt.id===msg.id);if(t)t.hp=msg.hp;}
-  else if(msg.t==='weaponUpgrade'){
-    // 화려한 무기 강화 알림 표시
-    showWeaponUpgrade(msg.msg);
-    // 보스 처치 시 자동 무기 강화
-    if(msg.autoUpgrade && weaponUpgradeLevel < 4){
-      // 무적 상태를 유지하면서 무기만 강화 (레벨업 특성 창에서 처리)
-      applyTrait('weapon', null);
-      myTraits.push('weapon');
-      updateTraitList();
-    }
-  }
+  else if(msg.t==='weaponUpgrade'){showPop(msg.msg,3000);}
 }
 
 function showClassScreen(){
@@ -825,7 +690,6 @@ function initGameState(){
   G.style.background=STAGE_BG[0];
   updateTraitList();
   updateElementDisplay();
-  updateStatsPanel();
   lastTime=performance.now();
   requestAnimationFrame(loop);
 }
@@ -854,10 +718,6 @@ function applyState(msg){
       if(me.cdMult !== undefined) myStats.cdMult = me.cdMult;
       if(me.spdMult !== undefined) myStats.spd = (CLASSES[myClass]?.stats.spd || 3.0) * me.spdMult;
       if(me.dmgBonus !== undefined) myStats.dmgMult = (CLASSES[myClass]?.stats.dmgMult || 1) * me.dmgBonus;
-      if(me.critRate !== undefined) myStats.critRate = me.critRate;
-      
-      // 스탯 패널 업데이트
-      updateStatsPanel();
     }
     
     if(me.lvUp)showTraitSelect();
@@ -937,14 +797,7 @@ function tryShoot(){
     for(let i=0;i<w.count;i++){
       setTimeout(()=>{
         if(!myPlayer||myPlayer.dead)return;
-        // 첫 번째 공격(i=0)은 풀 데미지, 추가 공격은 다중사격 배율 적용
-        let dmgMultiplier = 1;
-        const isMultishot = i > 0; // 추가 공격 여부
-        if(isMultishot && myStats.multishotDmg && myStats.multishotDmg[i-1]){
-          dmgMultiplier = myStats.multishotDmg[i-1];
-        }
-        const modifiedW = {...w, dmg: w.dmg * dmgMultiplier};
-        doMelee(ang, modifiedW, isMultishot);
+        doMelee(ang,w);
       }, i*25); // 25ms 간격으로 연속 공격
     }
     return;
@@ -953,7 +806,7 @@ function tryShoot(){
   if(w.type==='magic'){
     const multishotCount=w.count - 1; // count에 이미 1 + multishot 포함
     if(multishotCount>0){
-      // 중앙탄 (풀 데미지)
+      // 중앙탄 + 양옆 탄환
       projs.push({
         x:myPlayer.x,y:myPlayer.y,
         vx:Math.cos(ang)*(w.spd||6),
@@ -963,23 +816,14 @@ function tryShoot(){
         isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement,
         tripleExplosion:w.tripleExplosion||false
       });
-      
-      // 추가 탄환 (양옆)
       for(let i=1;i<=multishotCount;i++){
         const offset=i*0.3;
-        // 다중사격 데미지 배율 적용 (i-1번째 다중사격 배율)
-        const multishotIdx = i - 1;
-        const dmgMult = myStats.multishotDmg && myStats.multishotDmg[multishotIdx] ? myStats.multishotDmg[multishotIdx] : 1;
-        
-        // 다중사격 추가 탄환 색상 변경 (마법사: 더 밝은 보라색)
-        const magicColor = '#ee99ff';
-        
         projs.push({
           x:myPlayer.x,y:myPlayer.y,
           vx:Math.cos(ang+offset)*(w.spd||6),
           vy:Math.sin(ang+offset)*(w.spd||6),
-          dmg:w.dmg * dmgMult,range:w.range,traveled:0,gone:false,
-          color:magicColor,r:9+weaponUpgradeLevel*3,enemy:false,
+          dmg:w.dmg,range:w.range,traveled:0,gone:false,
+          color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
           isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement,
           tripleExplosion:w.tripleExplosion||false
         });
@@ -987,8 +831,8 @@ function tryShoot(){
           x:myPlayer.x,y:myPlayer.y,
           vx:Math.cos(ang-offset)*(w.spd||6),
           vy:Math.sin(ang-offset)*(w.spd||6),
-          dmg:w.dmg * dmgMult,range:w.range,traveled:0,gone:false,
-          color:magicColor,r:9+weaponUpgradeLevel*3,enemy:false,
+          dmg:w.dmg,range:w.range,traveled:0,gone:false,
+          color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
           isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement,
           tripleExplosion:w.tripleExplosion||false
         });
@@ -1007,25 +851,12 @@ function tryShoot(){
   }else{
     for(let i=0;i<w.count;i++){
       const a=ang+(i-(w.count-1)/2)*0.28;
-      // 첫 번째 탄환(i=0)은 풀 데미지, 추가 탄환은 다중사격 배율 적용
-      let dmgMultiplier = 1;
-      const isMultishot = i > 0;
-      if(isMultishot && myStats.multishotDmg && myStats.multishotDmg[i-1]){
-        dmgMultiplier = myStats.multishotDmg[i-1];
-      }
-      
-      // 다중사격 추가 탄환 색상 변경 (저격수: 밝은 노란색)
-      let bulletColor = w.color;
-      if(isMultishot && w.type === 'bullet'){
-        bulletColor = '#ffee77'; // 밝은 노란색
-      }
-      
       const proj = {
         x:myPlayer.x,y:myPlayer.y,
         vx:Math.cos(a)*(w.spd||7),
         vy:Math.sin(a)*(w.spd||7),
-        dmg:w.dmg * dmgMultiplier,range:w.range,traveled:0,gone:false,
-        color:bulletColor,r:4+weaponUpgradeLevel,enemy:false,
+        dmg:w.dmg,range:w.range,traveled:0,gone:false,
+        color:w.color,r:4+weaponUpgradeLevel,enemy:false,
         element:weaponElement
       };
       // 저격수 4단계: 큰 탄환
@@ -1052,21 +883,11 @@ function tryShoot(){
   send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
 
-function doMelee(ang,w,isMultishot){
+function doMelee(ang,w){
   const isDagger=w.type==='dagger';
   const spread=isDagger?0.5:1.1,step=isDagger?0.18:0.2,pR=isDagger?4:5;
   let col=isDagger?'#ff88aacc':w.color;
   if(weaponElement&&weaponUpgradeLevel>=3)col=ELEMENT_COLORS[weaponElement];
-  
-  // 다중사격 추가 공격은 색상을 밝게 변경
-  if(isMultishot){
-    if(isDagger){
-      col='#ffaaccee'; // 암살자: 더 밝은 핑크
-    }else{
-      col='#ffdd44cc'; // 검사: 밝은 노란색
-    }
-  }
-  
   const effectMult=1+weaponUpgradeLevel*0.3;
   for(let a=ang-spread;a<=ang+spread;a+=step)
     for(let r=18;r<w.range*effectMult;r+=isDagger?12:14)
@@ -1092,7 +913,7 @@ function reportHit(id,dmg,element,turretId){
   }
   if(id==='boss')send({t:'hit',target:'boss',dmg,element,elementTier:weaponUpgradeLevel,weaponType});
   else if(id==='turret')send({t:'hit',target:'turret',dmg,tid:turretId,element,elementTier:weaponUpgradeLevel,weaponType});
-  else send({t:'hit',eid:id,dmg,element,elementTier:weaponUpgradeLevel,weaponType});
+  else send({t:'hit',eid:id,dmg,element,elementTier:weaponUpgradeLevel});
 }
 
 // ── Explosion ──────────────────────────────────────────────
@@ -1132,13 +953,7 @@ function doBossPat(msg){
   }
   [bossSpiral,bossBlast,bossCross,bossRapid,bossRing][Math.min(i,4)](bx,by,ang,phase);
 }
-function mkBB(bx,by,vx,vy,dmg,col,r){
-  // 1스테이지 중간보스는 데미지 10% 감소
-  if(bossData && !bossData.isFinal && currentStage === 1){
-    dmg *= 0.9;
-  }
-  projs.push({x:bx,y:by,vx,vy,dmg,range:600,traveled:0,gone:false,color:col,r,enemy:true});
-}
+function mkBB(bx,by,vx,vy,dmg,col,r){projs.push({x:bx,y:by,vx,vy,dmg,range:600,traveled:0,gone:false,color:col,r,enemy:true});}
 function bossSpiral(bx,by,ang,phase){const cnt=phase===2?14:10;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*7,Math.sin(a)*7,18,'#ff6600',8);}}
 function bossBlast(bx,by){for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2;mkBB(bx,by,Math.cos(a)*5,Math.sin(a)*5,22,'#ff2200',10);}spawnParts(bx,by,'#ff6600',16);}
 function bossCross(bx,by,ang,phase){const dirs=[[1,0],[-1,0],[0,1],[0,-1],[.71,.71],[-.71,.71],[.71,-.71],[-.71,-.71]];const cnt=phase===2?4:3;dirs.forEach(([dx,dy])=>{for(let n=0;n<cnt;n++)setTimeout(()=>mkBB(bx,by,dx*9,dy*9,20,'#cc44ff',7),n*150);});}
@@ -1548,27 +1363,6 @@ function spawnParts(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math
 
 let msgTimer=0;
 function showPop(txt,dur){const el=document.getElementById('msgPop');el.textContent=txt;el.style.display='block';msgTimer=dur||1400;}
-
-function showWeaponUpgrade(msg){
-  // 화려한 무기 강화 알림 생성
-  try {
-    const notification = document.createElement('div');
-    notification.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);background:linear-gradient(135deg,#ff6600,#ffaa00,#ffcc00);color:#fff;padding:30px 50px;border-radius:20px;border:4px solid #fff;font-size:24px;font-weight:bold;text-align:center;z-index:10001;box-shadow:0 0 40px rgba(255,170,0,0.8),0 0 80px rgba(255,170,0,0.4);text-shadow:0 0 10px rgba(0,0,0,0.5),0 2px 4px rgba(0,0,0,0.3);animation:weaponUpgradePulse 0.6s ease-out forwards';
-    notification.innerHTML = '🌟 ' + msg + ' 🌟';
-    document.body.appendChild(notification);
-    
-    // 3초 후 페이드아웃
-    setTimeout(() => {
-      notification.style.animation = 'weaponUpgradeFadeOut 0.5s ease-out forwards';
-      setTimeout(() => notification.remove(), 500);
-    }, 3000);
-  } catch(e) {
-    console.error('showWeaponUpgrade error:', e);
-    // 오류 시 기본 알림으로 대체
-    showPop(msg, 3000);
-  }
-}
-
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
 
 function endGame(win){
@@ -1748,11 +1542,7 @@ function tickRoom(code) {
   const now = Date.now();
   const dt = Math.min((now - room.lastTick) / 1000, 0.1);
   room.lastTick = now;
-  
-  // 중간 보스가 살아있으면 시간 감소 중지
-  if (!room.midBossAlive) {
-    room.stageTime -= dt;
-  }
+  room.stageTime -= dt;
 
   // 플레이어 체력 재생 처리 및 무적 상태 업데이트
   room.players.forEach((p, ws) => {
@@ -1776,6 +1566,10 @@ function tickRoom(code) {
   if (!room.midBossSpawned && room.stageTime <= 300) {
     room.midBossSpawned = true;
     spawnBoss(room, false);
+  }
+
+  if (room.midBossAlive) {
+    room.stageTime = Math.max(room.stageTime, 0.1);
   }
   
   if (!room.finalBossSpawned && !room.midBossAlive && room.midBossSpawned && room.stageTime <= 0) {
@@ -2112,9 +1906,6 @@ wss.on('connection', ws => {
               p.exp = 0;
               p.expNext = Math.floor(p.expNext * 1.3);
               
-              // 보스 처치 보상: HP 30% 회복
-              p.hp = Math.min(p.hp + p.maxHp * 0.3, p.maxHp);
-              
               // 직업별 레벨업 스탯 증가
               if (p.cls === 'warrior') {
                 p.maxHp += 20;
@@ -2151,7 +1942,7 @@ wss.on('connection', ws => {
               });
               
               if (room.currentStage < 3) {
-                bcastAll(room, { t: 'weaponUpgrade', msg: '최종 보스 처치! 무기 강화! (+25% 데미지)', autoUpgrade: true });
+                bcastAll(room, { t: 'weaponUpgrade', msg: '최종 보스 처치! 모든 플레이어의 무기가 대폭 강화되었습니다! (+25% 데미지)' });
                 bcastAll(room, { t: 'stageClear', stage: room.currentStage, next: room.currentStage + 1 });
                 setTimeout(() => {
                   room.currentStage++;
@@ -2178,9 +1969,6 @@ wss.on('connection', ws => {
                 p.lv++;
                 p.exp = 0;
                 p.expNext = Math.floor(p.expNext * 1.3);
-                
-                // 보스 처치 보상: HP 30% 회복
-                p.hp = Math.min(p.hp + p.maxHp * 0.3, p.maxHp);
                 
                 // 직업별 레벨업 스탯 증가
                 if (p.cls === 'warrior') {
@@ -2215,7 +2003,7 @@ wss.on('connection', ws => {
                 if (!p.dmgBonus) p.dmgBonus = 1;
                 p.dmgBonus *= 1.15;
               });
-              bcastAll(room, { t: 'weaponUpgrade', msg: '중간 보스 처치! 무기 강화! (+15% 데미지)', autoUpgrade: true });
+              bcastAll(room, { t: 'weaponUpgrade', msg: '중간 보스 처치! 모든 플레이어 레벨업 + 무기 강화! (+15% 데미지)' });
             }
           } else {
             bcastAll(room, { t: 'bossHp', hp: room.boss.hp });
@@ -2308,7 +2096,7 @@ wss.on('connection', ws => {
                 
                 h.lvUp = true; 
               }
-              bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y });
+              bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
             }
           }
         }
