@@ -281,7 +281,7 @@ const ALL_TRAITS=[
   {id:'dmg',icon:'⚔',name:'살육자',desc:'모든 무기 데미지 +{value}%',min:3,max:15},
   {id:'cd',icon:'⚡',name:'신속',desc:'공격속도 +{value}%',min:3,max:15},
   {id:'range',icon:'🎯',name:'저격수',desc:'사거리 +{value}%',min:5,max:30},
-  {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP {value} 회복',min:0.1,max:2},
+  {id:'regen',icon:'🌿',name:'재생',desc:'초당 HP {value} 회복',min:0.1,max:1},
   {id:'multishot',icon:'🔱',name:'다중사격',desc:'발사체 +1 (원거리: 동시, 근접: 연속, 마법: 산탄)'},
   {id:'magnet',icon:'📘',name:'수학의 정석',desc:'받는 경험치 +{value}%',min:5,max:20},
   {id:'armor',icon:'🛡',name:'갑옷',desc:'받는 피해 -{value}%',min:2,max:5},
@@ -679,6 +679,9 @@ function applyState(msg){
       if(me.cdMult !== undefined) myStats.cdMult = me.cdMult;
       if(me.spdMult !== undefined) myStats.spd = (CLASSES[myClass]?.stats.spd || 3.0) * me.spdMult;
       if(me.dmgBonus !== undefined) myStats.dmgMult = (CLASSES[myClass]?.stats.dmgMult || 1) * me.dmgBonus;
+      if(me.critRate !== undefined) myStats.critRate = me.critRate;
+      // 스탯 동기화 후 패널 업데이트
+      updateStatsPanel();
     }
     
     if(me.lvUp)showTraitSelect();
@@ -811,7 +814,7 @@ function tryShoot(){
       projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:4+weaponUpgradeLevel,enemy:false,element:weaponElement});
     }
   }
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,element:weaponElement,elementTier:weaponUpgradeLevel});
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,range:w.range,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
 
 function doMelee(ang,w){
@@ -832,7 +835,7 @@ function doMelee(ang,w){
       else reportHit(e.id,w.dmg,weaponElement);
     }}
   }
-  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1,element:weaponElement,elementTier:weaponUpgradeLevel});
+  send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1,range:w.range,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
 
 function reportHit(id,dmg,element,turretId){
@@ -896,7 +899,14 @@ function spawnRemoteFx(fx){
   const cls=CLASSES[fx.w]||CLASSES.warrior,wc=cls.weapon;
   if(wc.type==='sword'||wc.type==='dagger'){
     const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x);
-    for(let a=ang-0.9;a<=ang+0.9;a+=0.25)for(let r=22;r<80;r+=16)parts.push({x:fx.x+Math.cos(a)*r,y:fx.y+Math.sin(a)*r,vx:0,vy:0,life:140,maxLife:140,r:4,color:wc.color+'88'});
+    // fx.range를 사용하거나 기본값 사용
+    const range = fx.range || wc.baseRange || 80;
+    const spread = wc.type==='dagger' ? 0.5 : 0.9;
+    const step = wc.type==='dagger' ? 0.18 : 0.25;
+    const particleStep = wc.type==='dagger' ? 12 : 16;
+    for(let a=ang-spread;a<=ang+spread;a+=step)
+      for(let r=18;r<range;r+=particleStep)
+        parts.push({x:fx.x+Math.cos(a)*r,y:fx.y+Math.sin(a)*r,vx:0,vy:0,life:140,maxLife:140,r:4,color:wc.color+'88'});
   }else if(wc.type==='magic'){
     const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x);
     projs.push({x:fx.x,y:fx.y,vx:Math.cos(ang)*(wc.spd||6),vy:Math.sin(ang)*(wc.spd||6),dmg:0,range:wc.baseRange||300,traveled:0,gone:false,color:wc.color+'aa',r:8,enemy:false,visual:true,isMagic:true});
@@ -1414,6 +1424,9 @@ function tickRoom(code) {
   const dt = Math.min((now - room.lastTick) / 1000, 0.1);
   room.lastTick = now;
   room.stageTime -= dt;
+  
+  // 상태 전송 카운터 (3틱마다 전송)
+  room.stateTick = (room.stateTick || 0) + 1;
 
   // 플레이어 체력 재생 처리 및 무적 상태 업데이트
   room.players.forEach((p, ws) => {
@@ -1589,26 +1602,30 @@ function tickRoom(code) {
       id: p.id, x: Math.round(p.x), y: Math.round(p.y), hp: p.hp, maxHp: p.maxHp, 
       lv: p.lv, dead: p.dead, name: p.name, exp: p.exp, expNext: p.expNext, lvUp: p.lvUp, cls: p.cls, 
       dmgBonus: p.dmgBonus || 1, armor: p.armor || 0, regen: p.regen || 0, 
-      rangeMult: p.rangeMult || 1, cdMult: p.cdMult || 1, spdMult: p.spdMult || 1
+      rangeMult: p.rangeMult || 1, cdMult: p.cdMult || 1, spdMult: p.spdMult || 1, critRate: p.critRate || 0
     }));
     room.players.forEach(p => { if (p.lvUp) p.lvUp = false; });
-    bcastAll(room, {
-      t: 'state', players: ps,
-      enemies: room.enemies.filter(e => !e.dead).map(e => ({ 
-        id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
-        maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
-        poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
-      })),
-      boss: room.boss && !room.boss.dead ? { 
-        x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp, 
-        maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal,
-        iceEnd: room.boss.iceEnd
-      } : null,
-      turrets: room.turrets ? room.turrets.filter(t => t.hp > 0).map(t => ({
-        id: t.id, x: t.x, y: t.y, hp: t.hp, maxHp: t.maxHp, r: t.r, isTurret: true
-      })) : [],
-      st: room.stageTime, stage: room.currentStage
-    });
+    
+    // 2틱마다 상태 전송 (개선된 반응성)
+    if (room.stateTick % 2 === 0) {
+      bcastAll(room, {
+        t: 'state', players: ps,
+        enemies: room.enemies.filter(e => !e.dead).map(e => ({ 
+          id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
+          maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
+          poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
+        })),
+        boss: room.boss && !room.boss.dead ? { 
+          x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp, 
+          maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal,
+          iceEnd: room.boss.iceEnd
+        } : null,
+        turrets: room.turrets ? room.turrets.filter(t => t.hp > 0).map(t => ({
+          id: t.id, x: t.x, y: t.y, hp: t.hp, maxHp: t.maxHp, r: t.r, isTurret: true
+        })) : [],
+        st: room.stageTime, stage: room.currentStage
+      });
+    }
   }
 
   const alive = arr.filter(p => !p.dead);
@@ -1852,7 +1869,10 @@ wss.on('connection', ws => {
               const baseExp = 10;
               const hpBonus = Math.floor(e.maxHp * 0.1);
               const sc = baseExp + hpBonus;
-              const expGain = Math.floor(sc / 2 * (h.expMult || 1));
+              // 멀티플레이어 밸런스: 플레이어 수로 경험치 나누기
+              const playerCount = room.players.size;
+              const expDivider = playerCount >= 3 ? playerCount * 0.65 : playerCount * 0.6; // 완화된 페널티
+              const expGain = Math.floor(sc / 2 * (h.expMult || 1) / expDivider);
               h.exp += expGain;
               if (h.exp >= h.expNext) { 
                 h.lv++; 
@@ -1877,12 +1897,18 @@ wss.on('connection', ws => {
                   h.cdMult *= 0.98; // 공속 2% 증가 (쿨다운 감소)
                 } else if (h.cls === 'assassin') {
                   if (!h.spdMult) h.spdMult = 1;
-                  h.spdMult *= 1.01; // 이속 1% 증가
+                  h.spdMult *= 1.02; // 이속 2% 증가
                   if (!h.dmgBonus) h.dmgBonus = 1;
-                  h.dmgBonus *= 1.01; // 공격력 1% 증가
+                  h.dmgBonus *= 1.02; // 공격력 2% 증가
                   if (!h.cdMult) h.cdMult = 1;
-                  h.cdMult *= 0.99; // 공속 1% 증가 (쿨다운 감소)
-                  h.critRate = Math.min((h.critRate || 30) + 1, 100); // 치명타율 1% 증가 (최대 100%)
+                  h.cdMult *= 0.98; // 공속 2% 증가 (쿨다운 감소)
+                  h.critRate = (h.critRate || 30) + 3; // 치명타율 3% 증가
+                  // 치명타 100% 초과 시 초과분만큼 공격력 증가
+                  if (h.critRate > 100) {
+                    const overflow = h.critRate - 100;
+                    h.dmgBonus *= 1 + (overflow / 100);
+                    h.critRate = 100;
+                  }
                 }
                 
                 h.lvUp = true; 
@@ -1895,7 +1921,7 @@ wss.on('connection', ws => {
     }
     else if (msg.t === 'atk') {
       const room = rooms.get(ws.roomCode); if (!room) return;
-      bcast(room, { t: 'fx', x: msg.x, y: msg.y, ax: msg.ax, ay: msg.ay, w: msg.w, cnt: msg.cnt }, ws);
+      bcast(room, { t: 'fx', x: msg.x, y: msg.y, ax: msg.ax, ay: msg.ay, w: msg.w, cnt: msg.cnt, range: msg.range }, ws);
     }
     else if (msg.t === 'explosion') {
       const room = rooms.get(ws.roomCode); if (!room) return;
