@@ -228,11 +228,11 @@ function doStart(){send({t:'start'});}
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',
     stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.3,multishot:0,magnetRange:1,armor:0.1,crit:false,critRate:0,expMult:1},
-    weapon:{name:'검',type:'sword',baseDmg:70,baseCd:650,baseRange:140,color:'#66ccff'}
+    weapon:{name:'검',type:'sword',baseDmg:60,baseCd:1000,baseRange:140,color:'#66ccff'}
   },
   gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
     stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
-    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:900,baseRange:500,color:'#ffee44',spd:15}
+    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:15}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
     stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
@@ -601,9 +601,15 @@ function applyState(msg){
     myPlayer.exp=me.exp;
     myPlayer.expNext=me.expNext;
     
-    // maxHp가 변경되었으면 로컬 스탯도 업데이트
-    if(myStats.maxHp!==me.maxHp){
+    // 서버에서 받은 스탯 동기화 (레벨업 보너스)
+    if(myStats){
       myStats.maxHp=me.maxHp;
+      if(me.armor !== undefined) myStats.armor = me.armor;
+      if(me.regen !== undefined) myStats.regen = me.regen;
+      if(me.rangeMult !== undefined) myStats.rangeMult = me.rangeMult;
+      if(me.cdMult !== undefined) myStats.cdMult = me.cdMult;
+      if(me.spdMult !== undefined) myStats.spd = (CLASSES[myClass]?.stats.spd || 3.0) * me.spdMult;
+      if(me.dmgBonus !== undefined) myStats.dmgMult = (CLASSES[myClass]?.stats.dmgMult || 1) * me.dmgBonus;
     }
     
     if(me.lvUp)showTraitSelect();
@@ -761,8 +767,14 @@ function doMelee(ang,w){
 }
 
 function reportHit(id,dmg,element,turretId){
-  if(id==='boss')send({t:'hit',target:'boss',dmg,element,elementTier:weaponUpgradeLevel});
-  else if(id==='turret')send({t:'hit',target:'turret',dmg,tid:turretId,element,elementTier:weaponUpgradeLevel});
+  let weaponType = 'melee';
+  if(myWeapon){
+    if(myWeapon.type === 'bullet') weaponType = 'ranged';
+    else if(myWeapon.type === 'magic') weaponType = 'magic';
+    else weaponType = 'melee'; // sword, dagger
+  }
+  if(id==='boss')send({t:'hit',target:'boss',dmg,element,elementTier:weaponUpgradeLevel,weaponType});
+  else if(id==='turret')send({t:'hit',target:'turret',dmg,tid:turretId,element,elementTier:weaponUpgradeLevel,weaponType});
   else send({t:'hit',eid:id,dmg,element,elementTier:weaponUpgradeLevel});
 }
 
@@ -1296,7 +1308,7 @@ function spawnBoss(room, isFinal) {
     playerCount: playerCount,
     lastHeavy: 0,
     lastHpThreshold: 100, // 보스 HP 비율 추적용
-    armor: isF ? 0.6 : 0.4 // 중간보스 40%, 최종보스 60%
+    armor: isF ? 0.7 : 0.5 // 중간보스 50%, 최종보스 70%
   };
   room.enemies = [];
   
@@ -1506,7 +1518,9 @@ function tickRoom(code) {
     const ps = [];
     room.players.forEach(p => ps.push({ 
       id: p.id, x: Math.round(p.x), y: Math.round(p.y), hp: p.hp, maxHp: p.maxHp, 
-      lv: p.lv, dead: p.dead, name: p.name, exp: p.exp, expNext: p.expNext, lvUp: p.lvUp, cls: p.cls, dmgBonus: p.dmgBonus || 1
+      lv: p.lv, dead: p.dead, name: p.name, exp: p.exp, expNext: p.expNext, lvUp: p.lvUp, cls: p.cls, 
+      dmgBonus: p.dmgBonus || 1, armor: p.armor || 0, regen: p.regen || 0, 
+      rangeMult: p.rangeMult || 1, cdMult: p.cdMult || 1, spdMult: p.spdMult || 1
     }));
     room.players.forEach(p => { if (p.lvUp) p.lvUp = false; });
     bcastAll(room, {
@@ -1599,6 +1613,11 @@ wss.on('connection', ws => {
       p.critRate = cls.critRate;
       p.expMult = cls.expMult;
       
+      // 레벨업 보너스용 배율 초기화
+      p.rangeMult = 1;
+      p.cdMult = 1;
+      p.spdMult = 1;
+      
       room.readyCount = (room.readyCount || 0) + 1;
       if (room.readyCount >= room.players.size) {
         room.started = true; room.lastTick = Date.now();
@@ -1653,20 +1672,30 @@ wss.on('connection', ws => {
       
       if (msg.target === 'boss') {
         if (room.boss && !room.boss.dead) {
-          let finalDmg = msg.dmg;
+          // 무기 타입 확인
+          const weaponType = msg.weaponType || 'melee'; // 'melee', 'ranged', 'magic'
           
-          // 냉기 속성 피해 감소
-          if (msg.element === 'ice') {
-            const reduction = room.boss.isFinal ? 0.6 : 0.4; // 최종보스 60%, 중간보스 40%
-            finalDmg *= (1 - reduction);
-            // 냉기 상태 적용 (3초)
-            if (tier >= 2) {
-              room.boss.iceEnd = Date.now() + 3000;
-            }
+          // 보스 방어력 (무기 타입별 차등)
+          let bossArmor = 0;
+          
+          if (weaponType === 'ranged') {
+            // 저격수: 보스 방어력 무시 (관통 효과)
+            bossArmor = 0;
+          } else if (weaponType === 'magic') {
+            // 마법: 중간보스 60%, 최종보스 80%
+            bossArmor = room.boss.isFinal ? 0.8 : 0.6;
+          } else {
+            // 근접: 중간보스 50%, 최종보스 70%
+            bossArmor = room.boss.isFinal ? 0.7 : 0.5;
           }
           
-          // 보스 방어력 적용 (중간보스 40%, 최종보스 60%)
-          const actualDmg = finalDmg * (1 - (room.boss.armor || 0));
+          const actualDmg = msg.dmg * (1 - bossArmor);
+          
+          // 냉기 상태 적용 (3초간 이속/공속/공격력 15% 감소)
+          if (msg.element === 'ice' && tier >= 2) {
+            room.boss.iceEnd = Date.now() + 3000;
+          }
+          
           room.boss.hp -= actualDmg;
           if (room.boss.hp <= 0) {
             room.boss.dead = true;
@@ -1754,9 +1783,34 @@ wss.on('connection', ws => {
               if (h.exp >= h.expNext) { 
                 h.lv++; 
                 h.exp -= h.expNext; 
-                h.expNext = Math.floor(h.expNext * 1.4); 
-                h.maxHp += 15;
-                h.hp = Math.min(h.hp + 20, h.maxHp);
+                h.expNext = Math.floor(h.expNext * 1.4);
+                
+                // 직업별 레벨업 스탯 증가
+                if (h.cls === 'warrior') {
+                  h.maxHp += 20;
+                  h.hp = Math.min(h.hp + 20, h.maxHp);
+                  h.armor = Math.min((h.armor || 0.1) + 0.01, 0.9); // 1% 방어력 증가 (최대 90%)
+                  h.regen = (h.regen || 0.3) + 0.1; // 0.1 재생 증가
+                  if (!h.rangeMult) h.rangeMult = 1;
+                  h.rangeMult *= 1.02; // 범위 2% 증가
+                } else if (h.cls === 'gunner') {
+                  if (!h.dmgBonus) h.dmgBonus = 1;
+                  h.dmgBonus *= 1.04; // 공격력 4% 증가
+                } else if (h.cls === 'mage') {
+                  if (!h.dmgBonus) h.dmgBonus = 1;
+                  h.dmgBonus *= 1.03; // 공격력 3% 증가
+                  if (!h.cdMult) h.cdMult = 1;
+                  h.cdMult *= 0.98; // 공속 2% 증가 (쿨다운 감소)
+                } else if (h.cls === 'assassin') {
+                  if (!h.spdMult) h.spdMult = 1;
+                  h.spdMult *= 1.01; // 이속 1% 증가
+                  if (!h.dmgBonus) h.dmgBonus = 1;
+                  h.dmgBonus *= 1.01; // 공격력 1% 증가
+                  if (!h.cdMult) h.cdMult = 1;
+                  h.cdMult *= 0.99; // 공속 1% 증가 (쿨다운 감소)
+                  h.critRate = Math.min((h.critRate || 30) + 1, 100); // 치명타율 1% 증가 (최대 100%)
+                }
+                
                 h.lvUp = true; 
               }
               bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
