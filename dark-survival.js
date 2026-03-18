@@ -100,6 +100,7 @@ input.inp:focus{border-color:#ffcc00;}
 #statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
 #statsPanel .statName{color:#888;}
 #statsPanel .statVal{color:#ffcc00;font-weight:bold;}
+#minimap{position:absolute;bottom:20px;right:20px;width:150px;height:150px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
 </style>
 </head>
 <body>
@@ -131,6 +132,7 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="classTag"></div>
   <div id="weaponElement"></div>
   <div id="statsPanel"></div>
+  <div id="minimap"><canvas id="minimapCanvas" width="150" height="150"></canvas></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="atkBtn">⚔</div>
 
@@ -216,6 +218,7 @@ input.inp:focus{border-color:#ffcc00;}
 
 <script>
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),G=document.getElementById('G');
+const minimapCanvas=document.getElementById('minimapCanvas'),minimapCtx=minimapCanvas.getContext('2d');
 let W=G.clientWidth,H=G.clientHeight;
 canvas.width=W;canvas.height=H;
 
@@ -554,6 +557,7 @@ let invincible=false,invincibleEnd=0; // 무적 상태
 const STAGE_BG=['#080810','#100808','#080e0a'];
 const STAGE_GRID=['#0d0d1a','#1a0808','#081408'];
 const STAGE_NAMES=['어둠의 황야','혈염의 성','마계의 심연'];
+const MAP_SIZE=3500; // 맵 크기 (중심에서 각 방향으로 3500픽셀 = 7000x7000)
 
 function handleMsg(msg){
   if(msg.t==='created'){myId=msg.id;isHost=true;document.getElementById('codeDisplay').textContent=msg.code;document.getElementById('joinRow').style.display='none';document.getElementById('waitRoom').style.display='flex';}
@@ -656,7 +660,8 @@ function initGameState(){
 }
 
 function applyState(msg){
-  allPlayers=msg.players||[];enemies=msg.enemies||[];
+  allPlayers=msg.players||[];
+  if(msg.enemies !== undefined) enemies=msg.enemies; // 적 데이터가 있을 때만 업데이트
   bossData=msg.boss||null;stageTime=msg.st??stageTime;
   if(msg.stage)currentStage=msg.stage;
   if(msg.turrets)turrets=msg.turrets;
@@ -938,7 +943,13 @@ function update(dt){
   if(keys['w']||keys['arrowup'])my=-1;if(keys['s']||keys['arrowdown'])my=1;
   if(keys['a']||keys['arrowleft'])mx=-1;if(keys['d']||keys['arrowright'])mx=1;
   const ml=Math.sqrt(mx*mx+my*my)||1;
-  if(mx||my){myPlayer.x+=mx/ml*myStats.spd*(dt/16);myPlayer.y+=my/ml*myStats.spd*(dt/16);}
+  if(mx||my){
+    myPlayer.x+=mx/ml*myStats.spd*(dt/16);
+    myPlayer.y+=my/ml*myStats.spd*(dt/16);
+    // 맵 경계 제한
+    myPlayer.x=Math.max(-MAP_SIZE,Math.min(MAP_SIZE,myPlayer.x));
+    myPlayer.y=Math.max(-MAP_SIZE,Math.min(MAP_SIZE,myPlayer.y));
+  }
   send({t:'move',x:Math.round(myPlayer.x),y:Math.round(myPlayer.y)});
   if(attackPressed||mouseDown||keys[' ']||keys['f']||(enemies.length>0&&running))tryShoot();
   camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
@@ -1059,6 +1070,71 @@ function draw(){
   if(myPlayer&&!myPlayer.dead)drawMe();
   drawProjs();
   ctx.restore();
+  drawMinimap();
+}
+
+function drawMinimap(){
+  if(!myPlayer||!running)return;
+  const mCtx=minimapCtx;
+  const size=150;
+  mCtx.clearRect(0,0,size,size);
+  
+  // 맵 경계선
+  mCtx.fillStyle='rgba(20,20,30,0.8)';
+  mCtx.fillRect(0,0,size,size);
+  mCtx.strokeStyle='#444';
+  mCtx.lineWidth=1;
+  mCtx.strokeRect(0,0,size,size);
+  
+  // 스케일 (맵 크기 4000 -> 미니맵 150)
+  const scale=size/(MAP_SIZE*2);
+  const centerX=size/2,centerY=size/2;
+  
+  // 맵 중심점 표시
+  mCtx.strokeStyle='#333';
+  mCtx.beginPath();
+  mCtx.moveTo(centerX,0);
+  mCtx.lineTo(centerX,size);
+  mCtx.moveTo(0,centerY);
+  mCtx.lineTo(size,centerY);
+  mCtx.stroke();
+  
+  // 다른 플레이어들
+  allPlayers.forEach((p,i)=>{
+    if(p.id===myId||p.dead)return;
+    const mx=centerX+p.x*scale;
+    const my=centerY+p.y*scale;
+    const cls=CLASSES[p.cls];
+    mCtx.fillStyle=cls?cls.color:'#66aaff';
+    mCtx.beginPath();
+    mCtx.arc(mx,my,4,0,Math.PI*2);
+    mCtx.fill();
+  });
+  
+  // 보스
+  if(bossData&&!bossData.dead){
+    const bx=centerX+bossData.x*scale;
+    const by=centerY+bossData.y*scale;
+    mCtx.fillStyle='#ff3300';
+    mCtx.beginPath();
+    mCtx.arc(bx,by,6,0,Math.PI*2);
+    mCtx.fill();
+    mCtx.strokeStyle='#ff6600';
+    mCtx.lineWidth=2;
+    mCtx.stroke();
+  }
+  
+  // 내 위치 (마지막에 그려서 항상 보이게)
+  const myX=centerX+myPlayer.x*scale;
+  const myY=centerY+myPlayer.y*scale;
+  const myCls=CLASSES[myClass];
+  mCtx.fillStyle=myCls?myCls.color:'#ffcc00';
+  mCtx.beginPath();
+  mCtx.arc(myX,myY,5,0,Math.PI*2);
+  mCtx.fill();
+  mCtx.strokeStyle='#fff';
+  mCtx.lineWidth=2;
+  mCtx.stroke();
 }
 
 function drawGrid(){
@@ -1093,6 +1169,19 @@ function drawMe(){
   ctx.shadowBlur=0;
   ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText(cls.icon,x,y);
+  
+  // 캐릭터 위 체력바
+  const hpPct=Math.max(0,myPlayer.hp/myPlayer.maxHp);
+  const barW=30,barH=4;
+  const barX=x-barW/2,barY=y-22;
+  ctx.fillStyle='#1a0000';
+  ctx.fillRect(barX,barY,barW,barH);
+  ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';
+  ctx.fillRect(barX,barY,barW*hpPct,barH);
+  ctx.strokeStyle='#000';
+  ctx.lineWidth=1;
+  ctx.strokeRect(barX,barY,barW,barH);
+  
   ctx.restore();
 }
 
@@ -1106,8 +1195,23 @@ function drawOthers(){
     ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);ctx.fill();
     ctx.shadowBlur=0;
     if(cls){ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,p.x,p.y);}
+    
+    // 이름 표시
     ctx.fillStyle='#ffffffcc';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-    ctx.fillText(p.name||'?',p.x,p.y-16);
+    ctx.fillText(p.name||'?',p.x,p.y-28);
+    
+    // 체력바
+    const hpPct=Math.max(0,p.hp/(p.maxHp||100));
+    const barW=30,barH=4;
+    const barX=p.x-barW/2,barY=p.y-20;
+    ctx.fillStyle='#1a0000';
+    ctx.fillRect(barX,barY,barW,barH);
+    ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';
+    ctx.fillRect(barX,barY,barW*hpPct,barH);
+    ctx.strokeStyle='#000';
+    ctx.lineWidth=1;
+    ctx.strokeRect(barX,barY,barW,barH);
+    
     ctx.restore();
   });
 }
@@ -1338,7 +1442,7 @@ function spawnEnemies(room) {
     };
     room.enemies.push(e);
   }
-  if (room.enemies.length > 200) room.enemies = room.enemies.filter(e => !e.dead).slice(-200);
+  if (room.enemies.length > 150) room.enemies = room.enemies.filter(e => !e.dead).slice(-150);
 }
 
 // 최종 보스용 잡몹 스폰 (원거리 80%, 탱커 20%)
@@ -1606,15 +1710,18 @@ function tickRoom(code) {
     }));
     room.players.forEach(p => { if (p.lvUp) p.lvUp = false; });
     
-    // 2틱마다 상태 전송 (개선된 반응성)
-    if (room.stateTick % 2 === 0) {
-      bcastAll(room, {
-        t: 'state', players: ps,
-        enemies: room.enemies.filter(e => !e.dead).map(e => ({ 
+    // 최적화: 플레이어/보스는 3틱마다, 적은 5틱마다 전송
+    if (room.stateTick % 3 === 0) {
+      const enemyData = room.stateTick % 5 === 0 ? 
+        room.enemies.filter(e => !e.dead).map(e => ({ 
           id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
           maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
           poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
-        })),
+        })) : undefined;
+      
+      bcastAll(room, {
+        t: 'state', players: ps,
+        enemies: enemyData,
         boss: room.boss && !room.boss.dead ? { 
           x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp, 
           maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal,
@@ -1708,13 +1815,15 @@ wss.on('connection', ws => {
       if (room.readyCount >= room.players.size) {
         room.started = true; room.lastTick = Date.now();
         bcastAll(room, { t: 'allReady' });
-        room.tick = setInterval(() => tickRoom(ws.roomCode), 50);
+        room.tick = setInterval(() => tickRoom(ws.roomCode), 60); // 60ms = 16.6 TPS
       }
     }
     else if (msg.t === 'move') {
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p || p.dead) return;
-      p.x = msg.x; p.y = msg.y;
+      const MAP_SIZE = 3500;
+      p.x = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, msg.x));
+      p.y = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, msg.y));
     }
     else if (msg.t === 'enemyHit') {
       const room = rooms.get(ws.roomCode); if (!room) return;
