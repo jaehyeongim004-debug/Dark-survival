@@ -782,22 +782,58 @@ jsBase.addEventListener('touchstart',jsStart,{passive:false});
 jsBase.addEventListener('touchmove',jsMove,{passive:false});
 jsBase.addEventListener('touchend',jsEnd);
 jsBase.addEventListener('mousedown',jsStart);
-document.addEventListener('mousemove',jsMove);
-document.addEventListener('mouseup',jsEnd);
+// js1은 mousedown 상태에서만 document mousemove 반응
+let js1MouseDown=false;
+jsBase.addEventListener('mousedown',()=>js1MouseDown=true);
+document.addEventListener('mousemove',e=>{if(js1MouseDown)jsMove(e);});
+document.addEventListener('mouseup',()=>{js1MouseDown=false;jsEnd();});
 
 // ── 조준 조이스틱 (js2) ────────────────────────────────────
 const js2Wrap=document.getElementById('js2Wrap');
 const js2Base=document.getElementById('js2Base'),js2Knob=document.getElementById('js2Knob');
-let js2Active=false,js2X=0,js2Y=0,js2CX=0,js2CY=0;
-function js2Start(e){e.preventDefault();const t=e.touches?e.touches[0]:e,r=js2Base.getBoundingClientRect();js2CX=r.left+r.width/2;js2CY=r.top+r.height/2;js2Active=true;js2Move(e);}
-function js2Move(e){if(!js2Active)return;e.preventDefault();const t=e.touches?e.touches[0]:e;let dx=t.clientX-js2CX,dy=t.clientY-js2CY,d=Math.sqrt(dx*dx+dy*dy),max=30;if(d>max){dx=dx/d*max;dy=dy/d*max;}js2X=dx/max;js2Y=dy/max;js2Knob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';}
-function js2End(){js2Active=false;js2X=0;js2Y=0;js2Knob.style.transform='translate(-50%,-50%)';}
+let js2Active=false,js2X=0,js2Y=0,js2CX=0,js2CY=0,js2TouchId=null;
+
+function js2Start(e){
+  e.preventDefault();
+  // 터치: 새 터치 포인트만 받음 (js1이 이미 쓰는 터치 ID 무시)
+  const touch=e.changedTouches?e.changedTouches[0]:e;
+  js2TouchId=touch.identifier!==undefined?touch.identifier:null;
+  const r=js2Base.getBoundingClientRect();
+  js2CX=r.left+r.width/2;js2CY=r.top+r.height/2;
+  js2Active=true;
+  _js2Update(touch);
+}
+function _js2Update(t){
+  let dx=t.clientX-js2CX,dy=t.clientY-js2CY,d=Math.sqrt(dx*dx+dy*dy),max=30;
+  if(d>max){dx=dx/d*max;dy=dy/d*max;}
+  js2X=dx/max;js2Y=dy/max;
+  js2Knob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';
+}
+function js2Move(e){
+  if(!js2Active)return;
+  e.preventDefault();
+  // 올바른 터치 ID만 추적
+  const touch=js2TouchId!==null
+    ?[...e.changedTouches].find(t=>t.identifier===js2TouchId)
+    :e.changedTouches?e.changedTouches[0]:e;
+  if(!touch)return;
+  _js2Update(touch);
+}
+function js2End(e){
+  if(e&&e.changedTouches&&js2TouchId!==null){
+    if(![...e.changedTouches].find(t=>t.identifier===js2TouchId))return;
+  }
+  js2Active=false;js2X=0;js2Y=0;js2TouchId=null;
+  js2Knob.style.transform='translate(-50%,-50%)';
+}
 js2Base.addEventListener('touchstart',js2Start,{passive:false});
 js2Base.addEventListener('touchmove',js2Move,{passive:false});
-js2Base.addEventListener('touchend',js2End);
-js2Base.addEventListener('mousedown',js2Start);
-document.addEventListener('mousemove',e=>{if(js2Active)js2Move(e);});
-document.addEventListener('mouseup',js2End);
+js2Base.addEventListener('touchend',js2End,{passive:false});
+// PC: js2는 mousedown/move/up만 (document mousemove는 연결 안 함 - 마우스는 조준에 직접 사용)
+let js2MouseDown=false;
+js2Base.addEventListener('mousedown',e=>{js2MouseDown=true;js2Start(e);});
+document.addEventListener('mousemove',e=>{if(js2MouseDown)js2Move(e);});
+document.addEventListener('mouseup',e=>{if(js2MouseDown){js2MouseDown=false;js2End(e);}});
 
 // ── 자동조준 토글 ──────────────────────────────────────────
 let autoAim=true;
@@ -834,16 +870,13 @@ function tryShoot(){
 
   let tx,ty;
   if(autoAim&&target&&minD<w.range*1.3){
-    // 자동조준 ON + 범위 내 적: 적 방향
+    // 자동조준 ON + 범위 내 적
     tx=target.x;ty=target.y;
   }else if(js2Active){
-    // 조준 조이스틱 사용 중: 조이스틱 방향
-    tx=myPlayer.x+js2X*300;ty=myPlayer.y+js2Y*300;
-  }else if(jsActive){
-    // 이동 조이스틱 방향으로 대체
-    tx=myPlayer.x+jsX*300;ty=myPlayer.y+jsY*300;
+    // 조준 조이스틱 사용 중 (모바일 수동조준)
+    tx=myPlayer.x+js2X*400;ty=myPlayer.y+js2Y*400;
   }else{
-    // 마우스
+    // PC: 마우스 방향으로 조준 (이동 조이스틱 방향 대체 제거)
     tx=mouseX+camX-W/2;ty=mouseY+camY-H/2;
   }
   const ang=Math.atan2(ty-myPlayer.y,tx-myPlayer.x);
