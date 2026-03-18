@@ -371,13 +371,15 @@ function rollTraits(){
 }
 
 function showTraitSelect(){
-  // [FIX] 이미 특성창이 떠있으면 중복 호출 완전 무시 (lvUp 중복 수신 시 게임 정지 버그 방지)
-  if(document.getElementById('lvlUpScreen').style.display==='flex')return;
-  if(!running)return;
+  // [FIX] 특성창이 이미 열려있으면 무시 (중복 lvUp 수신 방어)
+  if(document.getElementById('lvlUpScreen').style.display==='flex') return;
+  // [FIX] 게임오버/스테이지클리어 상태면 무시
+  if(document.getElementById('goScreen').style.display==='flex') return;
+  if(document.getElementById('stageClearScreen').style.display==='flex') return;
+  // running이 false여도 처리 가능 (보스 보상창 등과 충돌 방지를 위해 running 강제 설정)
   running=false;
   invincible=true;
   invincibleEnd=Infinity;
-  // [FIX] 서버에 무적 시작 신호 전송 (이게 없어서 서버가 계속 데미지를 줬음)
   send({t:'invincible',start:true});
   const traits=rollTraits();
   const cards=document.getElementById('traitCards');
@@ -415,10 +417,10 @@ function pickTrait(tr){
   updateTraitList();
   updateStatsPanel();
   send({t:'traitPicked',trait:tr.id,value:tr.value});
-  
   // 특성 선택 후 2초간 무적 유지
   invincibleEnd=performance.now()+2000;
-  // invincible은 이미 true이므로 그대로 유지, invincibleEnd 만료 시 update()에서 해제
+  // [FIX] 선택 완료 후 큐에 남은 레벨업 있으면 즉시 다음 특성창 요청
+  send({t:'lvUpReady'});
 }
 
 function applyTrait(id, value){
@@ -1745,11 +1747,8 @@ function tickRoom(code) {
         dmgBonus: p.dmgBonus || 1, armor: p.armor || 0, regen: p.regen || 0,
         rangeMult: p.rangeMult || 1, cdMult: p.cdMult || 1, spdMult: p.spdMult || 1, critRate: p.critRate || 0
       });
-      if (p.lvUpQueue > 0 && !p.lvUpPending) {
-        p.lvUpQueue--;
-        p.lvUpPending = true;
-        if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'lvUp' }));
-      }
+      // [FIX] lvUp은 클라이언트가 lvUpReady 보낼 때만 전송 (pull 방식)
+      // syncT에서는 큐 카운트만 유지, 전송하지 않음
     });
 
     // [OPT] 적은 100ms마다 (격틱), 전체 스탯은 500ms마다, 속도벡터 포함으로 클라이언트 예측 이동
@@ -2050,6 +2049,9 @@ wss.on('connection', ws => {
                 // [FIX] lvUp 큐: 중복 레벨업을 순차 처리 (동시에 여러 번 lvUp 보내지 않음)
                 if (!h.lvUpQueue) h.lvUpQueue = 0;
                 h.lvUpQueue++;
+                // [FIX] 큐에 쌓이는 즉시 전송 시도 - 클라이언트가 특성창 없을 때만 처리
+                // lvUpReady로 다음 레벨업을 pull하는 방식과 병행
+                if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'lvUp' }));
               }
               bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
             }
@@ -2092,13 +2094,19 @@ wss.on('connection', ws => {
       }
     }
     else if (msg.t === 'traitPicked') {
-      // [FIX] 특성 선택 완료 - 서버 무적 invincibleEnd를 2초로 전환
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p) return;
       p.invincible = false;
       p.invincibleEnd = Date.now() + 2000;
-      // [FIX] lvUpPending 해제 - 다음 syncT에서 큐에 남은 lvUp 전송 가능
-      p.lvUpPending = false;
+    }
+    else if (msg.t === 'lvUpReady') {
+      // [FIX] pull 방식: 클라이언트가 특성 선택 완료 후 다음 레벨업 요청
+      const room = rooms.get(ws.roomCode); if (!room) return;
+      const p = room.players.get(ws); if (!p) return;
+      if (p.lvUpQueue > 0) {
+        p.lvUpQueue--;
+        if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'lvUp' }));
+      }
     }
   });
 
