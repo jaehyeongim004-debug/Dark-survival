@@ -679,11 +679,12 @@ function applyState(msg){
     enemies=newEnemies.map(ne=>{
       const old=oldMap.get(ne.id);
       if(old){
-        // 기존 적: 렌더 위치 유지, 목표만 업데이트
+        // 기존 적: 렌더 위치 유지, 목표와 속도 업데이트
         old.targetX=ne.x;
         old.targetY=ne.y;
+        // 서버 속도벡터 → 클라이언트 예측 이동에 사용
+        if(ne.vx!==undefined){old.vx=ne.vx;old.vy=ne.vy;}
         old.hp=ne.hp;
-        // 전체 데이터(maxHp 포함)가 온 경우에만 나머지 필드 업데이트
         if(ne.maxHp!==undefined)old.maxHp=ne.maxHp;
         if(ne.type!==undefined)old.type=ne.type;
         if(ne.r!==undefined)old.r=ne.r;
@@ -693,8 +694,8 @@ function applyState(msg){
         if(ne.shieldHp!==undefined)old.shieldHp=ne.shieldHp;
         return old;
       }else{
-        // 새 적: 즉시 위치 설정 (보간 시작점)
-        return{...ne,targetX:ne.x,targetY:ne.y};
+        // 새 적: 즉시 위치 설정, 속도 초기화
+        return{...ne,targetX:ne.x,targetY:ne.y,vx:ne.vx||0,vy:ne.vy||0};
       }
     });
     // 서버에서 사라진 적(죽은 적) 제거
@@ -717,13 +718,13 @@ function applyState(msg){
       myStats.maxHp=me.maxHp;
       if(me.armor !== undefined) myStats.armor = me.armor;
       if(me.regen !== undefined) myStats.regen = me.regen;
-      if(me.rangeMult !== undefined) myStats.rangeMult = me.rangeMult;
+      // [FIX] rangeMult는 클라이언트에서만 관리 - 서버값으로 덮어쓰면 사거리 특성이 리셋됨
+      // if(me.rangeMult !== undefined) myStats.rangeMult = me.rangeMult;
       if(me.cdMult !== undefined) myStats.cdMult = me.cdMult;
       if(me.spdMult !== undefined) myStats.spd = (CLASSES[myClass]?.stats.spd || 3.0) * me.spdMult;
       if(me.dmgBonus !== undefined) myStats.dmgMult = (CLASSES[myClass]?.stats.dmgMult || 1) * me.dmgBonus;
       if(me.critRate !== undefined){
         myStats.critRate = me.critRate;
-        // [FIX] 암살자 치명타 오버플로우 동기화
         if(myStats.critRate > 100){
           const overflow = myStats.critRate - 100;
           myStats.dmgMult *= (1 + overflow / 100);
@@ -975,12 +976,18 @@ function update(dt){
   send({t:'move',x:Math.round(myPlayer.x),y:Math.round(myPlayer.y)});
   if(attackPressed||mouseDown||keys[' ']||keys['f']||(enemies.length>0&&running))tryShoot();
   camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
-  // [FIX] 잡몹 보간 - lerp 계수 높여서 더 빠르게 목표에 수렴 (dt 기반으로 프레임독립)
-  const lerpT=Math.min(1, dt/60 * 22); // 22 스텝/초 수렴 (기존 12에서 상향)
+  // [OPT] 잡몹 예측 이동: 서버 위치 수신 시 속도벡터 계산, 매 프레임 자체 이동 + 오차 보정
+  // 서버 전송이 100ms로 줄어도 부드럽게 보이는 핵심
   for(const e of enemies){
-    if(e.targetX===undefined){e.targetX=e.x;e.targetY=e.y;}
-    e.x+=(e.targetX-e.x)*lerpT;
-    e.y+=(e.targetY-e.y)*lerpT;
+    if(e.targetX===undefined){e.targetX=e.x;e.targetY=e.y;e.vx=0;e.vy=0;}
+    // 자체 예측 이동
+    e.x+=e.vx*(dt/16);
+    e.y+=e.vy*(dt/16);
+    // 서버 목표값과의 오차를 부드럽게 보정 (완전 snap 방지)
+    const errX=e.targetX-e.x, errY=e.targetY-e.y;
+    const correction=Math.min(1, dt/60 * 8);
+    e.x+=errX*correction;
+    e.y+=errY*correction;
   }
   for(const fx of remoteEffects)spawnRemoteFx(fx);
   remoteEffects=[];
@@ -1551,16 +1558,12 @@ function tickRoom(code) {
   const dt = Math.min((now - room.lastTick) / 1000, 0.1);
   room.lastTick = now;
   room.stageTime -= dt;
-  
   room.stateTick = (room.stateTick || 0) + 1;
 
   // 플레이어 체력 재생 및 무적 상태 업데이트
   room.players.forEach((p, ws) => {
-    if (!p.dead && p.regen) {
-      p.hp = Math.min(p.hp + p.regen * dt, p.maxHp);
-    }
-    // [FIX] 무적 상태 - invincibleEnd 기준으로 만료 처리
-    if (p.invincibleEnd > 0 && now >= p.invincibleEnd) {
+    if (!p.dead && p.regen) p.hp = Math.min(p.hp + p.regen * dt, p.maxHp);
+    if (p.invincibleEnd > 0 && p.invincibleEnd !== Infinity && now >= p.invincibleEnd) {
       p.invincible = false;
       p.invincibleEnd = 0;
     }
@@ -1575,11 +1578,7 @@ function tickRoom(code) {
     room.midBossSpawned = true;
     spawnBoss(room, false);
   }
-
-  if (room.midBossAlive) {
-    room.stageTime = Math.max(room.stageTime, 0.1);
-  }
-  
+  if (room.midBossAlive) room.stageTime = Math.max(room.stageTime, 0.1);
   if (!room.finalBossSpawned && !room.midBossAlive && room.midBossSpawned && room.stageTime <= 0) {
     room.finalBossSpawned = true;
     room.stageTime = 0;
@@ -1587,76 +1586,89 @@ function tickRoom(code) {
   }
 
   const arr = [...room.players.values()];
+  // [OPT] 살아있는 적만 추출 (dead 적은 즉시 제거 - 루프 부하 핵심 원인)
+  room.enemies = room.enemies.filter(e => !e.dead);
+  const deadThisTick = []; // 이번 tick에 죽은 적 처리용
 
   // Enemy AI
   for (const e of room.enemies) {
-    if (e.dead) continue;
-    
+    // Poison damage
     if (e.poison > 0) {
       e.hp -= e.maxHp * 0.004 * e.poison * dt;
       if (e.hp <= 1) e.hp = 1;
     }
-    
+
     const isIced = e.iceEnd && e.iceEnd > now;
     const spdMult = isIced ? 0.85 : 1;
     const dmgMult = isIced ? 0.85 : 1;
-    
+
     let near = null, md = Infinity;
-    for (const p of arr) { 
-      if (p.dead) continue; 
-      const dx = p.x - e.x, dy = p.y - e.y, d = Math.sqrt(dx * dx + dy * dy); 
-      if (d < md) { md = d; near = p; } 
+    for (const p of arr) {
+      if (p.dead) continue;
+      const dx = p.x - e.x, dy = p.y - e.y, d = dx*dx + dy*dy;
+      if (d < md) { md = d; near = p; }
     }
     if (!near) continue;
-    const dx = near.x - e.x, dy = near.y - e.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    md = Math.sqrt(md);
+    const dx = near.x - e.x, dy = near.y - e.y;
 
     if (e.type === 'ranged') {
-      if (d > 180) { e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60; }
-      else if (d < 120) { e.x -= dx / d * e.spd * spdMult * dt * 60; e.y -= dy / d * e.spd * spdMult * dt * 60; }
+      if (md > 180) {
+        e._vx = dx/md * e.spd * spdMult * 60; e._vy = dy/md * e.spd * spdMult * 60;
+        e.x += e._vx * dt; e.y += e._vy * dt;
+      } else if (md < 120) {
+        e._vx = -dx/md * e.spd * spdMult * 60; e._vy = -dy/md * e.spd * spdMult * 60;
+        e.x += e._vx * dt; e.y += e._vy * dt;
+      } else {
+        e._vx = 0; e._vy = 0;
+      }
       e.lastShot += dt;
       const shootCd = (e.atkSlow ? 3.3 : 2.2) * (isIced ? 1.176 : 1);
-      if (e.lastShot > shootCd) { 
-        e.lastShot = 0; 
-        bcastAll(room, { t: 'pat', i: -1, bx: e.x, by: e.y, ang: Math.atan2(dy, dx), phase: 0, etype: 'ranged' }); 
+      if (e.lastShot > shootCd) {
+        e.lastShot = 0;
+        bcastAll(room, { t: 'pat', i: -1, bx: e.x, by: e.y, ang: Math.atan2(dy, dx), phase: 0, etype: 'ranged' });
       }
     } else if (e.type === 'mage') {
-      if (d > 220) { e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60; }
-      else if (d < 160) { e.x -= dx / d * e.spd * 0.8 * spdMult * dt * 60; e.y -= dy / d * e.spd * 0.8 * spdMult * dt * 60; }
+      if (md > 220) {
+        e._vx = dx/md * e.spd * spdMult * 60; e._vy = dy/md * e.spd * spdMult * 60;
+        e.x += e._vx * dt; e.y += e._vy * dt;
+      } else if (md < 160) {
+        e._vx = -dx/md * e.spd * 0.8 * spdMult * 60; e._vy = -dy/md * e.spd * 0.8 * spdMult * 60;
+        e.x += e._vx * dt; e.y += e._vy * dt;
+      } else {
+        e._vx = 0; e._vy = 0;
+      }
       e.lastShot += dt;
       const shootCd = (e.atkSlow ? 4.2 : 2.8) * (isIced ? 1.176 : 1);
-      if (e.lastShot > shootCd) { 
-        e.lastShot = 0; 
-        bcastAll(room, { t: 'pat', i: -1, bx: e.x, by: e.y, ang: Math.atan2(dy, dx), phase: 0, etype: 'mage' }); 
+      if (e.lastShot > shootCd) {
+        e.lastShot = 0;
+        bcastAll(room, { t: 'pat', i: -1, bx: e.x, by: e.y, ang: Math.atan2(dy, dx), phase: 0, etype: 'mage' });
       }
     } else {
-      e.x += dx / d * e.spd * spdMult * dt * 60; e.y += dy / d * e.spd * spdMult * dt * 60;
+      e._vx = dx/md * e.spd * spdMult * 60; e._vy = dy/md * e.spd * spdMult * 60;
+      e.x += e._vx * dt; e.y += e._vy * dt;
     }
-    
-    if (d < e.r + 14) {
-      // [FIX] 무적 판정 - invincible 플래그 + invincibleEnd 둘 다 체크
+
+    if (md < e.r + 14) {
       const isInvincible = near.invincible || (near.invincibleEnd > 0 && near.invincibleEnd > now);
       if (!isInvincible) {
-        const finalDmg = 0.35 * e.dmgMult * dmgMult * dt * 60;
-        const actualDmg = finalDmg * (1 - (near.armor || 0));
+        const actualDmg = 0.35 * e.dmgMult * dmgMult * dt * 60 * (1 - (near.armor || 0));
         near.hp -= actualDmg;
         if (near.hp <= 0) { near.hp = 0; near.dead = true; }
       }
     }
   }
 
-  // [FIX] fireZone 서버 데미지 처리
+  // [OPT] fireZone - 서버 데미지 처리 (죽은 적은 이미 제거됨)
   if (room.fireZones && room.fireZones.length > 0) {
     room.fireZones = room.fireZones.filter(fz => fz.life > 0);
     for (const fz of room.fireZones) {
       fz.life -= dt * 1000;
       for (const e of room.enemies) {
-        if (e.dead) continue;
         const dx = e.x - fz.x, dy = e.y - fz.y;
-        if (Math.sqrt(dx * dx + dy * dy) < 30 + e.r) {
+        if (Math.sqrt(dx*dx + dy*dy) < 30 + e.r) {
           e.hp -= fz.dmg * dt * 2;
-          if (e.hp <= 0) {
-            e.dead = true;
-          }
+          if (e.hp <= 0) e.dead = true;
         }
       }
     }
@@ -1666,48 +1678,44 @@ function tickRoom(code) {
   if (room.boss && !room.boss.dead) {
     const b = room.boss;
     b.ang += dt * 1.5;
-    const halfHp = b.maxHp / 2;
-    if (b.hp < halfHp && b.phase === 1) { b.phase = 2; bcastAll(room, { t: 'phase2' }); }
-    
+    if (b.hp < b.maxHp / 2 && b.phase === 1) { b.phase = 2; bcastAll(room, { t: 'phase2' }); }
+
     if (b.isFinal) {
       const hpPercent = Math.floor((b.hp / b.maxHp) * 100);
       const threshold = Math.floor(hpPercent / 10) * 10;
-      if (threshold < b.lastHpThreshold) {
-        b.lastHpThreshold = threshold;
-        spawnBossMobs(room);
-      }
+      if (threshold < b.lastHpThreshold) { b.lastHpThreshold = threshold; spawnBossMobs(room); }
     }
-    
+
     if (b.isFinal && room.turrets && room.turrets.some(t => !t.dead && t.hp > 0)) {
       b.hp = Math.min(b.hp + b.maxHp * 0.05 * dt, b.maxHp);
     }
-    
+
     const isIced = b.iceEnd && b.iceEnd > now;
     const bossSpdMult = isIced ? 0.85 : 1;
     const bossDmgMult = isIced ? 0.85 : 1;
-    
+
     let near = null, md = Infinity;
-    for (const p of arr) { 
-      if (p.dead) continue; 
-      const dx = p.x - b.x, dy = p.y - b.y, d = Math.sqrt(dx * dx + dy * dy); 
-      if (d < md) { md = d; near = p; } 
+    for (const p of arr) {
+      if (p.dead) continue;
+      const dx = p.x - b.x, dy = p.y - b.y, d = dx*dx + dy*dy;
+      if (d < md) { md = d; near = p; }
     }
     if (near) {
-      const dx = near.x - b.x, dy = near.y - b.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-      const bspd = (b.isFinal ? 2.0 : 1.6) * bossSpdMult;
-      b.x += dx / d * bspd * dt * 60; b.y += dy / d * bspd * dt * 60;
-      const contactDmg = b.isFinal ? (b.phase === 1 ? 0.4 : 0.6) : (b.phase === 1 ? 0.3 : 0.45);
-      if (d < b.r + 14) {
-        // [FIX] 무적 판정 통일
+      md = Math.sqrt(md) || 1;
+      const dx = near.x - b.x, dy = near.y - b.y;
+      b.x += dx/md * (b.isFinal ? 2.0 : 1.6) * bossSpdMult * dt * 60;
+      b.y += dy/md * (b.isFinal ? 2.0 : 1.6) * bossSpdMult * dt * 60;
+
+      if (md < b.r + 14) {
         const isInvincible = near.invincible || (near.invincibleEnd > 0 && near.invincibleEnd > now);
         if (!isInvincible) {
-          const finalDmg = contactDmg * bossDmgMult * dt * 60;
-          const actualDmg = finalDmg * (1 - (near.armor || 0));
+          const contactDmg = b.isFinal ? (b.phase === 1 ? 0.4 : 0.6) : (b.phase === 1 ? 0.3 : 0.45);
+          const actualDmg = contactDmg * bossDmgMult * dt * 60 * (1 - (near.armor || 0));
           near.hp -= actualDmg;
           if (near.hp <= 0) { near.hp = 0; near.dead = true; }
         }
       }
-      
+
       b.lastHeavy = (b.lastHeavy || 0) + dt;
       const heavyCd = isIced ? 4.7 : 4;
       if (b.lastHeavy > heavyCd) {
@@ -1715,7 +1723,7 @@ function tickRoom(code) {
         bcastAll(room, { t: 'pat', i: -2, bx: b.x, by: b.y, ang: Math.atan2(dy, dx), phase: b.phase });
       }
     }
-    
+
     room.patT = (room.patT || 0) + dt;
     const patInterval = (b.isFinal ? (b.phase === 1 ? 1.3 : 0.9) : (b.phase === 1 ? 1.8 : 1.3)) * (isIced ? 1.176 : 1);
     if (room.patT > patInterval) {
@@ -1725,61 +1733,59 @@ function tickRoom(code) {
     }
   }
 
+  // [OPT] State 전송 - syncT 50ms, 적 데이터는 100ms(격틱)마다 전송
   room.syncT = (room.syncT || 0) + dt;
   if (room.syncT > 0.05) {
     room.syncT = 0;
     const ps = [];
-
-    // [FIX] lvUp을 state에서 분리 - 해당 플레이어에게만 개별 전송
     room.players.forEach((p, ws) => {
-      ps.push({ 
-        id: p.id, x: Math.round(p.x), y: Math.round(p.y), hp: p.hp, maxHp: p.maxHp, 
+      ps.push({
+        id: p.id, x: Math.round(p.x), y: Math.round(p.y), hp: p.hp, maxHp: p.maxHp,
         lv: p.lv, dead: p.dead, name: p.name, exp: p.exp, expNext: p.expNext, cls: p.cls,
-        // lvUp 제거: 개별 메시지로 처리
-        dmgBonus: p.dmgBonus || 1, armor: p.armor || 0, regen: p.regen || 0, 
+        dmgBonus: p.dmgBonus || 1, armor: p.armor || 0, regen: p.regen || 0,
         rangeMult: p.rangeMult || 1, cdMult: p.cdMult || 1, spdMult: p.spdMult || 1, critRate: p.critRate || 0
       });
-
-      // [FIX] lvUp 큐: 한 번에 하나씩만 전송, 클라이언트가 traitPicked 보내야 다음 lvUp 전송
       if (p.lvUpQueue > 0 && !p.lvUpPending) {
         p.lvUpQueue--;
-        p.lvUpPending = true; // 클라이언트가 선택 완료할 때까지 다음 전송 대기
+        p.lvUpPending = true;
         if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'lvUp' }));
       }
     });
 
-    // [FIX] 적 위치를 매 syncT(50ms)마다 전송 - 보간이 부드럽게 작동하려면 자주 보내야 함
-    // 5틱마다 전체 데이터, 나머지는 위치+HP만 (서버 부담 최소화)
-    const enemyData = room.enemies.filter(e => !e.dead).map(e => {
-      if (room.stateTick % 5 === 0) {
+    // [OPT] 적은 100ms마다 (격틱), 전체 스탯은 500ms마다, 속도벡터 포함으로 클라이언트 예측 이동
+    const sendEnemies = room.stateTick % 2 === 0;
+    const sendFullStats = room.stateTick % 10 === 0;
+    const enemyData = sendEnemies ? room.enemies.map(e => {
+      if (sendFullStats) {
         return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
+          vx: e._vx || 0, vy: e._vy || 0,
           maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
           poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow };
-      } else {
-        return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp) };
       }
+      return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
+        vx: e._vx || 0, vy: e._vy || 0 };
+    }) : undefined;
+
+    bcastAll(room, {
+      t: 'state', players: ps,
+      enemies: enemyData,
+      boss: room.boss && !room.boss.dead ? {
+        x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp,
+        maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal,
+        iceEnd: room.boss.iceEnd
+      } : null,
+      turrets: room.stateTick % 10 === 0 && room.turrets ? room.turrets.filter(t => t.hp > 0).map(t => ({
+        id: t.id, x: t.x, y: t.y, hp: t.hp, maxHp: t.maxHp, r: t.r, isTurret: true
+      })) : undefined,
+      st: room.stageTime, stage: room.currentStage
     });
-      
-      bcastAll(room, {
-        t: 'state', players: ps,
-        enemies: enemyData,
-        boss: room.boss && !room.boss.dead ? { 
-          x: Math.round(room.boss.x), y: Math.round(room.boss.y), hp: room.boss.hp, 
-          maxHp: room.boss.maxHp, phase: room.boss.phase, ang: room.boss.ang, isFinal: room.boss.isFinal,
-          iceEnd: room.boss.iceEnd
-        } : null,
-        turrets: room.turrets ? room.turrets.filter(t => t.hp > 0).map(t => ({
-          id: t.id, x: t.x, y: t.y, hp: t.hp, maxHp: t.maxHp, r: t.r, isTurret: true
-        })) : [],
-        st: room.stageTime, stage: room.currentStage
-      });
   }
 
   const alive = arr.filter(p => !p.dead);
-  if (alive.length === 0 && arr.length > 0) { 
-    bcastAll(room, { t: 'over', win: false }); 
-    clearInterval(room.tick); 
-    rooms.delete(code); 
+  if (alive.length === 0 && arr.length > 0) {
+    bcastAll(room, { t: 'over', win: false });
+    clearInterval(room.tick);
+    rooms.delete(code);
   }
 }
 
