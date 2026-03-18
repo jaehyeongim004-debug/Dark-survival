@@ -375,6 +375,8 @@ function showTraitSelect(){
   running=false;
   invincible=true;
   invincibleEnd=Infinity; // 선택 완료 전까지 무적 유지
+  // [FIX] 서버에 무적 시작 신호 전송 (이게 없어서 서버가 계속 데미지를 줬음)
+  send({t:'invincible',start:true});
   const traits=rollTraits();
   const cards=document.getElementById('traitCards');
   cards.innerHTML='';
@@ -546,7 +548,8 @@ function getW(){
     dmg:w.baseDmg*s.dmgMult*(critHit?2:1),
     cd:w.baseCd*s.cdMult,
     range:w.baseRange*s.rangeMult,
-    count:1+(w.type!=='magic'?s.multishot:0),
+    // [FIX] 마법도 multishot 적용 (이전엔 magic 타입은 0으로 고정이었음)
+    count:1+s.multishot,
     crit:critHit
   };
 }
@@ -807,40 +810,27 @@ function tryShoot(){
   }
   
   if(w.type==='magic'){
-    const multishotCount=w.count - 1;
-    if(multishotCount>0){
+    // [FIX] 원래 탄환은 항상 정조준 방향으로 발사
+    projs.push({
+      x:myPlayer.x,y:myPlayer.y,
+      vx:Math.cos(ang)*(w.spd||6),
+      vy:Math.sin(ang)*(w.spd||6),
+      dmg:w.dmg,range:w.range,traveled:0,gone:false,
+      color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
+      isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
+    });
+    // [FIX] 추가 탄환은 원래 방향 기준으로 각각 다른 방향으로 발사 (대칭 아님)
+    // multishot 1개 → +45도 방향 1발 추가
+    // multishot 2개 → +45, -90도 방향 추가
+    // multishot 3개 → +45, -90, +135도 방향 추가
+    const extraAngles=[0.78,-1.57,2.36,-2.36,1.57]; // 약 45,-90,135,-135,90도
+    const multishotCount=w.count-1;
+    for(let i=0;i<multishotCount;i++){
+      const a=ang+extraAngles[i%extraAngles.length];
       projs.push({
         x:myPlayer.x,y:myPlayer.y,
-        vx:Math.cos(ang)*(w.spd||6),
-        vy:Math.sin(ang)*(w.spd||6),
-        dmg:w.dmg,range:w.range,traveled:0,gone:false,
-        color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
-        isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
-      });
-      for(let i=1;i<=multishotCount;i++){
-        const offset=i*0.3;
-        projs.push({
-          x:myPlayer.x,y:myPlayer.y,
-          vx:Math.cos(ang+offset)*(w.spd||6),
-          vy:Math.sin(ang+offset)*(w.spd||6),
-          dmg:w.dmg,range:w.range,traveled:0,gone:false,
-          color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
-          isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
-        });
-        projs.push({
-          x:myPlayer.x,y:myPlayer.y,
-          vx:Math.cos(ang-offset)*(w.spd||6),
-          vy:Math.sin(ang-offset)*(w.spd||6),
-          dmg:w.dmg,range:w.range,traveled:0,gone:false,
-          color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
-          isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
-        });
-      }
-    }else{
-      projs.push({
-        x:myPlayer.x,y:myPlayer.y,
-        vx:Math.cos(ang)*(w.spd||6),
-        vy:Math.sin(ang)*(w.spd||6),
+        vx:Math.cos(a)*(w.spd||6),
+        vy:Math.sin(a)*(w.spd||6),
         dmg:w.dmg,range:w.range,traveled:0,gone:false,
         color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,
         isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement
@@ -983,8 +973,8 @@ function update(dt){
   send({t:'move',x:Math.round(myPlayer.x),y:Math.round(myPlayer.y)});
   if(attackPressed||mouseDown||keys[' ']||keys['f']||(enemies.length>0&&running))tryShoot();
   camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
-  // [FIX] 잡몹 클라이언트 보간 - 서버 전송 없이 매 프레임 부드럽게 이동
-  const lerpT=Math.min(1, dt/60 * 12); // ~12 스텝/초로 수렴 (부드러움 조절)
+  // [FIX] 잡몹 보간 - lerp 계수 높여서 더 빠르게 목표에 수렴 (dt 기반으로 프레임독립)
+  const lerpT=Math.min(1, dt/60 * 22); // 22 스텝/초 수렴 (기존 12에서 상향)
   for(const e of enemies){
     if(e.targetX===undefined){e.targetX=e.x;e.targetY=e.y;}
     e.x+=(e.targetX-e.x)*lerpT;
@@ -1755,19 +1745,17 @@ function tickRoom(code) {
       }
     });
 
-    if (room.stateTick % 3 === 0) {
-      // [FIX] 적 전송 최적화: 3틱마다 위치+HP, 5틱마다 전체 스탯
-      const enemyData = room.enemies.filter(e => !e.dead).map(e => {
-        if (room.stateTick % 5 === 0) {
-          // 전체 데이터
-          return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
-            maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
-            poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow };
-        } else {
-          // 위치+HP만 (보간에 필요한 최소 데이터)
-          return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp) };
-        }
-      });
+    // [FIX] 적 위치를 매 syncT(50ms)마다 전송 - 보간이 부드럽게 작동하려면 자주 보내야 함
+    // 5틱마다 전체 데이터, 나머지는 위치+HP만 (서버 부담 최소화)
+    const enemyData = room.enemies.filter(e => !e.dead).map(e => {
+      if (room.stateTick % 5 === 0) {
+        return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
+          maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
+          poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow };
+      } else {
+        return { id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp) };
+      }
+    });
       
       bcastAll(room, {
         t: 'state', players: ps,
@@ -1782,7 +1770,6 @@ function tickRoom(code) {
         })) : [],
         st: room.stageTime, stage: room.currentStage
       });
-    }
   }
 
   const alive = arr.filter(p => !p.dead);
