@@ -2096,7 +2096,7 @@ wss.on('connection', ws => {
                 
                 h.lvUp = true; 
               }
-              bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
+              bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y });
             }
           }
         }
