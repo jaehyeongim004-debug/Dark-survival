@@ -106,6 +106,11 @@ input.inp:focus{border-color:#ffcc00;}
 #statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
 #statsPanel .statName{color:#888;}
 #statsPanel .statVal{color:#ffcc00;font-weight:bold;}
+#autoAimBtn{position:absolute;right:12px;top:230px;z-index:6;pointer-events:all;width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #444;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;}
+#autoAimBtn .aaIcon{font-size:20px;line-height:1;}
+#autoAimBtn .aaLabel{font-size:7px;color:#666;margin-top:2px;font-family:monospace;}
+#autoAimBtn.on{border-color:#44ff88;}
+#autoAimBtn.on .aaLabel{color:#44ff88;}
 #minimap{position:absolute;top:80px;left:12px;width:120px;height:120px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
 </style>
 </head>
@@ -138,6 +143,7 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="classTag"></div>
   <div id="weaponElement"></div>
   <div id="statsPanel"></div>
+  <div id="autoAimBtn" class="on"><span class="aaIcon">🎯</span><span class="aaLabel">AUTO</span></div>
   <div id="minimap"><canvas id="minimapCanvas" width="120" height="120"></canvas></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="js2Wrap"><div id="js2Base"><span class="js2Icon">⚔</span><div id="js2Knob"></div></div></div>
@@ -529,8 +535,7 @@ function updateTraitList(){
 
 function updateStatsPanel(){
   if(!myStats||!myWeapon)return;
-  const s=myStats;
-  const w=myWeapon;
+  const s=myStats,w=myWeapon;
   const dmg=(w.baseDmg*s.dmgMult).toFixed(1);
   const armor=(s.armor*100).toFixed(0);
   const regen=s.regen.toFixed(1);
@@ -538,16 +543,7 @@ function updateStatsPanel(){
   const exp=((s.expMult-1)*100).toFixed(0);
   const atkSpd=(100/s.cdMult).toFixed(0);
   const moveSpd=(s.spd).toFixed(1);
-  let el=document.getElementById('statsPanelContent');
-  if(!el){
-    el=document.createElement('div');
-    el.id='statsPanelContent';
-    // autoAimBtn 앞에 삽입
-    const panel=document.getElementById('statsPanel');
-    const btn=document.getElementById('autoAimBtn');
-    if(btn) panel.insertBefore(el,btn); else panel.appendChild(el);
-  }
-  el.innerHTML=
+  document.getElementById('statsPanel').innerHTML=
     '<div class="statLine"><span class="statName">공격력</span><span class="statVal">'+dmg+'</span></div>'+
     '<div class="statLine"><span class="statName">공속</span><span class="statVal">'+atkSpd+'%</span></div>'+
     '<div class="statLine"><span class="statName">이속</span><span class="statVal">'+moveSpd+'</span></div>'+
@@ -804,15 +800,15 @@ document.addEventListener('mousemove',e=>{if(js2Active)js2Move(e);});
 document.addEventListener('mouseup',js2End);
 
 // ── 자동조준 토글 ──────────────────────────────────────────
-let autoAim=true; // 기본 자동조준 ON
-// statsPanel 안에 autoAimBtn 동적 삽입
-const autoAimBtn=document.createElement('div');
-autoAimBtn.id='autoAimBtn';
-autoAimBtn.className='on';
-autoAimBtn.textContent='🎯 자동조준 ON';
-autoAimBtn.addEventListener('click',()=>{autoAim=!autoAim;autoAimBtn.className=autoAim?'on':'';autoAimBtn.textContent=autoAim?'🎯 자동조준 ON':'🎯 자동조준 OFF';});
-autoAimBtn.addEventListener('touchend',e=>{e.preventDefault();autoAim=!autoAim;autoAimBtn.className=autoAim?'on':'';autoAimBtn.textContent=autoAim?'🎯 자동조준 ON':'🎯 자동조준 OFF';});
-document.getElementById('statsPanel').appendChild(autoAimBtn);
+let autoAim=true;
+const autoAimBtn=document.getElementById('autoAimBtn');
+function toggleAutoAim(){
+  autoAim=!autoAim;
+  autoAimBtn.className=autoAim?'on':'';
+  autoAimBtn.querySelector('.aaLabel').textContent=autoAim?'AUTO':'MAN';
+}
+autoAimBtn.addEventListener('click',toggleAutoAim);
+autoAimBtn.addEventListener('touchend',e=>{e.preventDefault();toggleAutoAim();});
 
 const keys={};
 document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
