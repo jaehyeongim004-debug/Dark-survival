@@ -237,7 +237,7 @@ const CLASSES={
   },
   gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
     stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
-    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:15}
+    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:20}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
     stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
@@ -1705,7 +1705,9 @@ wss.on('connection', ws => {
       // 무적 상태가 아닐 때만 피해 적용
       const now = Date.now();
       if (!p.invincible && !(p.invincibleEnd > 0 && p.invincibleEnd > now)) {
-        const actualDmg = msg.dmg * (1 - (p.armor || 0));
+        // 저격수는 방어력 절반만 적용
+        const armorMult = p.cls === 'gunner' ? 0.5 : 1;
+        const actualDmg = msg.dmg * (1 - (p.armor || 0) * armorMult);
         p.hp -= actualDmg;
         if (p.hp <= 0) {
           p.hp = 0;
@@ -1867,7 +1869,7 @@ wss.on('connection', ws => {
                   h.rangeMult *= 1.02; // 범위 2% 증가
                 } else if (h.cls === 'gunner') {
                   if (!h.dmgBonus) h.dmgBonus = 1;
-                  h.dmgBonus *= 1.04; // 공격력 4% 증가
+                  h.dmgBonus *= 1.05; // 공격력 5% 증가
                 } else if (h.cls === 'mage') {
                   if (!h.dmgBonus) h.dmgBonus = 1;
                   h.dmgBonus *= 1.03; // 공격력 3% 증가
