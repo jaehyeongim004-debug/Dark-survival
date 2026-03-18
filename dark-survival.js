@@ -34,7 +34,6 @@ canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none
 @keyframes bp{from{opacity:.6}to{opacity:1}}
 #bossWrap{height:9px;background:#1a0000;border:1px solid #880000;border-radius:2px;overflow:hidden;max-width:280px;margin:0 auto;}
 #bossFill{height:100%;background:#ff3300;transition:width .1s;}
-
 #jsWrap{position:absolute;bottom:30px;left:30px;z-index:5;pointer-events:none;}
 #jsBase{width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);position:relative;touch-action:none;}
 #jsKnob{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.4);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
@@ -46,8 +45,12 @@ canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none
 #statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
 #statsPanel .statName{color:#888;}
 #statsPanel .statVal{color:#ffcc00;font-weight:bold;}
-
-#lobbyScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:20;padding:20px;overflow-y:auto;}
+#autoAimBtn{position:absolute;right:12px;top:230px;z-index:6;pointer-events:all;width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #444;display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;}
+#autoAimBtn .aaIcon{font-size:20px;line-height:1;}
+#autoAimBtn .aaLabel{font-size:7px;color:#666;margin-top:2px;font-family:monospace;}
+#autoAimBtn.on{border-color:#44ff88;}
+#autoAimBtn.on .aaLabel{color:#44ff88;}
+#lobbyScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:20;padding:20px;overflow-y:auto;pointer-events:all;touch-action:auto;}
 h1.title{color:#ffcc00;font-size:24px;letter-spacing:5px;margin-bottom:2px;}
 .sub{color:#555;font-size:11px;margin-bottom:6px;}
 input.inp{background:#111;border:1px solid #333;color:#eee;padding:9px 14px;font-size:14px;font-family:monospace;outline:none;border-radius:4px;width:200px;text-align:center;}
@@ -60,8 +63,7 @@ input.inp:focus{border-color:#ffcc00;}
 #playerListEl{color:#888;font-size:11px;text-align:center;}
 #playerListEl b{color:#aaffaa;}
 #errMsg{color:#ff6666;font-size:11px;min-height:16px;text-align:center;}
-
-#classScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:20;padding:20px;}
+#classScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:20;padding:20px;pointer-events:all;touch-action:auto;}
 #classTitle{color:#ffcc00;font-size:18px;letter-spacing:3px;margin-bottom:4px;}
 #classSub{color:#666;font-size:11px;margin-bottom:6px;}
 #classCards{display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;}
@@ -73,8 +75,7 @@ input.inp:focus{border-color:#ffcc00;}
 .classDesc{color:#777;font-size:10px;line-height:1.5;}
 .classStat{color:#88aacc;font-size:9px;margin-top:4px;}
 #classReady{margin-top:4px;}
-
-#lvlUpScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:15;padding:20px;}
+#lvlUpScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:15;padding:20px;pointer-events:all;touch-action:auto;}
 #lvlUpTitle{color:#ffcc00;font-size:18px;letter-spacing:3px;}
 #lvlUpSub{color:#888;font-size:11px;}
 #traitCards{display:flex;flex-direction:column;gap:10px;width:100%;max-width:320px;}
@@ -83,16 +84,13 @@ input.inp:focus{border-color:#ffcc00;}
 .traitName{color:#ffcc00;font-size:13px;font-weight:bold;margin-bottom:4px;}
 .traitDesc{color:#888;font-size:11px;line-height:1.5;}
 .traitIcon{font-size:20px;margin-bottom:6px;}
-
-#stageClearScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:18;}
+#stageClearScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:18;pointer-events:all;touch-action:auto;}
 #stageClearTitle{font-size:22px;color:#ffcc00;letter-spacing:4px;}
 #stageClearSub{font-size:12px;color:#888;text-align:center;}
 #stageClearTimer{font-size:28px;color:#fff;font-weight:bold;}
-
-#goScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:20;}
+#goScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:20;pointer-events:all;touch-action:auto;}
 #goTitle{font-size:24px;letter-spacing:4px;font-weight:bold;}
 #goStats{font-size:12px;color:#888;text-align:center;line-height:1.9;}
-
 #msgPop{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);font-size:16px;color:#ffcc00;pointer-events:none;z-index:6;display:none;text-align:center;font-weight:bold;text-shadow:0 0 12px #ffcc0088;}
 #killFeed{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;z-index:5;pointer-events:none;}
 .kf{font-size:10px;color:#ff8844;animation:kfade 2.5s forwards;}
@@ -102,16 +100,19 @@ input.inp:focus{border-color:#ffcc00;}
 #classTag{position:absolute;top:48px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #classTag span{color:#ffcc00;}
 #weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
-#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:none;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;}
-#statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
-#statsPanel .statName{color:#888;}
-#statsPanel .statVal{color:#ffcc00;font-weight:bold;}
-#autoAimBtn{position:absolute;right:12px;top:230px;z-index:6;pointer-events:all;width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #444;display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;}
-#autoAimBtn .aaIcon{font-size:20px;line-height:1;}
-#autoAimBtn .aaLabel{font-size:7px;color:#666;margin-top:2px;font-family:monospace;}
-#autoAimBtn.on{border-color:#44ff88;}
-#autoAimBtn.on .aaLabel{color:#44ff88;}
 #minimap{position:absolute;top:80px;left:12px;width:120px;height:120px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
+#hud{position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:5;}
+#topRow{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px 0;}
+.hudL{display:flex;flex-direction:column;gap:4px;}
+.barOuter{width:130px;height:7px;background:#1a0000;border:1px solid #330000;border-radius:2px;overflow:hidden;}
+#hpFill{height:100%;background:#dd2222;transition:width .1s;}
+.barOuter2{width:130px;height:3px;background:#001122;border:1px solid #002244;border-radius:2px;overflow:hidden;margin-top:1px;}
+#expFill{height:100%;background:#2277cc;transition:width .2s;}
+.hs{font-size:10px;color:#888;margin-top:1px;}
+#timerBox{text-align:center;}
+#timerVal{font-size:20px;color:#ffcc00;letter-spacing:2px;font-weight:bold;}
+#timerLbl{font-size:8px;color:#555;margin-bottom:1px;}
+#stageBox{font-size:9px;color:#888;text-align:center;margin-top:2px;}
 </style>
 </head>
 <body>
