@@ -1712,12 +1712,11 @@ function tickRoom(code) {
     
     // 최적화: 플레이어/보스는 3틱마다, 적은 5틱마다 전송
     if (room.stateTick % 3 === 0) {
-      const enemyData = room.stateTick % 5 === 0 ? 
-        room.enemies.filter(e => !e.dead).map(e => ({ 
-          id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), 
-          maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
-          poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
-        })) : undefined;
+  const enemyData = room.enemies.filter(e => !e.dead).map(e => ({
+      id: e.id, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
+      maxHp: Math.round(e.maxHp), type: e.type, r: e.r, shieldHp: e.shieldHp,
+      poison: e.poison, iceEnd: e.iceEnd, atkSlow: e.atkSlow
+  }));
       
       bcastAll(room, {
         t: 'state', players: ps,
