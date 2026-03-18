@@ -371,10 +371,12 @@ function rollTraits(){
 }
 
 function showTraitSelect(){
+  // [FIX] 이미 특성창이 떠있으면 중복 호출 완전 무시 (lvUp 중복 수신 시 게임 정지 버그 방지)
+  if(document.getElementById('lvlUpScreen').style.display==='flex')return;
   if(!running)return;
   running=false;
   invincible=true;
-  invincibleEnd=Infinity; // 선택 완료 전까지 무적 유지
+  invincibleEnd=Infinity;
   // [FIX] 서버에 무적 시작 신호 전송 (이게 없어서 서버가 계속 데미지를 줬음)
   send({t:'invincible',start:true});
   const traits=rollTraits();
@@ -1738,9 +1740,10 @@ function tickRoom(code) {
         rangeMult: p.rangeMult || 1, cdMult: p.cdMult || 1, spdMult: p.spdMult || 1, critRate: p.critRate || 0
       });
 
-      if (p.lvUp) {
-        p.lvUp = false;
-        // 해당 플레이어에게만 lvUp 메시지 전송
+      // [FIX] lvUp 큐: 한 번에 하나씩만 전송, 클라이언트가 traitPicked 보내야 다음 lvUp 전송
+      if (p.lvUpQueue > 0 && !p.lvUpPending) {
+        p.lvUpQueue--;
+        p.lvUpPending = true; // 클라이언트가 선택 완료할 때까지 다음 전송 대기
         if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'lvUp' }));
       }
     });
@@ -1800,7 +1803,7 @@ wss.on('connection', ws => {
       rooms.get(code).players.set(ws, { 
         id: ws.pid, x: 0, y: 0, hp: 100, maxHp: 100, lv: 1, exp: 0, expNext: 50, 
         dead: false, name: msg.name || 'Player', lvUp: false, cls: null, regen: 0, armor: 0, expMult: 1, critRate: 0, dmgBonus: 1,
-        invincible: false, invincibleEnd: 0
+        invincible: false, invincibleEnd: 0, lvUpQueue: 0, lvUpPending: false
       });
       ws.send(JSON.stringify({ t: 'created', code, id: ws.pid }));
       bcastAll(rooms.get(code), { t: 'lobby', players: [...rooms.get(code).players.values()].map(p => ({ id: p.id, name: p.name })) });
@@ -1814,7 +1817,7 @@ wss.on('connection', ws => {
       room.players.set(ws, { 
         id: ws.pid, x: sp.x, y: sp.y, hp: 100, maxHp: 100, lv: 1, exp: 0, expNext: 50, 
         dead: false, name: msg.name || ('P' + (idx + 1)), lvUp: false, cls: null, regen: 0, armor: 0, expMult: 1, critRate: 0, dmgBonus: 1,
-        invincible: false, invincibleEnd: 0
+        invincible: false, invincibleEnd: 0, lvUpQueue: 0, lvUpPending: false
       });
       ws.send(JSON.stringify({ t: 'joined', code, id: ws.pid }));
       bcastAll(room, { t: 'lobby', players: [...room.players.values()].map(p => ({ id: p.id, name: p.name })) });
@@ -2038,7 +2041,9 @@ wss.on('connection', ws => {
                   }
                 }
                 
-                h.lvUp = true; 
+                // [FIX] lvUp 큐: 중복 레벨업을 순차 처리 (동시에 여러 번 lvUp 보내지 않음)
+                if (!h.lvUpQueue) h.lvUpQueue = 0;
+                h.lvUpQueue++;
               }
               bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
             }
@@ -2084,8 +2089,10 @@ wss.on('connection', ws => {
       // [FIX] 특성 선택 완료 - 서버 무적 invincibleEnd를 2초로 전환
       const room = rooms.get(ws.roomCode); if (!room) return;
       const p = room.players.get(ws); if (!p) return;
-      p.invincible = false; // invincible 플래그 해제
-      p.invincibleEnd = Date.now() + 2000; // 2초 후 자동 만료
+      p.invincible = false;
+      p.invincibleEnd = Date.now() + 2000;
+      // [FIX] lvUpPending 해제 - 다음 syncT에서 큐에 남은 lvUp 전송 가능
+      p.lvUpPending = false;
     }
   });
 
