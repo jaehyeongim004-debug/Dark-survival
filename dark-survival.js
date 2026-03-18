@@ -319,10 +319,11 @@ function getTraitGrade(trait,value){
 function rollTraits(){
   const pool=[...ALL_TRAITS];
   
-  // 다중사격은 보스 보상으로만 지급 (레벨업 풀에서 제외)
+  // 다중사격: 풀에서 분리해 1% 확률로 등장 가능하도록
+  let multishotTrait = null;
   const multishotIdx = pool.findIndex(t=>t.id==='multishot');
   if(multishotIdx !== -1) {
-    pool.splice(multishotIdx, 1);
+    multishotTrait = pool.splice(multishotIdx, 1)[0];
   }
   
   // weapon 특성은 3회까지만 가능
@@ -332,7 +333,6 @@ function rollTraits(){
     if(weaponUpgradeLevel >= 3) {
       pool.splice(weaponIdx, 1);
     } else {
-      // 무기 강화 특성을 별도로 분리 (1/10 확률)
       weaponTrait = pool.splice(weaponIdx, 1)[0];
     }
   }
@@ -350,34 +350,38 @@ function rollTraits(){
   }
   
   const result=[];
-  while(result.length<3&&(pool.length>0||weaponTrait)){
+  let multishotUsed=false;
+  while(result.length<3&&(pool.length>0||weaponTrait||(!multishotUsed&&multishotTrait))){
+    const roll=Math.random();
+    // 1% 확률로 다중사격 시도 (무기강화와 별개)
+    if(multishotTrait&&!multishotUsed&&roll<0.01){
+      result.push({...multishotTrait});
+      multishotUsed=true;
     // 1% 확률로 무기 강화 시도
-    if(weaponTrait && !result.includes(weaponTrait) && Math.random() < 0.01){
-      const trait = {...weaponTrait};
+    }else if(weaponTrait&&!result.find(t=>t.id==='weapon')&&roll<0.02){
+      const trait={...weaponTrait};
       result.push(trait);
-      weaponTrait = null;
-    } else if(pool.length > 0) {
+      weaponTrait=null;
+    }else if(pool.length>0){
       const i=Math.floor(Math.random()*pool.length);
-      const trait = pool.splice(i,1)[0];
-      
-      // 랜덤 수치 생성
-      if(trait.min !== undefined && trait.max !== undefined) {
-        if(trait.id === 'regen') {
-          trait.value = Math.round((trait.min + Math.random() * (trait.max - trait.min)) * 10) / 10;
-        } else {
-          trait.value = Math.floor(trait.min + Math.random() * (trait.max - trait.min + 1));
+      const trait=pool.splice(i,1)[0];
+      if(trait.min!==undefined&&trait.max!==undefined){
+        if(trait.id==='regen'){
+          trait.value=Math.round((trait.min+Math.random()*(trait.max-trait.min))*10)/10;
+        }else{
+          trait.value=Math.floor(trait.min+Math.random()*(trait.max-trait.min+1));
         }
       }
-      
       result.push(trait);
-    } else {
+    }else{
       break;
     }
   }
   
   // 3개가 안 채워졌고 무기 강화가 남아있으면 추가
-  if(result.length < 3 && weaponTrait && !result.includes(weaponTrait)){
+  if(result.length<3&&weaponTrait&&!result.find(t=>t.id==='weapon')){
     result.push(weaponTrait);
+  }
   }
   
   return result;
@@ -667,6 +671,7 @@ function initGameState(){
   const cls=CLASSES[myClass];
   myStats={...cls.stats};
   myStats._lastDmgBonus=1;
+  myStats._lastCdMult=1;
   myWeapon={...cls.weapon};
   myTraits=[];
   weaponUpgradeLevel=0;
@@ -734,13 +739,17 @@ function applyState(msg){
       myStats.maxHp=me.maxHp;
       if(me.armor !== undefined) myStats.armor = me.armor;
       if(me.regen !== undefined) myStats.regen = me.regen;
-      // [FIX] dmgBonus: 서버에서 보스처치/레벨업으로 올린 경우만 반영
-      // 클라이언트 특성으로 올린 dmgMult는 별도 관리이므로 dmgBonus 비율로만 반영
+      // dmgBonus: 서버 레벨업/보스처치로 올린 경우만 비율로 반영
       if(me.dmgBonus !== undefined && me.dmgBonus !== (myStats._lastDmgBonus||1)){
         const prevBonus = myStats._lastDmgBonus || 1;
-        const ratio = me.dmgBonus / prevBonus;
-        myStats.dmgMult *= ratio;
+        myStats.dmgMult *= me.dmgBonus / prevBonus;
         myStats._lastDmgBonus = me.dmgBonus;
+      }
+      // [FIX] cdMult: 서버 레벨업으로 올린 경우만 비율로 반영 (특성으로 올린 값 보존)
+      if(me.cdMult !== undefined && me.cdMult !== (myStats._lastCdMult||1)){
+        const prevCd = myStats._lastCdMult || 1;
+        myStats.cdMult *= me.cdMult / prevCd;
+        myStats._lastCdMult = me.cdMult;
       }
       if(me.critRate !== undefined){
         if(me.critRate > myStats.critRate){
@@ -779,21 +788,49 @@ function nextStage(stage){
   showPop('STAGE '+stage+' START!',2500);
 }
 
-// ── Joystick ───────────────────────────────────────────────
+// ── Joystick 1 (이동) ──────────────────────────────────────
 const jsBase=document.getElementById('jsBase'),jsKnob=document.getElementById('jsKnob');
-let jsCX=0,jsCY=0;
-function jsStart(e){e.preventDefault();const t=e.touches?e.touches[0]:e,r=jsBase.getBoundingClientRect();jsCX=r.left+r.width/2;jsCY=r.top+r.height/2;jsActive=true;jsMove(e);}
-function jsMove(e){if(!jsActive)return;e.preventDefault();const t=e.touches?e.touches[0]:e;let dx=t.clientX-jsCX,dy=t.clientY-jsCY,d=Math.sqrt(dx*dx+dy*dy),max=30;if(d>max){dx=dx/d*max;dy=dy/d*max;}jsX=dx/max;jsY=dy/max;jsKnob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';}
-function jsEnd(){jsActive=false;jsX=0;jsY=0;jsKnob.style.transform='translate(-50%,-50%)';}
+let jsCX=0,jsCY=0,jsTouchId=null;
+function jsStart(e){
+  e.preventDefault();
+  const touch=e.changedTouches?e.changedTouches[0]:e;
+  jsTouchId=touch.identifier!==undefined?touch.identifier:null;
+  const r=jsBase.getBoundingClientRect();
+  jsCX=r.left+r.width/2;jsCY=r.top+r.height/2;
+  jsActive=true;
+  _jsUpdate(touch);
+}
+function _jsUpdate(t){
+  let dx=t.clientX-jsCX,dy=t.clientY-jsCY,d=Math.sqrt(dx*dx+dy*dy),max=30;
+  if(d>max){dx=dx/d*max;dy=dy/d*max;}
+  jsX=dx/max;jsY=dy/max;
+  jsKnob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';
+}
+function jsMove(e){
+  if(!jsActive)return;
+  e.preventDefault();
+  // [FIX] js1 전용 터치 ID만 추적 - js2 터치가 섞이지 않도록
+  const touch=jsTouchId!==null
+    ?[...e.changedTouches].find(t=>t.identifier===jsTouchId)
+    :e.changedTouches?e.changedTouches[0]:e;
+  if(!touch)return;
+  _jsUpdate(touch);
+}
+function jsEnd(e){
+  if(e&&e.changedTouches&&jsTouchId!==null){
+    if(![...e.changedTouches].find(t=>t.identifier===jsTouchId))return;
+  }
+  jsActive=false;jsX=0;jsY=0;jsTouchId=null;
+  jsKnob.style.transform='translate(-50%,-50%)';
+}
 jsBase.addEventListener('touchstart',jsStart,{passive:false});
 jsBase.addEventListener('touchmove',jsMove,{passive:false});
-jsBase.addEventListener('touchend',jsEnd);
-jsBase.addEventListener('mousedown',jsStart);
-// js1은 mousedown 상태에서만 document mousemove 반응
+jsBase.addEventListener('touchend',jsEnd,{passive:false});
+// js1 마우스
 let js1MouseDown=false;
-jsBase.addEventListener('mousedown',()=>js1MouseDown=true);
+jsBase.addEventListener('mousedown',e=>{js1MouseDown=true;jsStart(e);});
 document.addEventListener('mousemove',e=>{if(js1MouseDown)jsMove(e);});
-document.addEventListener('mouseup',()=>{js1MouseDown=false;jsEnd();});
+document.addEventListener('mouseup',()=>{if(js1MouseDown){js1MouseDown=false;jsEnd();}});
 
 // ── 조준 조이스틱 (js2) ────────────────────────────────────
 const js2Wrap=document.getElementById('js2Wrap');
@@ -868,17 +905,24 @@ function tryShoot(){
   if(now-lastShot<w.cd)return;
   lastShot=now;
 
-  // 자동조준: 범위 내 가장 가까운 적 탐색
+  // 자동조준: 범위 내 가장 가까운 적 탐색 (렌더 위치 기준)
   let target=null,minD=Infinity;
   const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38}]:enemies;
   if(autoAim){
-    for(const e of allE){const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);if(d<minD){minD=d;target=e;}}
+    for(const e of allE){
+      const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<minD){minD=d;target=e;}
+    }
   }
 
   let tx,ty;
   if(autoAim&&target&&minD<w.range*1.3){
-    // 자동조준 ON + 범위 내 적
-    tx=target.x;ty=target.y;
+    // [FIX] 선행 조준(lead targeting): 탄속과 거리를 기반으로 적 미래 위치 예측
+    const projSpd=(w.spd||7)*60; // 픽셀/초
+    const travelTime=minD/projSpd; // 탄환 도달 시간(초)
+    const evx=target.vx||0, evy=target.vy||0;
+    tx=target.x+evx*travelTime;
+    ty=target.y+evy*travelTime;
   }else if(js2Active){
     // 조준 조이스틱 사용 중 (모바일 수동조준)
     tx=myPlayer.x+js2X*400;ty=myPlayer.y+js2Y*400;
