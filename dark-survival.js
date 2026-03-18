@@ -66,6 +66,8 @@ input.inp:focus{border-color:#ffcc00;}
 .className{color:#ffcc00;font-size:14px;font-weight:bold;margin-bottom:3px;}
 .classDesc{color:#777;font-size:10px;line-height:1.5;}
 .classStat{color:#88aacc;font-size:9px;margin-top:4px;}
+.classFeature{color:#999;font-size:9px;margin-top:6px;line-height:1.6;border-top:1px solid #222;padding-top:6px;}
+.classFeature strong{color:#ffaa44;}
 #classReady{margin-top:4px;}
 
 #lvlUpScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:15;padding:20px;}
@@ -96,6 +98,12 @@ input.inp:focus{border-color:#ffcc00;}
 #classTag{position:absolute;top:48px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #classTag span{color:#ffcc00;}
 #weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
+
+#statsPanel{position:absolute;top:80px;right:12px;background:rgba(0,0,0,0.7);border:1px solid #333;border-radius:8px;padding:10px 12px;pointer-events:none;z-index:5;min-width:140px;}
+.statRow{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:9px;}
+.statRow:last-child{margin-bottom:0;}
+.statLabel{color:#888;}
+.statVal{color:#ffcc00;font-weight:bold;margin-left:10px;}
 </style>
 </head>
 <body>
@@ -121,6 +129,18 @@ input.inp:focus{border-color:#ffcc00;}
     </div>
     <div id="bossBar"><div id="bossLbl">⚠ BOSS ⚠</div><div id="bossWrap"><div id="bossFill" style="width:100%"></div></div></div>
   </div>
+  
+  <!-- 상세 스탯 패널 -->
+  <div id="statsPanel">
+    <div class="statRow"><span class="statLabel">⚔ 공격력</span><span id="statDmg" class="statVal">100%</span></div>
+    <div class="statRow"><span class="statLabel">⚡ 공격속도</span><span id="statAtkSpd" class="statVal">100%</span></div>
+    <div class="statRow"><span class="statLabel">💨 이동속도</span><span id="statSpd" class="statVal">3.0</span></div>
+    <div class="statRow"><span class="statLabel">🎯 사거리</span><span id="statRange" class="statVal">100%</span></div>
+    <div class="statRow"><span class="statLabel">🛡 방어력</span><span id="statArmor" class="statVal">0%</span></div>
+    <div class="statRow"><span class="statLabel">🌿 재생</span><span id="statRegen" class="statVal">0/s</span></div>
+    <div class="statRow"><span class="statLabel">💥 치명타</span><span id="statCrit" class="statVal">0%</span></div>
+  </div>
+  
   <div id="killFeed"></div>
   <div id="msgPop"></div>
   <div id="traitList"></div>
@@ -160,6 +180,7 @@ input.inp:focus{border-color:#ffcc00;}
           <div class="className">검사</div>
           <div class="classDesc">강력한 근접 공격으로 적을 베어냅니다.<br>높은 체력과 넓은 광역 검격.</div>
           <div class="classStat">HP: ●●●●○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●○○○</div>
+          <div class="classFeature">💪 <strong>강점:</strong> 최고 탱커, 레벨당 HP+20·방어+1%·재생+0.1<br>🎯 <strong>특징:</strong> 광역 검격, 4단계 검기 발사</div>
         </div>
       </div>
       <div class="classCard" onclick="pickClass('gunner')">
@@ -168,6 +189,7 @@ input.inp:focus{border-color:#ffcc00;}
           <div class="className">저격수</div>
           <div class="classDesc">강력한 저격으로 원거리 적을 제압합니다.<br>높은 데미지와 긴 사거리.</div>
           <div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●●○○</div>
+          <div class="classFeature">💪 <strong>강점:</strong> 보스 킬러, 방어력 완전 무시, 레벨당 공격+4%<br>🎯 <strong>특징:</strong> 느린 공속, 4단계 폭발탄 (광역 50%)</div>
         </div>
       </div>
       <div class="classCard" onclick="pickClass('mage')">
@@ -176,6 +198,7 @@ input.inp:focus{border-color:#ffcc00;}
           <div class="className">마법사</div>
           <div class="classDesc">폭발하는 마법탄으로 광역 피해!<br>낮은 HP지만 강력한 범위 공격.</div>
           <div class="classStat">HP: ●○○○○ &nbsp; 공격: ●●●●● &nbsp; 속도: ●●●○○</div>
+          <div class="classFeature">💪 <strong>강점:</strong> 최강 광역딜, 레벨당 공격+3%·공속+2%<br>🎯 <strong>특징:</strong> 폭발 범위 공격, 4단계 3연 폭발</div>
         </div>
       </div>
       <div class="classCard" onclick="pickClass('assassin')">
@@ -184,6 +207,7 @@ input.inp:focus{border-color:#ffcc00;}
           <div class="className">암살자</div>
           <div class="classDesc">빠른 이동속도와 높은 치명타.<br>리스크와 리워드가 모두 높음.</div>
           <div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●○○ &nbsp; 속도: ●●●●●</div>
+          <div class="classFeature">💪 <strong>강점:</strong> 최고 DPS, 레벨당 이속+1%·공격+1%·치명타+1%<br>🎯 <strong>특징:</strong> 초고속 공격, 4단계 10초 보호막</div>
         </div>
       </div>
     </div>
@@ -232,7 +256,7 @@ const CLASSES={
   },
   gunner:{name:'저격수',icon:'🔫',color:'#ffee44',
     stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
-    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:15}
+    weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:20}
   },
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',
     stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},
@@ -508,6 +532,9 @@ function applyTrait(id, value){
       }
     }
   }
+  
+  // 스탯 패널 업데이트
+  updateStatsPanel();
 }
 
 function applyElementBonus2x(element){
@@ -586,6 +613,38 @@ function updateTraitList(){
   el.innerHTML=myTraits.map(id=>{const tr=ALL_TRAITS.find(t=>t.id===id);return tr?'<span>'+tr.icon+' '+tr.name+'</span>':'';}).join('<br>');
 }
 
+function updateStatsPanel(){
+  if(!myStats) return;
+  const s = myStats;
+  
+  // 공격력 (%)
+  const dmgPercent = Math.round(s.dmgMult * 100);
+  document.getElementById('statDmg').textContent = dmgPercent + '%';
+  
+  // 공격속도 (%)
+  const atkSpdPercent = Math.round((1 / s.cdMult) * 100);
+  document.getElementById('statAtkSpd').textContent = atkSpdPercent + '%';
+  
+  // 이동속도
+  document.getElementById('statSpd').textContent = s.spd.toFixed(1);
+  
+  // 사거리 (%)
+  const rangePercent = Math.round(s.rangeMult * 100);
+  document.getElementById('statRange').textContent = rangePercent + '%';
+  
+  // 방어력 (%)
+  const armorPercent = Math.round((s.armor || 0) * 100);
+  document.getElementById('statArmor').textContent = armorPercent + '%';
+  
+  // 재생
+  const regenVal = (s.regen || 0).toFixed(1);
+  document.getElementById('statRegen').textContent = regenVal + '/s';
+  
+  // 치명타 (%)
+  const critPercent = Math.round(s.critRate || 0);
+  document.getElementById('statCrit').textContent = critPercent + '%';
+}
+
 // ── Weapon helper ──────────────────────────────────────────
 function getW(){
   const w=myWeapon,s=myStats;
@@ -596,7 +655,7 @@ function getW(){
     dmg:w.baseDmg*s.dmgMult*(critHit?critDmgMult:1),
     cd:w.baseCd*s.cdMult,
     range:w.baseRange*s.rangeMult,
-    count:1+(w.type!=='magic'?s.multishot:0), // 마법도 multishot 적용
+    count:1+s.multishot, // 모든 직업에 multishot 적용
     crit:critHit
   };
 }
@@ -690,6 +749,7 @@ function initGameState(){
   G.style.background=STAGE_BG[0];
   updateTraitList();
   updateElementDisplay();
+  updateStatsPanel();
   lastTime=performance.now();
   requestAnimationFrame(loop);
 }
@@ -718,6 +778,10 @@ function applyState(msg){
       if(me.cdMult !== undefined) myStats.cdMult = me.cdMult;
       if(me.spdMult !== undefined) myStats.spd = (CLASSES[myClass]?.stats.spd || 3.0) * me.spdMult;
       if(me.dmgBonus !== undefined) myStats.dmgMult = (CLASSES[myClass]?.stats.dmgMult || 1) * me.dmgBonus;
+      if(me.critRate !== undefined) myStats.critRate = me.critRate;
+      
+      // 스탯 패널 업데이트
+      updateStatsPanel();
     }
     
     if(me.lvUp)showTraitSelect();
@@ -953,7 +1017,13 @@ function doBossPat(msg){
   }
   [bossSpiral,bossBlast,bossCross,bossRapid,bossRing][Math.min(i,4)](bx,by,ang,phase);
 }
-function mkBB(bx,by,vx,vy,dmg,col,r){projs.push({x:bx,y:by,vx,vy,dmg,range:600,traveled:0,gone:false,color:col,r,enemy:true});}
+function mkBB(bx,by,vx,vy,dmg,col,r){
+  // 1스테이지 중간보스는 데미지 10% 감소
+  if(bossData && !bossData.isFinal && currentStage === 1){
+    dmg *= 0.9;
+  }
+  projs.push({x:bx,y:by,vx,vy,dmg,range:600,traveled:0,gone:false,color:col,r,enemy:true});
+}
 function bossSpiral(bx,by,ang,phase){const cnt=phase===2?14:10;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*7,Math.sin(a)*7,18,'#ff6600',8);}}
 function bossBlast(bx,by){for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2;mkBB(bx,by,Math.cos(a)*5,Math.sin(a)*5,22,'#ff2200',10);}spawnParts(bx,by,'#ff6600',16);}
 function bossCross(bx,by,ang,phase){const dirs=[[1,0],[-1,0],[0,1],[0,-1],[.71,.71],[-.71,.71],[.71,-.71],[-.71,-.71]];const cnt=phase===2?4:3;dirs.forEach(([dx,dy])=>{for(let n=0;n<cnt;n++)setTimeout(()=>mkBB(bx,by,dx*9,dy*9,20,'#cc44ff',7),n*150);});}
