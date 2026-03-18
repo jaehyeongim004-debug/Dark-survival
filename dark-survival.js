@@ -96,6 +96,10 @@ input.inp:focus{border-color:#ffcc00;}
 #classTag{position:absolute;top:48px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #classTag span{color:#ffcc00;}
 #weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
+#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:none;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;}
+#statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
+#statsPanel .statName{color:#888;}
+#statsPanel .statVal{color:#ffcc00;font-weight:bold;}
 </style>
 </head>
 <body>
@@ -126,6 +130,7 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="traitList"></div>
   <div id="classTag"></div>
   <div id="weaponElement"></div>
+  <div id="statsPanel"></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="atkBtn">⚔</div>
 
@@ -400,6 +405,7 @@ function pickTrait(tr){
   myTraits.push(tr.id);
   applyTrait(tr.id, tr.value);
   updateTraitList();
+  updateStatsPanel();
   // 서버에 특성 선택 알림
   send({t:'traitPicked',trait:tr.id,value:tr.value});
   
@@ -479,6 +485,7 @@ function applyTrait(id, value){
       // 속성 2배 강화
       updateElementDisplay();
     }
+    updateStatsPanel();
   }
 }
 
@@ -497,6 +504,29 @@ function updateTraitList(){
   const el=document.getElementById('traitList');
   if(myTraits.length===0){el.innerHTML='';return;}
   el.innerHTML=myTraits.map(id=>{const tr=ALL_TRAITS.find(t=>t.id===id);return tr?'<span>'+tr.icon+' '+tr.name+'</span>':'';}).join('<br>');
+}
+
+function updateStatsPanel(){
+  if(!myStats||!myWeapon)return;
+  const s=myStats;
+  const w=myWeapon;
+  const dmg=(w.baseDmg*s.dmgMult).toFixed(1);
+  const armor=(s.armor*100).toFixed(0);
+  const regen=s.regen.toFixed(1);
+  const crit=s.critRate.toFixed(0);
+  const exp=((s.expMult-1)*100).toFixed(0);
+  const atkSpd=(100/s.cdMult).toFixed(0);
+  const moveSpd=(s.spd).toFixed(1);
+  
+  document.getElementById('statsPanel').innerHTML=
+    '<div class="statLine"><span class="statName">공격력</span><span class="statVal">'+dmg+'</span></div>'+
+    '<div class="statLine"><span class="statName">공속</span><span class="statVal">'+atkSpd+'%</span></div>'+
+    '<div class="statLine"><span class="statName">이속</span><span class="statVal">'+moveSpd+'</span></div>'+
+    '<div class="statLine"><span class="statName">방어력</span><span class="statVal">'+armor+'%</span></div>'+
+    '<div class="statLine"><span class="statName">재생</span><span class="statVal">'+regen+'/s</span></div>'+
+    '<div class="statLine"><span class="statName">치명타</span><span class="statVal">'+crit+'%</span></div>'+
+    '<div class="statLine"><span class="statName">경험치</span><span class="statVal">+'+exp+'%</span></div>'+
+    '<div class="statLine"><span class="statName">다중사격</span><span class="statVal">+'+s.multishot+'</span></div>';
 }
 
 // ── Weapon helper ──────────────────────────────────────────
@@ -543,6 +573,7 @@ function handleMsg(msg){
     // 다중사격 자동 부여
     myStats.multishot += 1;
     updateTraitList();
+    updateStatsPanel();
     showPop('🔱 다중사격 획득!', 2000);
     
     // 무기 강화 특성 부여
@@ -576,6 +607,7 @@ function handleMsg(msg){
     // 다중사격 자동 부여
     myStats.multishot += 1;
     updateTraitList();
+    updateStatsPanel();
     showPop('🔱 다중사격 획득!', 2000);
   }
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
@@ -617,6 +649,7 @@ function initGameState(){
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
   updateTraitList();
+  updateStatsPanel();
   updateElementDisplay();
   lastTime=performance.now();
   requestAnimationFrame(loop);
