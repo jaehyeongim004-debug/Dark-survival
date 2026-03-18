@@ -38,8 +38,14 @@ canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
 #jsWrap{position:absolute;bottom:30px;left:30px;z-index:5;pointer-events:all;}
 #jsBase{width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);position:relative;touch-action:none;}
 #jsKnob{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.4);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
-#atkBtn{position:absolute;bottom:44px;right:80px;width:64px;height:64px;border-radius:50%;background:rgba(255,100,100,0.15);border:2px solid rgba(255,100,100,0.4);z-index:5;pointer-events:all;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;touch-action:manipulation;}
-#atkBtn.pressing{background:rgba(255,100,100,0.35);}
+#js2Wrap{position:absolute;bottom:30px;right:30px;z-index:5;pointer-events:all;}
+#js2Base{width:100px;height:100px;border-radius:50%;background:rgba(255,100,100,0.06);border:2px solid rgba(255,100,100,0.2);position:relative;touch-action:none;}
+#js2Knob{width:42px;height:42px;border-radius:50%;background:rgba(255,100,100,0.3);border:2px solid rgba(255,100,100,0.5);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
+#js2Wrap .js2Icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;pointer-events:none;z-index:1;}
+#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:all;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;}
+#statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
+#statsPanel .statName{color:#888;}
+#statsPanel .statVal{color:#ffcc00;font-weight:bold;}
 
 #lobbyScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:20;padding:20px;overflow-y:auto;}
 h1.title{color:#ffcc00;font-size:24px;letter-spacing:5px;margin-bottom:2px;}
@@ -134,7 +140,7 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="statsPanel"></div>
   <div id="minimap"><canvas id="minimapCanvas" width="120" height="120"></canvas></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
-  <div id="atkBtn">⚔</div>
+  <div id="js2Wrap"><div id="js2Base"><span class="js2Icon">⚔</span><div id="js2Knob"></div></div></div>
 
   <div id="lobbyScreen">
     <h1 class="title">DARK SURVIVAL</h1>
@@ -267,7 +273,8 @@ function pickClass(cls){
   event.currentTarget.classList.add('sel');
   document.getElementById('classReady').style.display='block';
   const icons={warrior:'⚔',gunner:'🔫',mage:'✨',assassin:'🗡'};
-  document.getElementById('atkBtn').textContent=icons[cls]||'⚔';
+  // js2 아이콘을 직업 아이콘으로 업데이트
+  document.querySelector('#js2Wrap .js2Icon').textContent=icons[cls]||'⚔';
 }
 
 function doReady(){
@@ -531,8 +538,16 @@ function updateStatsPanel(){
   const exp=((s.expMult-1)*100).toFixed(0);
   const atkSpd=(100/s.cdMult).toFixed(0);
   const moveSpd=(s.spd).toFixed(1);
-  
-  document.getElementById('statsPanel').innerHTML=
+  let el=document.getElementById('statsPanelContent');
+  if(!el){
+    el=document.createElement('div');
+    el.id='statsPanelContent';
+    // autoAimBtn 앞에 삽입
+    const panel=document.getElementById('statsPanel');
+    const btn=document.getElementById('autoAimBtn');
+    if(btn) panel.insertBefore(el,btn); else panel.appendChild(el);
+  }
+  el.innerHTML=
     '<div class="statLine"><span class="statName">공격력</span><span class="statVal">'+dmg+'</span></div>'+
     '<div class="statLine"><span class="statName">공속</span><span class="statVal">'+atkSpd+'%</span></div>'+
     '<div class="statLine"><span class="statName">이속</span><span class="statVal">'+moveSpd+'</span></div>'+
@@ -720,11 +735,8 @@ function applyState(msg){
       myStats.maxHp=me.maxHp;
       if(me.armor !== undefined) myStats.armor = me.armor;
       if(me.regen !== undefined) myStats.regen = me.regen;
-      // [FIX] rangeMult는 클라이언트에서만 관리 - 서버값으로 덮어쓰면 사거리 특성이 리셋됨
-      // if(me.rangeMult !== undefined) myStats.rangeMult = me.rangeMult;
-      if(me.cdMult !== undefined) myStats.cdMult = me.cdMult;
-      if(me.spdMult !== undefined) myStats.spd = (CLASSES[myClass]?.stats.spd || 3.0) * me.spdMult;
-      if(me.dmgBonus !== undefined) myStats.dmgMult = (CLASSES[myClass]?.stats.dmgMult || 1) * me.dmgBonus;
+      // rangeMult, cdMult, spd, dmgMult 는 클라이언트에서만 관리
+      // 서버에서 덮어쓰면 특성으로 올린 스탯이 리셋되는 버그 발생
       if(me.critRate !== undefined){
         myStats.critRate = me.critRate;
         if(myStats.critRate > 100){
@@ -777,11 +789,30 @@ jsBase.addEventListener('mousedown',jsStart);
 document.addEventListener('mousemove',jsMove);
 document.addEventListener('mouseup',jsEnd);
 
-const atkBtn=document.getElementById('atkBtn');
-atkBtn.addEventListener('touchstart',e=>{e.preventDefault();attackPressed=true;atkBtn.classList.add('pressing');},{passive:false});
-atkBtn.addEventListener('touchend',e=>{e.preventDefault();attackPressed=false;atkBtn.classList.remove('pressing');});
-atkBtn.addEventListener('mousedown',()=>{attackPressed=true;atkBtn.classList.add('pressing');});
-document.addEventListener('mouseup',()=>{attackPressed=false;atkBtn.classList.remove('pressing');});
+// ── 조준 조이스틱 (js2) ────────────────────────────────────
+const js2Wrap=document.getElementById('js2Wrap');
+const js2Base=document.getElementById('js2Base'),js2Knob=document.getElementById('js2Knob');
+let js2Active=false,js2X=0,js2Y=0,js2CX=0,js2CY=0;
+function js2Start(e){e.preventDefault();const t=e.touches?e.touches[0]:e,r=js2Base.getBoundingClientRect();js2CX=r.left+r.width/2;js2CY=r.top+r.height/2;js2Active=true;js2Move(e);}
+function js2Move(e){if(!js2Active)return;e.preventDefault();const t=e.touches?e.touches[0]:e;let dx=t.clientX-js2CX,dy=t.clientY-js2CY,d=Math.sqrt(dx*dx+dy*dy),max=30;if(d>max){dx=dx/d*max;dy=dy/d*max;}js2X=dx/max;js2Y=dy/max;js2Knob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';}
+function js2End(){js2Active=false;js2X=0;js2Y=0;js2Knob.style.transform='translate(-50%,-50%)';}
+js2Base.addEventListener('touchstart',js2Start,{passive:false});
+js2Base.addEventListener('touchmove',js2Move,{passive:false});
+js2Base.addEventListener('touchend',js2End);
+js2Base.addEventListener('mousedown',js2Start);
+document.addEventListener('mousemove',e=>{if(js2Active)js2Move(e);});
+document.addEventListener('mouseup',js2End);
+
+// ── 자동조준 토글 ──────────────────────────────────────────
+let autoAim=true; // 기본 자동조준 ON
+// statsPanel 안에 autoAimBtn 동적 삽입
+const autoAimBtn=document.createElement('div');
+autoAimBtn.id='autoAimBtn';
+autoAimBtn.className='on';
+autoAimBtn.textContent='🎯 자동조준 ON';
+autoAimBtn.addEventListener('click',()=>{autoAim=!autoAim;autoAimBtn.className=autoAim?'on':'';autoAimBtn.textContent=autoAim?'🎯 자동조준 ON':'🎯 자동조준 OFF';});
+autoAimBtn.addEventListener('touchend',e=>{e.preventDefault();autoAim=!autoAim;autoAimBtn.className=autoAim?'on':'';autoAimBtn.textContent=autoAim?'🎯 자동조준 ON':'🎯 자동조준 OFF';});
+document.getElementById('statsPanel').appendChild(autoAimBtn);
 
 const keys={};
 document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
@@ -797,13 +828,28 @@ function tryShoot(){
   const now=performance.now(),w=getW();
   if(now-lastShot<w.cd)return;
   lastShot=now;
+
+  // 자동조준: 범위 내 가장 가까운 적 탐색
   let target=null,minD=Infinity;
   const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38}]:enemies;
-  for(const e of allE){const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);if(d<minD){minD=d;target=e;}}
+  if(autoAim){
+    for(const e of allE){const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);if(d<minD){minD=d;target=e;}}
+  }
+
   let tx,ty;
-  if(target&&minD<w.range*1.3){tx=target.x;ty=target.y;}
-  else if(jsActive){tx=myPlayer.x+jsX*200;ty=myPlayer.y+jsY*200;}
-  else{tx=mouseX+camX-W/2;ty=mouseY+camY-H/2;}
+  if(autoAim&&target&&minD<w.range*1.3){
+    // 자동조준 ON + 범위 내 적: 적 방향
+    tx=target.x;ty=target.y;
+  }else if(js2Active){
+    // 조준 조이스틱 사용 중: 조이스틱 방향
+    tx=myPlayer.x+js2X*300;ty=myPlayer.y+js2Y*300;
+  }else if(jsActive){
+    // 이동 조이스틱 방향으로 대체
+    tx=myPlayer.x+jsX*300;ty=myPlayer.y+jsY*300;
+  }else{
+    // 마우스
+    tx=mouseX+camX-W/2;ty=mouseY+camY-H/2;
+  }
   const ang=Math.atan2(ty-myPlayer.y,tx-myPlayer.x);
   
   if(w.type==='sword'||w.type==='dagger'){
@@ -976,7 +1022,8 @@ function update(dt){
     myPlayer.y=Math.max(-MAP_SIZE,Math.min(MAP_SIZE,myPlayer.y));
   }
   send({t:'move',x:Math.round(myPlayer.x),y:Math.round(myPlayer.y)});
-  if(attackPressed||mouseDown||keys[' ']||keys['f']||(enemies.length>0&&running))tryShoot();
+  // 항시 자동공격 (조이스틱2 방향이 있거나, 자동조준이 켜져있거나, 키보드 입력 시)
+  tryShoot();
   camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
   // [OPT] 잡몹 예측 이동: 서버 위치 수신 시 속도벡터 계산, 매 프레임 자체 이동 + 오차 보정
   // 서버 전송이 100ms로 줄어도 부드럽게 보이는 핵심
@@ -2049,9 +2096,11 @@ wss.on('connection', ws => {
                 // [FIX] lvUp 큐: 중복 레벨업을 순차 처리 (동시에 여러 번 lvUp 보내지 않음)
                 if (!h.lvUpQueue) h.lvUpQueue = 0;
                 h.lvUpQueue++;
-                // [FIX] 큐에 쌓이는 즉시 전송 시도 - 클라이언트가 특성창 없을 때만 처리
-                // lvUpReady로 다음 레벨업을 pull하는 방식과 병행
-                if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'lvUp' }));
+                // 첫 레벨업이면 즉시 전송, 이후는 클라이언트 lvUpReady 요청 시 전송
+                if (h.lvUpQueue === 1 && ws.readyState === 1) {
+                  h.lvUpQueue = 0;
+                  ws.send(JSON.stringify({ t: 'lvUp' }));
+                }
               }
               bcastAll(room, { t: 'eDead', eid: e.id, x: e.x, y: e.y, sc });
             }
