@@ -389,16 +389,9 @@ function handleMsg(msg){
   else if(msg.t==='lvUp'){showTraitSelect();}
   else if(msg.t==='bossWarning'){
     bossWarning={x:msg.x,y:msg.y,isFinal:msg.isFinal,startTime:performance.now()};
-    bossAlive=true; // 맵제한 미리 적용 (5초 후 실제 등장 전에 경계 활성화)
-    const ARENA=800;
-    if(myPlayer){
-      const d=Math.sqrt(myPlayer.x*myPlayer.x+myPlayer.y*myPlayer.y);
-      if(d>ARENA*0.7){
-        const a=Math.atan2(myPlayer.y,myPlayer.x);
-        myPlayer.x=Math.cos(a)*ARENA*0.6;
-        myPlayer.y=Math.sin(a)*ARENA*0.6;
-      }
-    }
+    bossAlive=true;
+    // myPlayer.x/y 절대 변경 금지 - camX/Y와 어긋나서 모든 렌더링 틀어짐
+    // 서버가 이미 이동 처리하고 다음 applyState로 반영됨
     showPop(msg.isFinal?'☠ 최종 보스 5초 후 등장!':'⚠ 중간 보스 5초 후 등장!',5500);
     let cd=4;
     const cdInt=setInterval(()=>{
@@ -465,6 +458,11 @@ function applyState(msg){
   bossData=msg.boss||null;stageTime=msg.st??stageTime;if(msg.stage)currentStage=msg.stage;if(msg.turrets)turrets=msg.turrets;
   const me=allPlayers.find(p=>p.id===myId);
   if(me&&myPlayer){
+    // 순간이동 시에만 위치 강제 동기화 (일반 이동은 클라이언트 예측 유지)
+    if(msg.teleport){
+      myPlayer.x=me.x;myPlayer.y=me.y;
+      camX=me.x;camY=me.y; // 카메라도 즉시 이동해서 렌더링 틀어짐 방지
+    }
     myPlayer.hp=me.hp;myPlayer.maxHp=me.maxHp;myPlayer.lv=me.lv;myPlayer.dead=me.dead;myPlayer.exp=me.exp;myPlayer.expNext=me.expNext;
     if(myStats){
       myStats.maxHp=me.maxHp;
@@ -625,7 +623,7 @@ function update(dt){
   if(myPlayer.groggy){
     camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
     // 적 예측 이동은 그로기 중에도 계속
-    for(const e of enemies){if(e.targetX===undefined){e.targetX=e.x;e.targetY=e.y;e.vx=0;e.vy=0;}e.x+=e.vx*(dt/16);e.y+=e.vy*(dt/16);const errX=e.targetX-e.x,errY=e.targetY-e.y,correction=Math.min(1,dt/60*8);e.x+=errX*correction;e.y+=errY*correction;}
+    for(const e of enemies){if(e.targetX===undefined){e.targetX=e.x;e.targetY=e.y;e.vx=0;e.vy=0;}e.x+=e.vx*(dt/16);e.y+=e.vy*(dt/16);const errX=e.targetX-e.x,errY=e.targetY-e.y,correction=Math.min(1,dt/60*12);e.x+=errX*correction;e.y+=errY*correction;}
     // 파티클/폭발/탄환도 계속 업데이트 (시각 연속성)
     const spF=dt/16;
     for(const p of parts){p.x+=p.vx*spF;p.y+=p.vy*spF;p.life-=dt;}
@@ -649,7 +647,7 @@ function update(dt){
   send({t:'move',x:Math.round(myPlayer.x),y:Math.round(myPlayer.y)});
   tryShoot();
   camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
-  for(const e of enemies){if(e.targetX===undefined){e.targetX=e.x;e.targetY=e.y;e.vx=0;e.vy=0;}e.x+=e.vx*(dt/16);e.y+=e.vy*(dt/16);const errX=e.targetX-e.x,errY=e.targetY-e.y,correction=Math.min(1,dt/60*8);e.x+=errX*correction;e.y+=errY*correction;}
+  for(const e of enemies){if(e.targetX===undefined){e.targetX=e.x;e.targetY=e.y;e.vx=0;e.vy=0;}e.x+=e.vx*(dt/16);e.y+=e.vy*(dt/16);const errX=e.targetX-e.x,errY=e.targetY-e.y,correction=Math.min(1,dt/60*12);e.x+=errX*correction;e.y+=errY*correction;}
   for(const fx of remoteEffects)spawnRemoteFx(fx);remoteEffects=[];
   const spF=dt/16;
   for(const p of projs){
@@ -1225,7 +1223,70 @@ const E_STYLES={basic:{fill:'#bb1111',eye:'#ff5555',shadow:'#ff2222'},ranged:{fi
 const E_ICONS={basic:'',ranged:'🎯',shield:'🛡',fast:'💨',mage:'🌀'};
 // 렌더 크기 고정값 (히트박스 r과 별개)
 const E_RENDER_R={basic:10,ranged:9,shield:14,fast:8,mage:10};
-function drawEnemies(){for(const e of enemies){const st=E_STYLES[e.type]||E_STYLES.basic,r=E_RENDER_R[e.type]||10;ctx.save();ctx.shadowColor=st.shadow;ctx.shadowBlur=6;ctx.fillStyle=st.fill;ctx.beginPath();ctx.arc(e.x,e.y,r,0,Math.PI*2);ctx.fill();if(e.type==='shield'&&e.shieldHp>0){ctx.strokeStyle='#44bbff88';ctx.lineWidth=3;ctx.beginPath();ctx.arc(e.x,e.y,r+4,0,Math.PI*2);ctx.stroke();}ctx.shadowBlur=0;ctx.fillStyle=st.eye;ctx.beginPath();ctx.arc(e.x-r*0.25,e.y-r*0.2,r*0.28,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(e.x+r*0.25,e.y-r*0.2,r*0.28,0,Math.PI*2);ctx.fill();ctx.fillStyle='#220000';ctx.fillRect(e.x-r,e.y-r-8,r*2,3);ctx.fillStyle=st.shadow;ctx.fillRect(e.x-r,e.y-r-8,r*2*(e.hp/e.maxHp),3);let sx=e.x+r+2;if(e.poison&&e.poison>0){ctx.font='8px serif';ctx.fillStyle='#44ff44';ctx.fillText('☠',sx,e.y-r);sx+=10;}if(e.iceEnd&&e.iceEnd>performance.now()){ctx.font='8px serif';ctx.fillStyle='#44ddff';ctx.fillText('❄',sx,e.y-r);sx+=10;}if(e.atkSlow){ctx.font='8px serif';ctx.fillStyle='#ffaa44';ctx.fillText('⬇',sx,e.y-r);}if(E_ICONS[e.type]){ctx.font='8px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(E_ICONS[e.type],e.x,e.y+r+6);}ctx.restore();}}
+function drawEnemies(){
+  const t=performance.now();
+  for(const e of enemies){
+    const st=E_STYLES[e.type]||E_STYLES.basic,r=E_RENDER_R[e.type]||10;
+    const isMoving=(e.vx!==0||e.vy!==0);
+    ctx.save();
+    // 이동 궤적 (빠른 적)
+    if(e.type==='fast'&&isMoving){
+      ctx.globalAlpha=0.18;
+      ctx.fillStyle=st.fill;
+      ctx.beginPath();ctx.arc(e.x-e.vx*0.4,e.y-e.vy*0.4,r*0.8,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(e.x-e.vx*0.8,e.y-e.vy*0.8,r*0.5,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+    }
+    // 마법사 오라
+    if(e.type==='mage'){
+      ctx.globalAlpha=0.2+Math.sin(t*0.006+e.id)*0.1;
+      ctx.fillStyle=st.shadow;
+      ctx.beginPath();ctx.arc(e.x,e.y,r*1.7,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+    }
+    // 쉴드 배리어
+    if(e.type==='shield'&&e.shieldHp>0){
+      ctx.shadowColor='#44bbff';ctx.shadowBlur=12;
+      ctx.strokeStyle='rgba(68,187,255,0.6)';ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(e.x,e.y,r+5+Math.sin(t*0.008)*2,0,Math.PI*2);ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+    // 본체
+    ctx.shadowColor=st.shadow;ctx.shadowBlur=8+Math.sin(t*0.005+e.id)*3;
+    // 그라디언트 느낌 (밝은 위쪽)
+    ctx.fillStyle=st.fill;
+    ctx.beginPath();ctx.arc(e.x,e.y,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=st.shadow+'44';
+    ctx.beginPath();ctx.arc(e.x-r*0.2,e.y-r*0.25,r*0.65,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+    // 눈 (깜빡임 애니메이션)
+    const blink=Math.sin(t*0.003+e.id*2.3)>0.92;
+    if(!blink){
+      ctx.fillStyle=st.eye;
+      ctx.beginPath();ctx.arc(e.x-r*0.28,e.y-r*0.2,r*0.28,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(e.x+r*0.28,e.y-r*0.2,r*0.28,0,Math.PI*2);ctx.fill();
+      // 눈 하이라이트
+      ctx.fillStyle='rgba(255,255,255,0.6)';
+      ctx.beginPath();ctx.arc(e.x-r*0.22,e.y-r*0.28,r*0.1,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(e.x+r*0.34,e.y-r*0.28,r*0.1,0,Math.PI*2);ctx.fill();
+    }else{
+      // 눈 감는 애니메이션
+      ctx.strokeStyle=st.eye;ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(e.x-r*0.5,e.y-r*0.2);ctx.lineTo(e.x-r*0.06,e.y-r*0.2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(e.x+r*0.06,e.y-r*0.2);ctx.lineTo(e.x+r*0.5,e.y-r*0.2);ctx.stroke();
+    }
+    // HP바
+    ctx.fillStyle='#220000';ctx.fillRect(e.x-r,e.y-r-8,r*2,3);
+    ctx.fillStyle=st.shadow;ctx.fillRect(e.x-r,e.y-r-8,r*2*(e.hp/e.maxHp),3);
+    // 상태이상
+    let sx=e.x+r+2;
+    if(e.poison&&e.poison>0){ctx.font='8px serif';ctx.fillStyle='#44ff44';ctx.fillText('☠',sx,e.y-r);sx+=10;}
+    if(e.iceEnd&&e.iceEnd>t){ctx.font='8px serif';ctx.fillStyle='#44ddff';ctx.fillText('❄',sx,e.y-r);sx+=10;}
+    if(e.atkSlow){ctx.font='8px serif';ctx.fillStyle='#ffaa44';ctx.fillText('⬇',sx,e.y-r);}
+    if(E_ICONS[e.type]){ctx.font='8px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(E_ICONS[e.type],e.x,e.y+r+6);}
+    ctx.restore();
+  }
+}
 function drawBoss(){
   const b=bossData,isFinal=b.isFinal||false;
   const t=performance.now();
@@ -1398,7 +1459,7 @@ function spawnEnemies(room){if(room.midBossAlive||room.finalBossAlive)return;con
 function spawnBossMobs(room){const pc=room.players.size,cnt=3+pc*2;const arr=[...room.players.values()].filter(p=>!p.dead);if(!arr.length)return;const br=room.boss||{x:0,y:0};for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,r=200+Math.random()*150;const et=Math.random()<0.8?ETYPES[1]:ETYPES[2];const bh=(30+Math.random()*20)*(1+(pc-1)*0.3);room.enemies.push({id:room.eid++,x:br.x+Math.cos(a)*r,y:br.y+Math.sin(a)*r,hp:bh*et.hpMult,maxHp:bh*et.hpMult,spd:et.spd*1.2,type:et.type,r:et.r,dead:false,lastShot:0,shieldHp:et.shieldHp?Math.floor(bh*0.5):0,dmgMult:et.dmgMult*1.3,poison:0,ice:false,atkSlow:false});}}
 function spawnBoss(room,isFinal){
   const pc=room.players.size;
-  const ARENA=800; // 보스전 아레나 반경
+  const ARENA=800;
   // 1. 모든 플레이어를 아레나 안으로 순간이동
   room.players.forEach(p=>{
     const d=Math.sqrt(p.x*p.x+p.y*p.y);
@@ -1408,9 +1469,14 @@ function spawnBoss(room,isFinal){
       p.y=Math.sin(a)*ARENA*0.6;
     }
   });
-  // 2. 보스 등장 위치 (중앙 기준)
   const bossSpawnX=0, bossSpawnY=0;
-  // 3. 5초 예고 전송
+  // 2. 이동된 플레이어 위치를 즉시 state로 전송 (클라이언트가 myPlayer 위치를 올바르게 인식)
+  const ps=[];
+  room.players.forEach(p=>{
+    ps.push({id:p.id,x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,maxHp:p.maxHp,lv:p.lv,dead:p.dead,groggy:p.groggy||false,groggyTimer:p.groggyTimer||0,reviveProgress:p.reviveProgress||0,name:p.name,exp:p.exp,expNext:p.expNext,cls:p.cls,dmgBonus:p.dmgBonus||1,armor:p.armor||0,regen:p.regen||0,rangeMult:p.rangeMult||1,cdMult:p.cdMult||1,spdMult:p.spdMult||1,critRate:p.critRate||0});
+  });
+  bcastAll(room,{t:'state',players:ps,enemies:[],st:room.stageTime,stage:room.currentStage,teleport:true});
+  // 3. 5초 예고
   bcastAll(room,{t:'bossWarning',isFinal,x:bossSpawnX,y:bossSpawnY,countdown:5});
   // 4. 5초 후 실제 보스 등장
   setTimeout(()=>{
@@ -1491,17 +1557,17 @@ function tickRoom(code){
   }
   } // end stageClearPending check
   room.syncT=(room.syncT||0)+dt;
-  // 인원 많을수록 전송 주기 늘림 (2인:50ms, 3인:70ms, 4인:90ms)
-  const syncInterval=0.03+room.players.size*0.02;
+  // 1인:33ms(30fps), 2인:40ms, 3인:50ms, 4인:60ms
+  const syncInterval=0.033+Math.max(0,room.players.size-1)*0.01;
   if(room.syncT>syncInterval){
     room.syncT=0;const ps=[];
     room.players.forEach((p,ws)=>{
       ps.push({id:p.id,x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,maxHp:p.maxHp,lv:p.lv,dead:p.dead,groggy:p.groggy||false,groggyTimer:p.groggyTimer||0,reviveProgress:p.reviveProgress||0,name:p.name,exp:p.exp,expNext:p.expNext,cls:p.cls,dmgBonus:p.dmgBonus||1,armor:p.armor||0,regen:p.regen||0,rangeMult:p.rangeMult||1,cdMult:p.cdMult||1,spdMult:p.spdMult||1,critRate:p.critRate||0});
-      // lvUpPending 제거 - syncT에서 전송 안 함 (lvUpReady pull 방식으로만 처리)
     });
-    const se=room.stateTick%2===0,sf=room.stateTick%10===0;
-    const ed=se?room.enemies.map(e=>sf?{id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.round(e.hp),vx:e._vx||0,vy:e._vy||0,maxHp:Math.round(e.maxHp),type:e.type,r:e.r,shieldHp:e.shieldHp,poison:e.poison,iceEnd:e.iceEnd,atkSlow:e.atkSlow}:{id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.round(e.hp),vx:e._vx||0,vy:e._vy||0}):undefined;
-    bcastAll(room,{t:'state',players:ps,enemies:ed,boss:room.boss&&!room.boss.dead?{x:Math.round(room.boss.x),y:Math.round(room.boss.y),hp:room.boss.hp,maxHp:room.boss.maxHp,phase:room.boss.phase,ang:room.boss.ang,isFinal:room.boss.isFinal,iceEnd:room.boss.iceEnd}:null,turrets:room.stateTick%10===0&&room.turrets?room.turrets.filter(t=>t.hp>0).map(t=>({id:t.id,x:t.x,y:t.y,hp:t.hp,maxHp:t.maxHp,r:t.r,isTurret:true})):undefined,st:room.stageTime,stage:room.currentStage});
+    // 적 위치: 매 틱 전송 (vx/vy 포함), 스탯(hp/type 등)은 8틱마다
+    const sf=room.stateTick%8===0;
+    const ed=room.enemies.map(e=>sf?{id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.round(e.hp),vx:e._vx||0,vy:e._vy||0,maxHp:Math.round(e.maxHp),type:e.type,r:e.r,shieldHp:e.shieldHp,poison:e.poison,iceEnd:e.iceEnd,atkSlow:e.atkSlow}:{id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.round(e.hp),vx:e._vx||0,vy:e._vy||0});
+    bcastAll(room,{t:'state',players:ps,enemies:ed,boss:room.boss&&!room.boss.dead?{x:Math.round(room.boss.x),y:Math.round(room.boss.y),hp:room.boss.hp,maxHp:room.boss.maxHp,phase:room.boss.phase,ang:room.boss.ang,isFinal:room.boss.isFinal,iceEnd:room.boss.iceEnd}:null,turrets:room.stateTick%12===0&&room.turrets?room.turrets.filter(t=>t.hp>0).map(t=>({id:t.id,x:t.x,y:t.y,hp:t.hp,maxHp:t.maxHp,r:t.r,isTurret:true})):undefined,st:room.stageTime,stage:room.currentStage});
   }
   const alive=arr.filter(p=>!p.dead&&!p.groggy);if(alive.length===0&&arr.length>0){bcastAll(room,{t:'over',win:false});clearInterval(room.tick);rooms.delete(code);}
   }catch(e){console.error('[tickRoom error]',e);} // tick이 죽지 않도록 catch
@@ -1538,7 +1604,7 @@ wss.on('connection',ws=>{
       p.cls=msg.cls||'warrior';
       const CLS={warrior:{hp:150,maxHp:150,regen:2.0,armor:0.15,critRate:0,expMult:1},gunner:{hp:80,maxHp:80,regen:0.5,armor:0,critRate:0,expMult:1},mage:{hp:65,maxHp:65,regen:0.7,armor:0,critRate:0,expMult:1},assassin:{hp:85,maxHp:85,regen:0.2,armor:0,critRate:40,expMult:1}};
       const cls=CLS[p.cls]||CLS.warrior;p.hp=cls.hp;p.maxHp=cls.maxHp;p.regen=cls.regen;p.armor=cls.armor;p.critRate=cls.critRate;p.expMult=cls.expMult;p.rangeMult=1;p.cdMult=1;p.spdMult=1;
-      room.readyCount=(room.readyCount||0)+1;if(room.readyCount>=room.players.size){room.started=true;room.lastTick=Date.now();bcastAll(room,{t:'allReady'});room.tick=setInterval(()=>tickRoom(ws.roomCode),60);}
+      room.readyCount=(room.readyCount||0)+1;if(room.readyCount>=room.players.size){room.started=true;room.lastTick=Date.now();bcastAll(room,{t:'allReady'});room.tick=setInterval(()=>tickRoom(ws.roomCode),33);}
     }
     else if(msg.t==='move'){
       const room=rooms.get(ws.roomCode);if(!room)return;
