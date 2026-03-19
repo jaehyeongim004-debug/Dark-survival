@@ -1208,10 +1208,9 @@ function drawBoss(){
   if(!isFinal){
     // ── 중간보스: 불꽃 악마 스프라이트 ──────────────────────
     const phase2=b.phase===2;
-    const bobY=Math.sin(t*0.002)*4;
-    ctx.translate(0,bobY);
+    const bobY=Math.sin(t*0.002)*4; // 시각 전용, translate 안 함
 
-    // 불꽃 파티클 애니메이션 (스프라이트 위에 오버레이)
+    // 불꽃 파티클 애니메이션
     ctx.save();
     for(let i=0;i<6;i++){
       const pa=(t*0.004+i*1.05)%(Math.PI*2);
@@ -1219,34 +1218,34 @@ function drawBoss(){
       const py=-20+Math.sin(t*0.003+i*0.7)*6;
       ctx.globalAlpha=0.4+Math.sin(t*0.008+i)*0.2;
       ctx.fillStyle=phase2?'#ff66ff':i%2===0?'#ff5544':'#ff8866';
-      ctx.beginPath();ctx.arc(Math.cos(pa)*pr*0.5,py+Math.sin(pa)*pr*0.3,3+Math.sin(t*0.01+i)*2,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(Math.cos(pa)*pr*0.5,py+bobY+Math.sin(pa)*pr*0.3,3+Math.sin(t*0.01+i)*2,0,Math.PI*2);ctx.fill();
     }
     ctx.globalAlpha=1;
     ctx.restore();
 
-    // 스프라이트
+    // 스프라이트 (bobY는 drawImage에만)
     const spr=SPRITES['midboss'];
     ctx.save();
     ctx.imageSmoothingEnabled=false;
     if(phase2){ctx.shadowColor='#ff44ff';ctx.shadowBlur=30;}
     else{ctx.shadowColor='#ff4466';ctx.shadowBlur=20;}
     if(spr&&spr.complete&&spr.naturalWidth>0){
-      ctx.drawImage(spr,-42,-42,84,84);
+      ctx.drawImage(spr,-42,-42+bobY,84,84);
     }else{
       ctx.fillStyle=phase2?'#cc22cc':'#cc2244';
-      ctx.beginPath();ctx.arc(0,0,38,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(0,bobY,38,0,Math.PI*2);ctx.fill();
     }
     ctx.shadowBlur=0;
     ctx.restore();
 
-    // 마법진 (발 아래)
+    // 마법진 (발 아래 - bobY 적용)
     ctx.save();
     ctx.globalAlpha=0.3+Math.sin(t*0.004)*0.1;
     ctx.strokeStyle=phase2?'#ff66ff':'#ff4466';
     ctx.lineWidth=1.5;
     const spin=t*0.002;
     ctx.beginPath();
-    for(let i=0;i<8;i++){const a=spin+(i/8)*Math.PI*2;i===0?ctx.moveTo(Math.cos(a)*36,Math.sin(a)*14+38):ctx.lineTo(Math.cos(a)*36,Math.sin(a)*14+38);}
+    for(let i=0;i<8;i++){const a=spin+(i/8)*Math.PI*2;i===0?ctx.moveTo(Math.cos(a)*36,Math.sin(a)*14+38+bobY):ctx.lineTo(Math.cos(a)*36,Math.sin(a)*14+38+bobY);}
     ctx.closePath();ctx.stroke();
     ctx.restore();
 
@@ -1275,8 +1274,7 @@ function drawBoss(){
   }else{
     // ── 최종보스: 네크로맨서 스프라이트 ──────────────────────
     const phase2=b.phase===2;
-    const bobY=Math.sin(t*0.0015)*2;
-    ctx.translate(0,bobY);
+    const bobY=Math.sin(t*0.0015)*2; // 시각 전용, translate 안 함
 
     // 체인 파티클
     ctx.save();
@@ -1286,35 +1284,35 @@ function drawBoss(){
       const cr=38+Math.sin(t*0.004+i)*5;
       ctx.globalAlpha=0.5;
       ctx.fillStyle=phase2?'#ff4466':'#884422';
-      ctx.fillRect(Math.cos(a)*cr-2,Math.sin(a)*cr-2,4,4);
+      ctx.fillRect(Math.cos(a)*cr-2,Math.sin(a)*cr-2+bobY,4,4);
     }
     ctx.globalAlpha=1;
     ctx.restore();
 
-    // 스프라이트
+    // 스프라이트 (bobY는 drawImage에만)
     const spr=SPRITES['necromancer'];
     ctx.save();
     ctx.imageSmoothingEnabled=false;
     if(phase2){ctx.shadowColor='#ff2244';ctx.shadowBlur=35;}
     else{ctx.shadowColor='#660022';ctx.shadowBlur=22;}
     if(spr&&spr.complete&&spr.naturalWidth>0){
-      ctx.drawImage(spr,-48,-48,96,96);
+      ctx.drawImage(spr,-48,-48+bobY,96,96);
     }else{
       ctx.fillStyle=phase2?'#550033':'#880000';
-      ctx.beginPath();ctx.arc(0,0,42,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(0,bobY,42,0,Math.PI*2);ctx.fill();
     }
     ctx.shadowBlur=0;
     ctx.restore();
 
-    // 눈 빛 (스프라이트 위에 오버레이)
+    // 눈 빛 (bobY 적용)
     const eyeGlow=Math.sin(t*0.005)*0.4+0.6;
     ctx.save();
     ctx.globalAlpha=eyeGlow*0.7;
     ctx.shadowColor=phase2?'#ff2244':'#cc0022';
     ctx.shadowBlur=10;
     ctx.fillStyle=phase2?'#ff4466':'#cc1133';
-    ctx.beginPath();ctx.ellipse(-7,-18,3,3,0,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.ellipse(7,-18,3,3,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(-7,-18+bobY,3,3,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(7,-18+bobY,3,3,0,0,Math.PI*2);ctx.fill();
     ctx.shadowBlur=0;ctx.globalAlpha=1;
     ctx.restore();
 
