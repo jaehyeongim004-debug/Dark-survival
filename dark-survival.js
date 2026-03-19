@@ -417,7 +417,42 @@ function handleMsg(msg){
   else if(msg.t==='midBossDead'){
     bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);
     myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);
-    if(weaponUpgradeLevel<3){setTimeout(()=>{running=false;const wt={id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 향상'};const cards=document.getElementById('traitCards');cards.innerHTML='';const div=document.createElement('div');div.className='traitCard';let desc=weaponUpgradeLevel===0?'무기 능력치 강화':weaponUpgradeLevel===1?'속성 부여 (화염/독/냉기)':'속성 2배 강화 + 이펙트';div.innerHTML='<div class="traitIcon">'+wt.icon+'</div><div class="traitName">'+wt.name+'</div><div class="traitDesc">'+desc+'</div>';div.onclick=()=>pickTrait(wt);cards.appendChild(div);document.getElementById('lvlUpTitle').textContent='보스 보상!';document.getElementById('lvlUpSub').textContent='무기가 강화됩니다';document.getElementById('lvlUpScreen').style.display='flex';},1000);}
+    if(weaponUpgradeLevel<3){
+      invincible=true;invincibleEnd=Infinity;
+      send({t:'invincible',start:true});
+      setTimeout(()=>{
+        // 일반 특성창이 열려있으면 큐에 넣고 나중에 처리
+        if(_traitSelectOpen){localLvUpQueue++;return;}
+        _traitSelectOpen=true;
+        running=false;
+        projs=projs.filter(p=>!p.enemy);
+        const wt={id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 향상'};
+        const cards=document.getElementById('traitCards');cards.innerHTML='';
+        const div=document.createElement('div');div.className='traitCard';
+        let desc=weaponUpgradeLevel===0?'무기 능력치 강화':weaponUpgradeLevel===1?'속성 부여 (화염/독/냉기)':'속성 2배 강화 + 이펙트';
+        div.innerHTML='<div class="traitIcon">'+wt.icon+'</div><div class="traitName">'+wt.name+'</div><div class="traitDesc">'+desc+'</div>';
+        // _traitSelectOpen에 의존하지 않고 직접 처리
+        div.onclick=()=>{
+          _traitSelectOpen=false;
+          if(_traitAutoTimeout){clearTimeout(_traitAutoTimeout);_traitAutoTimeout=null;}
+          document.getElementById('lvlUpScreen').style.display='none';
+          applyTrait(wt.id,wt.value);
+          myTraits.push(wt.id);updateTraitList();updateStatsPanel();
+          send({t:'traitPicked',trait:wt.id,value:wt.value});
+          invincibleEnd=performance.now()+2000;
+          running=true;
+          send({t:'lvUpReady'});
+        };
+        cards.appendChild(div);
+        document.getElementById('lvlUpTitle').textContent='보스 보상!';
+        document.getElementById('lvlUpSub').textContent='무기가 강화됩니다';
+        document.getElementById('lvlUpScreen').style.display='flex';
+        if(_traitAutoTimeout)clearTimeout(_traitAutoTimeout);
+        _traitAutoTimeout=setTimeout(()=>{
+          if(_traitSelectOpen){const fc=document.querySelector('.traitCard');if(fc)fc.click();}
+        },30000);
+      },1000);
+    }
   }
   else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
   else if(msg.t==='finalBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('최종 보스 처치!',3000);myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);}
@@ -1603,14 +1638,21 @@ function tickRoom(code){
   // [FIX] 스테이지 클리어 대기 중 적 AI 완전 차단
   if(!room.stageClearPending){
   room.enemies=room.enemies.filter(e=>!e.dead);
+  // 살아있는 플레이어 배열 미리 캐싱 (루프마다 filter 방지)
+  const alivePlayers=arr.filter(p=>!p.dead&&!p.groggy);
   for(const e of room.enemies){
     if(e.poison>0){e.hp-=e.maxHp*0.004*e.poison*dt;if(e.hp<=1)e.hp=1;}
     const isIced=e.iceEnd&&e.iceEnd>now,sm=isIced?0.85:1,dm=isIced?0.85:1;
-    let near=null,md=Infinity;for(const p of arr){if(p.dead||p.groggy)continue;const dx=p.x-e.x,dy=p.y-e.y,d=dx*dx+dy*dy;if(d<md){md=d;near=p;}}if(!near)continue;md=Math.sqrt(md);const dx=near.x-e.x,dy=near.y-e.y;
+    // 제곱거리로 최근접 플레이어 탐색 (sqrt 생략)
+    let near=null,md2=Infinity;
+    for(const p of alivePlayers){const dx=p.x-e.x,dy=p.y-e.y,d2=dx*dx+dy*dy;if(d2<md2){md2=d2;near=p;}}
+    if(!near)continue;
+    const md=Math.sqrt(md2);
+    const dx=near.x-e.x,dy=near.y-e.y;
     if(e.type==='ranged'){if(md>180){e._vx=dx/md*e.spd*sm*60;e._vy=dy/md*e.spd*sm*60;e.x+=e._vx*dt;e.y+=e._vy*dt;}else if(md<120){e._vx=-dx/md*e.spd*sm*60;e._vy=-dy/md*e.spd*sm*60;e.x+=e._vx*dt;e.y+=e._vy*dt;}else{e._vx=0;e._vy=0;}e.lastShot+=dt;if(e.lastShot>(e.atkSlow?3.3:2.2)*(isIced?1.176:1)){e.lastShot=0;bcastAll(room,{t:'pat',i:-1,bx:e.x,by:e.y,ang:Math.atan2(dy,dx),phase:0,etype:'ranged'});}}
     else if(e.type==='mage'){if(md>220){e._vx=dx/md*e.spd*sm*60;e._vy=dy/md*e.spd*sm*60;e.x+=e._vx*dt;e.y+=e._vy*dt;}else if(md<160){e._vx=-dx/md*e.spd*0.8*sm*60;e._vy=-dy/md*e.spd*0.8*sm*60;e.x+=e._vx*dt;e.y+=e._vy*dt;}else{e._vx=0;e._vy=0;}e.lastShot+=dt;if(e.lastShot>(e.atkSlow?4.2:2.8)*(isIced?1.176:1)){e.lastShot=0;bcastAll(room,{t:'pat',i:-1,bx:e.x,by:e.y,ang:Math.atan2(dy,dx),phase:0,etype:'mage'});}}
     else{e._vx=dx/md*e.spd*sm*60;e._vy=dy/md*e.spd*sm*60;e.x+=e._vx*dt;e.y+=e._vy*dt;}
-    if(md<e.r+14){const isInv=near.invincible||(near.invincibleEnd>0&&near.invincibleEnd>now);if(!isInv){near.hp-=0.35*e.dmgMult*dm*dt*60*(1-(near.armor||0));if(near.hp<=0){near.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==near).length;if(ac>0){near.groggy=true;near.groggyTimer=30;near.reviveProgress=0;}else near.dead=true;}}}
+    if(md<e.r+14){const isInv=near.invincible||(near.invincibleEnd>0&&near.invincibleEnd>now);if(!isInv){near.hp-=0.35*e.dmgMult*dm*dt*60*(1-(near.armor||0));if(near.hp<=0){near.hp=0;const ac=alivePlayers.filter(q=>q!==near).length;if(ac>0){near.groggy=true;near.groggyTimer=30;near.reviveProgress=0;}else near.dead=true;}}}
   }
   if(room.fireZones&&room.fireZones.length>0){room.fireZones=room.fireZones.filter(fz=>fz.life>0);for(const fz of room.fireZones){fz.life-=dt*1000;for(const e of room.enemies){const dx=e.x-fz.x,dy=e.y-fz.y;if(Math.sqrt(dx*dx+dy*dy)<30+e.r){e.hp-=fz.dmg*dt*2;if(e.hp<=0)e.dead=true;}}}}
   if(room.boss&&!room.boss.dead){
@@ -1618,7 +1660,7 @@ function tickRoom(code){
     if(b.isFinal){const hp=Math.floor((b.hp/b.maxHp)*100),thr=Math.floor(hp/10)*10;if(thr<b.lastHpThreshold){b.lastHpThreshold=thr;spawnBossMobs(room);}}
     if(b.isFinal&&room.turrets&&room.turrets.some(t=>!t.dead&&t.hp>0))b.hp=Math.min(b.hp+b.maxHp*0.05*dt,b.maxHp);
     const isIced=b.iceEnd&&b.iceEnd>now,bs=(b.isFinal?2.0:1.6)*(isIced?0.85:1),bd=isIced?0.85:1;
-    let near=null,md=Infinity;for(const p of arr){if(p.dead||p.groggy)continue;const dx=p.x-b.x,dy=p.y-b.y,d=dx*dx+dy*dy;if(d<md){md=d;near=p;}}
+    let near=null,md=Infinity;for(const p of alivePlayers){const dx=p.x-b.x,dy=p.y-b.y,d=dx*dx+dy*dy;if(d<md){md=d;near=p;}}
     if(near){md=Math.sqrt(md)||1;const dx=near.x-b.x,dy=near.y-b.y;b.x+=dx/md*bs*dt*60;b.y+=dy/md*bs*dt*60;if(md<b.r+14){const isInv=near.invincible||(near.invincibleEnd>0&&near.invincibleEnd>now);if(!isInv){const cd=b.isFinal?(b.phase===1?0.4:0.6):(b.phase===1?0.3:0.45);near.hp-=cd*bd*dt*60*(1-(near.armor||0));if(near.hp<=0){near.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==near).length;if(ac>0){near.groggy=true;near.groggyTimer=30;near.reviveProgress=0;}else near.dead=true;}}}b.lastHeavy=(b.lastHeavy||0)+dt;if(b.lastHeavy>(isIced?4.7:4)){b.lastHeavy=0;bcastAll(room,{t:'pat',i:-2,bx:b.x,by:b.y,ang:Math.atan2(dy,dx),phase:b.phase,isFinal:b.isFinal});}}
     room.patT=(room.patT||0)+dt;const pi=(b.isFinal?(b.phase===1?1.3:0.9):(b.phase===1?1.8:1.3))*(isIced?1.176:1);if(room.patT>pi){room.patT=0;bcastAll(room,{t:'pat',i:(room.patI||0)%(b.phase===1?3:5),bx:b.x,by:b.y,ang:b.ang,phase:b.phase,isFinal:b.isFinal});room.patI=(room.patI||0)+1;}
   }
@@ -1628,13 +1670,18 @@ function tickRoom(code){
   const syncInterval=0.033+Math.max(0,room.players.size-1)*0.01;
   if(room.syncT>syncInterval){
     room.syncT=0;const ps=[];
-    room.players.forEach((p,ws)=>{
-      ps.push({id:p.id,x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,maxHp:p.maxHp,lv:p.lv,dead:p.dead,groggy:p.groggy||false,groggyTimer:p.groggyTimer||0,reviveProgress:p.reviveProgress||0,name:p.name,exp:p.exp,expNext:p.expNext,cls:p.cls,dmgBonus:p.dmgBonus||1,armor:p.armor||0,regen:p.regen||0,rangeMult:p.rangeMult||1,cdMult:p.cdMult||1,spdMult:p.spdMult||1,critRate:p.critRate||0});
+    room.players.forEach((p)=>{
+      ps.push({id:p.id,x:Math.round(p.x),y:Math.round(p.y),hp:Math.round(p.hp),maxHp:p.maxHp,lv:p.lv,dead:p.dead,groggy:p.groggy||false,groggyTimer:p.groggyTimer?Math.round(p.groggyTimer):0,reviveProgress:p.reviveProgress?Math.round(p.reviveProgress*100)/100:0,name:p.name,exp:p.exp,expNext:p.expNext,cls:p.cls,dmgBonus:p.dmgBonus||1,armor:p.armor||0,regen:p.regen||0,rangeMult:p.rangeMult||1,cdMult:p.cdMult||1,spdMult:p.spdMult||1,critRate:p.critRate||0});
     });
-    // 적 위치: 매 틱 전송 (vx/vy 포함), 스탯(hp/type 등)은 8틱마다
+    // 적: 매 틱 위치+속도, 8틱마다 풀 스탯
     const sf=room.stateTick%8===0;
-    const ed=room.enemies.map(e=>sf?{id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.round(e.hp),vx:e._vx||0,vy:e._vy||0,maxHp:Math.round(e.maxHp),type:e.type,r:e.r,shieldHp:e.shieldHp,poison:e.poison,iceEnd:e.iceEnd,atkSlow:e.atkSlow}:{id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.round(e.hp),vx:e._vx||0,vy:e._vy||0});
-    bcastAll(room,{t:'state',players:ps,enemies:ed,boss:room.boss&&!room.boss.dead?{x:Math.round(room.boss.x),y:Math.round(room.boss.y),hp:room.boss.hp,maxHp:room.boss.maxHp,phase:room.boss.phase,ang:room.boss.ang,isFinal:room.boss.isFinal,iceEnd:room.boss.iceEnd}:null,turrets:room.stateTick%12===0&&room.turrets?room.turrets.filter(t=>t.hp>0).map(t=>({id:t.id,x:t.x,y:t.y,hp:t.hp,maxHp:t.maxHp,r:t.r,isTurret:true})):undefined,st:room.stageTime,stage:room.currentStage});
+    const ed=room.enemies.map(e=>sf
+      ?{id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.round(e.hp),vx:e._vx||0,vy:e._vy||0,maxHp:Math.round(e.maxHp),type:e.type,r:e.r,shieldHp:e.shieldHp||0,poison:e.poison||0,iceEnd:e.iceEnd||0,atkSlow:e.atkSlow||false}
+      :{id:e.id,x:Math.round(e.x),y:Math.round(e.y),hp:Math.round(e.hp),vx:e._vx||0,vy:e._vy||0});
+    bcastAll(room,{t:'state',players:ps,enemies:ed,
+      boss:room.boss&&!room.boss.dead?{x:Math.round(room.boss.x),y:Math.round(room.boss.y),hp:Math.round(room.boss.hp),maxHp:room.boss.maxHp,phase:room.boss.phase,ang:Math.round(room.boss.ang*100)/100,isFinal:room.boss.isFinal,iceEnd:room.boss.iceEnd||0}:null,
+      turrets:room.stateTick%12===0&&room.turrets?room.turrets.filter(t=>t.hp>0).map(t=>({id:t.id,x:Math.round(t.x),y:Math.round(t.y),hp:Math.round(t.hp),maxHp:t.maxHp,r:t.r,isTurret:true})):undefined,
+      st:Math.round(room.stageTime),stage:room.currentStage});
   }
   const alive=arr.filter(p=>!p.dead&&!p.groggy);if(alive.length===0&&arr.length>0){bcastAll(room,{t:'over',win:false});clearInterval(room.tick);rooms.delete(code);}
   }catch(e){console.error('[tickRoom error]',e);} // tick이 죽지 않도록 catch
@@ -1719,7 +1766,16 @@ wss.on('connection',ws=>{
                 bcastAll(room,{t:'stageStart',stage:room.currentStage});
               },5500);
             }else{bcastAll(room,{t:'weaponUpgrade',msg:'최종 보스 처치! 승리!'});bcastAll(room,{t:'over',win:true});clearInterval(room.tick);rooms.delete(ws.roomCode);}}
-            else{room.midBossAlive=false;room.boss=null;bcastAll(room,{t:'midBossDead'});bcastAll(room,{t:'bossHp',hp:0});room.players.forEach(p=>{if(!p.dmgBonus)p.dmgBonus=1;p.dmgBonus*=1.15;});bcastAll(room,{t:'weaponUpgrade',msg:'중간 보스 처치! (+15% 데미지)'});}
+            else{
+              room.midBossAlive=false;room.boss=null;
+              // 잡몹 제거 + 전원 무적 (무기강화창 선택 중 죽는 버그 방지)
+              room.enemies=[];
+              room.players.forEach(p=>{p.invincible=true;p.invincibleEnd=Infinity;});
+              bcastAll(room,{t:'midBossDead'});
+              bcastAll(room,{t:'bossHp',hp:0});
+              room.players.forEach(p=>{if(!p.dmgBonus)p.dmgBonus=1;p.dmgBonus*=1.15;});
+              bcastAll(room,{t:'weaponUpgrade',msg:'중간 보스 처치! (+15% 데미지)'});
+            }
           }else bcastAll(room,{t:'bossHp',hp:room.boss.hp});
         }
       }else if(msg.target==='turret'){
