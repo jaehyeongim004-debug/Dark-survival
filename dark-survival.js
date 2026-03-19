@@ -679,16 +679,26 @@ function update(dt){
 
 function draw(){
   ctx.clearRect(0,0,W,H);
+  // 매 프레임 시작 시 상태 완전 초기화
+  ctx.setLineDash([]);
+  ctx.lineDashOffset=0;
+  ctx.shadowBlur=0;
+  ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='source-over';
   const ox=W/2-camX,oy=H/2-camY;
   ctx.save();ctx.translate(ox,oy);
   drawGrid();drawFireZones();drawOrbs();drawParts();drawExplosions();
-  // 보스 아레나 경계 (보스전 중이거나 경고 중)
   if(bossAlive||bossWarning) drawArenaBorder();
-  // 보스 등장 위치 표시 (경고 중)
   if(bossWarning) drawBossSpawnMarker();
   drawEnemies();if(bossData)drawBoss();drawTurrets();drawOthers();
   if(myPlayer&&!myPlayer.dead)drawMe();
-  drawProjs();ctx.restore();drawMinimap();
+  drawProjs();
+  ctx.restore();
+  // restore 후 상태 보장
+  ctx.setLineDash([]);
+  ctx.shadowBlur=0;
+  ctx.globalAlpha=1;
+  drawMinimap();
 }
 
 function drawArenaBorder(){
@@ -696,31 +706,44 @@ function drawArenaBorder(){
   const t=performance.now();
   const pulse=Math.sin(t*0.004)*0.3+0.7;
   ctx.save();
-  // 경계 바깥 어둡게 (비네팅 효과)
+  // 모든 상태 명시적 초기화
+  ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='source-over';
+  ctx.shadowBlur=0;
+  ctx.setLineDash([]);
+  // 경계 바깥 어둡게
   const isFinalBoss=(bossData&&bossData.isFinal)||(bossWarning&&bossWarning.isFinal);
-  const borderColor=isFinalBoss?'rgba(180,0,0,'+(pulse*0.25)+')':'rgba(255,140,0,'+(pulse*0.2)+')';
   const lineColor=isFinalBoss?'rgba(220,30,30,'+(pulse*0.9)+')':'rgba(255,180,0,'+(pulse*0.85)+')';
-  // 경계 채우기 (바깥쪽 반투명 어둠)
   ctx.fillStyle=isFinalBoss?'rgba(60,0,0,0.35)':'rgba(40,20,0,0.3)';
   ctx.beginPath();
   ctx.rect(-5000,-5000,10000,10000);
   ctx.arc(0,0,ARENA,0,Math.PI*2,true);
   ctx.fill('evenodd');
   // 경계선
+  ctx.beginPath();
   ctx.strokeStyle=lineColor;
   ctx.lineWidth=3+pulse*2;
   ctx.shadowColor=lineColor;
   ctx.shadowBlur=16;
   ctx.setLineDash([20,8]);
-  ctx.lineDashOffset=-(t*0.05)%28; // 흐르는 애니메이션
-  ctx.beginPath();ctx.arc(0,0,ARENA,0,Math.PI*2);ctx.stroke();
+  ctx.lineDashOffset=-(t*0.05)%28;
+  ctx.arc(0,0,ARENA,0,Math.PI*2);
+  ctx.stroke();
+  // 완전 리셋
   ctx.setLineDash([]);
+  ctx.lineDashOffset=0;
   ctx.shadowBlur=0;
-  // 경계 안쪽 내부 링 (얇게)
+  // 내부 링
+  ctx.beginPath();
   ctx.strokeStyle=isFinalBoss?'rgba(220,30,30,0.3)':'rgba(255,180,0,0.3)';
   ctx.lineWidth=1;
-  ctx.beginPath();ctx.arc(0,0,ARENA-8,0,Math.PI*2);ctx.stroke();
+  ctx.arc(0,0,ARENA-8,0,Math.PI*2);
+  ctx.stroke();
   ctx.restore();
+  // restore 후에도 명시적으로 보장
+  ctx.setLineDash([]);
+  ctx.shadowBlur=0;
+  ctx.globalAlpha=1;
 }
 
 function drawBossSpawnMarker(){
@@ -764,6 +787,9 @@ function drawBossSpawnMarker(){
   ctx.fillText(isFinal?'☠ FINAL BOSS':'⚠ BOSS',x,y-warnR-12);
   ctx.globalAlpha=1;
   ctx.restore();
+  ctx.shadowBlur=0;
+  ctx.globalAlpha=1;
+  ctx.setLineDash([]);
 }
 function drawMinimap(){if(!myPlayer||!running)return;const mCtx=minimapCtx,size=120;mCtx.clearRect(0,0,size,size);mCtx.fillStyle='rgba(20,20,30,0.8)';mCtx.fillRect(0,0,size,size);mCtx.strokeStyle='#444';mCtx.lineWidth=1;mCtx.strokeRect(0,0,size,size);const scale=size/(MAP_SIZE*2),cx=size/2,cy=size/2;mCtx.strokeStyle='#333';mCtx.beginPath();mCtx.moveTo(cx,0);mCtx.lineTo(cx,size);mCtx.moveTo(0,cy);mCtx.lineTo(size,cy);mCtx.stroke();allPlayers.forEach(p=>{if(p.id===myId||p.dead)return;const cls=CLASSES[p.cls];mCtx.globalAlpha=p.groggy?0.4:1;mCtx.fillStyle=p.groggy?'#888':(cls?cls.color:'#66aaff');mCtx.beginPath();mCtx.arc(cx+p.x*scale,cy+p.y*scale,4,0,Math.PI*2);mCtx.fill();mCtx.globalAlpha=1;});if(bossData&&!bossData.dead){mCtx.fillStyle='#ff3300';mCtx.beginPath();mCtx.arc(cx+bossData.x*scale,cy+bossData.y*scale,6,0,Math.PI*2);mCtx.fill();mCtx.strokeStyle='#ff6600';mCtx.lineWidth=2;mCtx.stroke();}mCtx.globalAlpha=myPlayer.groggy?0.4:1;mCtx.fillStyle=CLASSES[myClass]?CLASSES[myClass].color:'#ffcc00';mCtx.beginPath();mCtx.arc(cx+myPlayer.x*scale,cy+myPlayer.y*scale,5,0,Math.PI*2);mCtx.fill();mCtx.strokeStyle='#fff';mCtx.lineWidth=2;mCtx.stroke();mCtx.globalAlpha=1;}
 // 타일 캐시 (뷰포트 이동 시만 갱신)
