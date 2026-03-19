@@ -675,7 +675,13 @@ function update(dt){
   let mx=jsX,my=jsY;
   if(keys['w']||keys['arrowup'])my=-1;if(keys['s']||keys['arrowdown'])my=1;if(keys['a']||keys['arrowleft'])mx=-1;if(keys['d']||keys['arrowright'])mx=1;
   const ml=Math.sqrt(mx*mx+my*my)||1;
-  if(mx||my){myPlayer.x+=mx/ml*myStats.spd*(dt/16);myPlayer.y+=my/ml*myStats.spd*(dt/16);myPlayer.x=Math.max(-activeMapSize,Math.min(activeMapSize,myPlayer.x));myPlayer.y=Math.max(-activeMapSize,Math.min(activeMapSize,myPlayer.y));}
+  if(mx||my){myPlayer.x+=mx/ml*myStats.spd*(dt/16);myPlayer.y+=my/ml*myStats.spd*(dt/16);}
+  // 클램프는 이동 여부와 무관하게 항상 적용 (bossAlive 시 즉시 경계 적용)
+  const prevX=myPlayer.x,prevY=myPlayer.y;
+  myPlayer.x=Math.max(-activeMapSize,Math.min(activeMapSize,myPlayer.x));
+  myPlayer.y=Math.max(-activeMapSize,Math.min(activeMapSize,myPlayer.y));
+  // 클램프로 인해 위치가 바뀌었으면 카메라도 즉시 맞춤
+  if(myPlayer.x!==prevX||myPlayer.y!==prevY){camX=myPlayer.x;camY=myPlayer.y;}
   send({t:'move',x:Math.round(myPlayer.x),y:Math.round(myPlayer.y)});
   tryShoot();
   camX+=(myPlayer.x-camX)*0.1;camY+=(myPlayer.y-camY)*0.1;
@@ -1400,7 +1406,7 @@ function drawBoss(){
       }
       ctx.closePath();ctx.stroke();
     }
-    ctx.restore();
+    // restore는 함수 끝의 공통 restore에서 처리
 
   }else{
     // ── 최종보스: 네크로맨서 스프라이트 ──────────────────────
