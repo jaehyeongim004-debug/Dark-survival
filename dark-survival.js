@@ -389,6 +389,7 @@ function handleMsg(msg){
   else if(msg.t==='lvUp'){showTraitSelect();}
   else if(msg.t==='bossWarning'){
     bossWarning={x:msg.x,y:msg.y,isFinal:msg.isFinal,startTime:performance.now()};
+    bossAlive=true; // 맵제한 미리 적용 (5초 후 실제 등장 전에 경계 활성화)
     const ARENA=800;
     if(myPlayer){
       const d=Math.sqrt(myPlayer.x*myPlayer.x+myPlayer.y*myPlayer.y);
@@ -396,7 +397,6 @@ function handleMsg(msg){
         const a=Math.atan2(myPlayer.y,myPlayer.x);
         myPlayer.x=Math.cos(a)*ARENA*0.6;
         myPlayer.y=Math.sin(a)*ARENA*0.6;
-        camX=myPlayer.x;camY=myPlayer.y;
       }
     }
     showPop(msg.isFinal?'☠ 최종 보스 5초 후 등장!':'⚠ 중간 보스 5초 후 등장!',5500);
@@ -422,6 +422,7 @@ function handleMsg(msg){
   else if(msg.t==='stageClear'){showStageClear(msg.stage,msg.next);}
   else if(msg.t==='stageStart'){nextStage(msg.stage);}
   else if(msg.t==='over'){endGame(msg.win);}
+  else if(msg.t==='statSync'){if(myStats){if(msg.armor!==undefined)myStats.armor=msg.armor;if(msg.regen!==undefined)myStats.regen=msg.regen;updateStatsPanel();}}
   else if(msg.t==='revived'){showPop('💚 부활했습니다!',2000);if(myPlayer){myPlayer.groggy=false;myPlayer.dead=false;}}
   else if(msg.t==='groggyDead'){if(myPlayer&&myPlayer.groggy){running=false;endGame(false);}}
   else if(msg.t==='fx'){remoteEffects.push(msg);}
@@ -1567,7 +1568,7 @@ wss.on('connection',ws=>{
       }else{
         const e=room.enemies.find(e=>e.id===msg.eid&&!e.dead);
         if(e){let dmg=safeDmg;if(e.shieldHp>0){const ab=Math.min(e.shieldHp,dmg);e.shieldHp-=ab;dmg-=ab;}if(el==='poison'&&tier>=2)e.poison=Math.min(e.poison+1,5);else if(el==='ice'&&tier>=2){e.iceEnd=Date.now()+3000;e.iceSlow=0.15;}e.hp-=dmg;
-          if(e.hp<=0){e.dead=true;const h=room.players.get(ws);if(h&&!h.groggy){const sc=10+Math.floor(e.maxHp*0.1);const ed=room.players.size<=1?1:room.players.size*0.65;h.exp+=Math.floor(sc/2*(h.expMult||1)/ed);if(h.exp>=h.expNext){h.lv++;h.exp-=h.expNext;h.expNext=Math.floor(h.expNext*1.4);if(h.cls==='warrior'){h.maxHp+=10;h.hp=Math.min(h.hp+10,h.maxHp);h.armor=Math.min((h.armor||0.15)+0.02,0.9);h.regen=(h.regen||2.0)+0.002;if(!h.rangeMult)h.rangeMult=1;h.rangeMult*=1.02;}else if(h.cls==='gunner'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.06;}else if(h.cls==='mage'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.03;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.98;}else if(h.cls==='assassin'){if(!h.spdMult)h.spdMult=1;h.spdMult*=1.01;if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.02;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.99;h.critRate=(h.critRate||40)+3;if(h.critRate>100){const ov=h.critRate-100;h.dmgBonus*=(1+ov/100);h.critRate=100;}}if(!h.lvUpQueue)h.lvUpQueue=0;h.lvUpQueue++;if(h.lvUpQueue===1&&ws.readyState===1){h.lvUpQueue=0;ws.send(JSON.stringify({t:'lvUp'}));}}bcastAll(room,{t:'eDead',eid:e.id,x:e.x,y:e.y,sc});}}
+          if(e.hp<=0){e.dead=true;const h=room.players.get(ws);if(h&&!h.groggy){const sc=10+Math.floor(e.maxHp*0.1);const ed=room.players.size<=1?1:room.players.size*0.65;h.exp+=Math.floor(sc/2*(h.expMult||1)/ed);if(h.exp>=h.expNext){h.lv++;h.exp-=h.expNext;h.expNext=Math.floor(h.expNext*1.4);if(h.cls==='warrior'){h.maxHp+=10;h.hp=Math.min(h.hp+10,h.maxHp);h.armor=Math.min((h.armor||0.15)+0.02,0.9);h.regen=(h.regen||2.0)+0.002;if(!h.rangeMult)h.rangeMult=1;h.rangeMult*=1.02;if(ws.readyState===1)ws.send(JSON.stringify({t:'statSync',armor:h.armor,regen:h.regen}));}else if(h.cls==='gunner'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.06;}else if(h.cls==='mage'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.03;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.98;}else if(h.cls==='assassin'){if(!h.spdMult)h.spdMult=1;h.spdMult*=1.01;if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.02;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.99;h.critRate=(h.critRate||40)+3;if(h.critRate>100){const ov=h.critRate-100;h.dmgBonus*=(1+ov/100);h.critRate=100;}}if(!h.lvUpQueue)h.lvUpQueue=0;h.lvUpQueue++;if(h.lvUpQueue===1&&ws.readyState===1){h.lvUpQueue=0;ws.send(JSON.stringify({t:'lvUp'}));}}bcastAll(room,{t:'eDead',eid:e.id,x:e.x,y:e.y,sc});}}
         }
       }
     }
