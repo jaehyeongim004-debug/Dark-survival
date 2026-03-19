@@ -194,8 +194,40 @@ function getTileIdx(tx,ty){
 canvas.width=W;canvas.height=H;
 const WS_URL=(location.protocol==='https:'?'wss://':'ws://')+location.host;
 let ws=null,myId=null,isHost=false,myClass=null;
-function connect(cb){ws=new WebSocket(WS_URL);ws.onopen=cb;ws.onmessage=e=>handleMsg(JSON.parse(e.data));ws.onerror=()=>showErr('서버 연결 실패');}
-function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+let _wsHeartbeat=null;
+function connect(cb){
+  ws=new WebSocket(WS_URL);
+  ws.onopen=()=>{
+    // heartbeat 시작 (15초마다 ping)
+    if(_wsHeartbeat)clearInterval(_wsHeartbeat);
+    _wsHeartbeat=setInterval(()=>{
+      if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'ping'}));
+    },15000);
+    cb();
+  };
+  ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+  ws.onerror=()=>showErr('서버 연결 실패');
+  ws.onclose=(e)=>{
+    if(_wsHeartbeat){clearInterval(_wsHeartbeat);_wsHeartbeat=null;}
+    // 게임 중이었으면 연결 끊김 알림
+    if(running){
+      running=false;
+      showPop('⚠ 서버 연결이 끊겼습니다. 새로고침 해주세요.',5000);
+      document.getElementById('errMsg').textContent='연결 끊김 ('+e.code+')';
+    }
+  };
+}
+let _lastMoveSend=0;
+function send(o){
+  if(!ws||ws.readyState!==1)return;
+  // move 메시지는 50ms(20fps) throttle - 서버 부하 감소
+  if(o.t==='move'){
+    const now=performance.now();
+    if(now-_lastMoveSend<50)return;
+    _lastMoveSend=now;
+  }
+  ws.send(JSON.stringify(o));
+}
 function showErr(m){document.getElementById('errMsg').textContent=m;}
 function showJoin(){document.getElementById('joinRow').style.display='flex';}
 function doCreate(){const name=document.getElementById('nameInp').value.trim()||'Player';connect(()=>send({t:'create',name}));}
@@ -1172,7 +1204,15 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 const rooms = new Map();
 function genCode(){let code,a=0;do{code=Math.random().toString(36).substr(2,5).toUpperCase();a++;}while(rooms.has(code)&&a<100);return code;}
-function bcast(room,msg,except){const d=JSON.stringify(msg);room.players.forEach((_,ws)=>{if(ws!==except&&ws.readyState===1)ws.send(d);});}
+function bcast(room,msg,except){
+  const d=JSON.stringify(msg);
+  room.players.forEach((_,ws)=>{
+    if(ws===except||ws.readyState!==1)return;
+    // 버퍼가 64KB 이상 쌓이면 해당 클라이언트에 전송 스킵 (폭주 방지)
+    if(ws.bufferedAmount>65536)return;
+    try{ws.send(d);}catch(e){}
+  });
+}
 function bcastAll(room,msg){bcast(room,msg,null);}
 const ETYPES=[{type:'basic',spd:1.0,hpMult:1.0,r:12,dmgMult:1.0},{type:'ranged',spd:0.65,hpMult:0.75,r:11,dmgMult:0.8},{type:'shield',spd:0.55,hpMult:2.8,r:14,dmgMult:1.2,shieldHp:true},{type:'fast',spd:2.2,hpMult:0.55,r:10,dmgMult:0.9},{type:'mage',spd:0.7,hpMult:0.85,r:11,dmgMult:1.1}];
 const SPAWN_WEIGHTS=[[0.55,0.2,0.1,0.1,0.05],[0.35,0.2,0.15,0.15,0.15],[0.2,0.2,0.15,0.2,0.25]];
@@ -1214,6 +1254,7 @@ function spawnBoss(room,isFinal){
 }
 
 function tickRoom(code){
+  try{
   const room=rooms.get(code);if(!room||!room.started)return;
   const now=Date.now(),dt=Math.min((now-room.lastTick)/1000,0.1);room.lastTick=now;room.stageTime-=dt;room.stateTick=(room.stateTick||0)+1;
   room.players.forEach((p,ws)=>{
@@ -1273,7 +1314,9 @@ function tickRoom(code){
   }
   } // end stageClearPending check
   room.syncT=(room.syncT||0)+dt;
-  if(room.syncT>0.05){
+  // 인원 많을수록 전송 주기 늘림 (2인:50ms, 3인:70ms, 4인:90ms)
+  const syncInterval=0.03+room.players.size*0.02;
+  if(room.syncT>syncInterval){
     room.syncT=0;const ps=[];
     room.players.forEach((p,ws)=>{
       ps.push({id:p.id,x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,maxHp:p.maxHp,lv:p.lv,dead:p.dead,groggy:p.groggy||false,groggyTimer:p.groggyTimer||0,reviveProgress:p.reviveProgress||0,name:p.name,exp:p.exp,expNext:p.expNext,cls:p.cls,dmgBonus:p.dmgBonus||1,armor:p.armor||0,regen:p.regen||0,rangeMult:p.rangeMult||1,cdMult:p.cdMult||1,spdMult:p.spdMult||1,critRate:p.critRate||0});
@@ -1284,12 +1327,17 @@ function tickRoom(code){
     bcastAll(room,{t:'state',players:ps,enemies:ed,boss:room.boss&&!room.boss.dead?{x:Math.round(room.boss.x),y:Math.round(room.boss.y),hp:room.boss.hp,maxHp:room.boss.maxHp,phase:room.boss.phase,ang:room.boss.ang,isFinal:room.boss.isFinal,iceEnd:room.boss.iceEnd}:null,turrets:room.stateTick%10===0&&room.turrets?room.turrets.filter(t=>t.hp>0).map(t=>({id:t.id,x:t.x,y:t.y,hp:t.hp,maxHp:t.maxHp,r:t.r,isTurret:true})):undefined,st:room.stageTime,stage:room.currentStage});
   }
   const alive=arr.filter(p=>!p.dead&&!p.groggy);if(alive.length===0&&arr.length>0){bcastAll(room,{t:'over',win:false});clearInterval(room.tick);rooms.delete(code);}
+  }catch(e){console.error('[tickRoom error]',e);} // tick이 죽지 않도록 catch
 }
 
 wss.on('connection',ws=>{
   ws.pid=Math.random().toString(36).substr(2,6);ws.roomCode=null;
+  ws.isAlive=true;
+  ws.on('pong',()=>{ws.isAlive=true;});
   ws.on('message',raw=>{
     let msg;try{msg=JSON.parse(raw);}catch{return;}
+    // ping/pong 처리
+    if(msg.t==='ping'){if(ws.readyState===1)ws.send(JSON.stringify({t:'pong'}));return;}
     const newPlayer=(name,x=0,y=0)=>({id:ws.pid,x,y,hp:100,maxHp:100,lv:1,exp:0,expNext:50,dead:false,groggy:false,groggyTimer:0,reviveProgress:0,name,lvUp:false,cls:null,regen:0,armor:0,expMult:1,critRate:0,dmgBonus:1,invincible:false,invincibleEnd:0,lvUpQueue:0});
     if(msg.t==='create'){
       const code=genCode();
@@ -1315,7 +1363,17 @@ wss.on('connection',ws=>{
       const cls=CLS[p.cls]||CLS.warrior;p.hp=cls.hp;p.maxHp=cls.maxHp;p.regen=cls.regen;p.armor=cls.armor;p.critRate=cls.critRate;p.expMult=cls.expMult;p.rangeMult=1;p.cdMult=1;p.spdMult=1;
       room.readyCount=(room.readyCount||0)+1;if(room.readyCount>=room.players.size){room.started=true;room.lastTick=Date.now();bcastAll(room,{t:'allReady'});room.tick=setInterval(()=>tickRoom(ws.roomCode),60);}
     }
-    else if(msg.t==='move'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p||p.dead||p.groggy)return;const MS=room.boss&&!room.boss.dead?800:3500;p.x=Math.max(-MS,Math.min(MS,msg.x));p.y=Math.max(-MS,Math.min(MS,msg.y));}
+    else if(msg.t==='move'){
+      const room=rooms.get(ws.roomCode);if(!room)return;
+      const p=room.players.get(ws);if(!p||p.dead||p.groggy)return;
+      // rate limit: 40ms 이내 중복 move 무시 (3명이상 메시지 폭주 방지)
+      const nowMs=Date.now();
+      if(p._lastMove&&nowMs-p._lastMove<40)return;
+      p._lastMove=nowMs;
+      const MS=room.boss&&!room.boss.dead?800:3500;
+      p.x=Math.max(-MS,Math.min(MS,msg.x));
+      p.y=Math.max(-MS,Math.min(MS,msg.y));
+    }
     else if(msg.t==='enemyHit'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p||p.dead||p.groggy)return;const n=Date.now(),isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>n);if(!isInv){p.hp-=msg.dmg*(1-(p.armor||0));if(p.hp<=0){p.hp=0;const aliveCount=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(aliveCount>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}}}
     else if(msg.t==='updateMaxHp'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;p.maxHp=msg.maxHp;p.hp=msg.hp;}
     else if(msg.t==='updateRegen'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;p.regen=msg.regen;}
@@ -1370,5 +1428,18 @@ wss.on('connection',ws=>{
   });
   ws.on('close',()=>{const room=rooms.get(ws.roomCode);if(!room)return;room.players.delete(ws);if(room.players.size===0){clearInterval(room.tick);rooms.delete(ws.roomCode);}else bcastAll(room,{t:'playerLeft',id:ws.pid});});
 });
+
+// 서버 heartbeat: 30초마다 응답없는 연결 강제 종료
+const heartbeatInterval=setInterval(()=>{
+  wss.clients.forEach(ws=>{
+    if(!ws.isAlive){
+      // 응답 없으면 강제 종료 → onclose 이벤트 발생
+      return ws.terminate();
+    }
+    ws.isAlive=false;
+    try{ws.ping();}catch(e){}
+  });
+},30000);
+wss.on('close',()=>clearInterval(heartbeatInterval));
 
 server.listen(PORT,()=>console.log('Dark Survival Final → http://localhost:'+PORT));
