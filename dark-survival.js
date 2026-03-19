@@ -151,6 +151,25 @@ input.inp:focus{border-color:#ffcc00;}
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),G=document.getElementById('G');
 const minimapCanvas=document.getElementById('minimapCanvas'),minimapCtx=minimapCanvas.getContext('2d');
 let W=G.clientWidth,H=G.clientHeight;
+
+// ── 스프라이트 로드 ──────────────────────────────────────────
+const SPRITES={};
+(function(){
+  const data={
+    warrior:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAByElEQVR4nGNgIBFoqOn+J0cOF2AiVQO1wdByACyIsQU1Pjl8gJEYReam9iTHLQMDA8PJ0wfh5p84fBZuhoWtMVx8wKOAhRTF79+/JUqdoKAw0WYOeAgMuAOIioLbt69jFZeWlmNgYGBgePr0EYr4mzevqOsABgYGhm0s/1D4Xn8wAw9djQU1HUAOqK1owpp9kcWJdgA2HxNSk43E3rp1K1Y9eB1gY+Xy/8ixPfBCAxbn6ABdHD1N4AM4S0IbKxd4MF27dgmvA9ABzAFaWnpwscy0NDg7OiEMf0mIbDnMoHcfXsE1/f79CyuGgXcfXjEiW44PYDgA3XJC4pSqxUgD3759w6rwxw+EOBMT9gT59+8fBgYGBoZ3794wcHBwkecAQkDmyR3syRkKnsioeJNi3oAXxQPuAJKjADmIk57fZ2BgYGCYJ6lIfQcgZysGBgYGZmYWeCIjBJiZWTD0E+2AcxeOMTIwMDDoapuQ1QwjFVBUGVES9CQ7wPHhDZIM3i+vQZS6wZsLvn37QpHBxOofvCGADnZIKGCIebx4gFOOgcgsO3hD4O79GyiNFTUVHYxyYdKXL4wMDAwMagwMGHLo+hmwqGFgYGAAAKXnl5qbxCY2AAAAAElFTkSuQmCC',
+    gunner:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABL0lEQVR4nO1XLRPCMAwtHDMzM5iYmhr0zAwaAwKN4qeh0BNgMJgZDBozUzMzMzNTMdR2FNou5eMywVNtL3tJX5JdyhgxRljD6RQaH+KyLFDcYx/SX4A8AKtMnAtN8rquvYjDMNT2UuZGX+QKTLCGzzf6FtBdwBhjMyFQnXDLzXKbgFagxS6KuvW2qqxnWJDXAHkAXjVw4BxVAysp0bzDVmC93mg3vlwyFGmSzLV9mu6tfsgV8G7DFstFrO2Pp+tbPMNVAIA3jzl/zmsfHr8F4E1RmDvDWhwAuJbDgjQAIUS3zrKz5vOnNQAADAC0szhOtIsNtwi/Cdc0Ra6A81dsG8WDIDDaK6WM564RnVyBfwBvdYFS6iWvvk83dACRZRovkXZVz3uGPAXOALAv3E847ixTUZC3hwAVAAAAAElFTkSuQmCC',
+    mage:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABaUlEQVR4nO2XsW6DMBCGr4YSCyEhRagvQAa/Rudk6N65W9WHqbp1q5S9Q7pV6mswlDdAlZAQogl2O4EwOPSwkzpDbjrjw/f5/BsbAEML/PDH5H1yiOQmEEYAhzBtgP6sdaugBbAvmQ7ExZTgMJijEuTFF3pc6xpQkvo0UM700vVQg3LBQQg+eF5WxSAfugKEONjQSfEudkAhONT1Dpkcv7KTRLiJohts7CrLXjFx1kV4BkCL0MQ2UfTZ+KssW3T79opwHl4NvgXb3TcqoUdnrf9CRLpkLG7ab0mSdiGOugT95AAAS8bibkWOBsC3NSrOugiVGlCdeo7jShq4j0Kp/ynLW9+js7YCa0pGNYAGuKZysZjvS+2kLKX2RyVaf01J2vj9XfAv2/C2EjGA+p5gXQPoCryX8knI/PH+xooyHz3w0BrgigsGxrQAumb64/EXwOlrQHW3a+yBiDsAgEdBnnUBrFfgDGAd4Be/V3aMSULt/QAAAABJRU5ErkJggg==',
+    assassin:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABiElEQVR4nGNgGGDASIwifn6h/+QY/vHjO4LmM5FjMDXBqAMIxpGQkBhZ8Q8D7969wmvHgIcACymKv337QpQ6Li4eos0cWiHAwMDA0MfDdRLGLvryzRyXGLFgwENgwB2AN4u4OXrDs+DJc8dJMtjcyBLO3rV/K057BjwEiE6EE7nYSTJ4GZHqcIYAcvBTCvCZhTcEkOP9JAP+UHjz+zc8Kzb//mfOgKQXOT2gA7yJkJR2QC0rE6oDkAC+dsHQSYTowNFIGlXg8nPaO0BZEncls0yECxHsz4mrtEh2ADlg6YIZDAwMDBhpyScwjJGgA7hYUZPI8zffGCRFuPBa+PzNNwx9+ACGA7asX4Xh2tTULIbPP34zMDAwMHx+8pGBgYGB4RaUxgZ4OViJdgCKU1MCbP5vWDiJYcPCSUQbQCmgeRpITc1ieP7mDc5yAEMCWxT4BIYx8vDwE10offnykagOD1YH4AID6gARIeyW//gFoTnYsOt7846wQwa8KB7aDvjy5SMjKfGNDQAAnbxwyc6xh0gAAAAASUVORK5CYII='
+  };
+  for(const[name,src]of Object.entries(data)){
+    SPRITES[name]=new Image();
+    SPRITES[name].src=src;
+  }
+})();
+
+// ── 던전 타일 ────────────────────────────────────────────────
+const DUNGEON_TILE=new Image();
+DUNGEON_TILE.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAiUlEQVR4nGOUkVL4z4ADfPv2jYGBgYGBi4sLlxIGFgYGBgZ2dg68BrCwsGKV//PnNwMTXDHTl63fmL5sxWkVDsBEWAl+wAJjcP3j8SbHAIpdQLEBjEICYjijkS4uYOHh4cUp+e/fXwZWVjYau4BYhV8ZP0+Hsbn/82ZSzQWUR6OcjDLOaKRLIAIADn0d3mL45ZAAAAAASUVORK5CYII=';
 canvas.width=W;canvas.height=H;
 const WS_URL=(location.protocol==='https:'?'wss://':'ws://')+location.host;
 let ws=null,myId=null,isHost=false,myClass=null;
@@ -446,11 +465,23 @@ function tryShoot(){
     const extraAngles=[0.78,-1.57,2.36,-2.36,1.57];
     for(let i=0;i<w.count-1;i++){const a=ang+extraAngles[i%extraAngles.length];projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||6),vy:Math.sin(a)*(w.spd||6),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:9+weaponUpgradeLevel*3,enemy:false,isMagic:true,explosionRadius:w.explosionRadius||80,element:weaponElement});}
   }else{
-    for(let i=0;i<w.count;i++){
-      const a=ang+(i-(w.count-1)/2)*0.28;
-      // [FIX3] bullet 탄환 충돌반경 확대 (4→8)
-      const projR=w.type==='bullet'?8+weaponUpgradeLevel:4+weaponUpgradeLevel;
-      projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement});
+    // bullet: 원래 궤도(정조준) 항상 발사 + 다중사격은 ±15도 옆으로 추가탄
+    if(w.type==='bullet'){
+      const projR=10+weaponUpgradeLevel; // [FIX] 히트박스 확대
+      // 기본탄 - 항상 정조준 방향
+      projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(ang)*(w.spd||7),vy:Math.sin(ang)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement});
+      // 추가탄 - 15도(0.26rad) 간격으로 좌우 교대
+      const extraAngles=[0.26,-0.26,0.52,-0.52,0.78];
+      for(let i=0;i<w.count-1;i++){
+        const a=ang+extraAngles[i%extraAngles.length];
+        projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement});
+      }
+    }else{
+      for(let i=0;i<w.count;i++){
+        const a=ang+(i-(w.count-1)/2)*0.28;
+        const projR=4+weaponUpgradeLevel;
+        projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement});
+      }
     }
   }
   send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:tx,ay:ty,w:myClass,cnt:w.count,range:w.range,element:weaponElement,elementTier:weaponUpgradeLevel});
@@ -523,10 +554,74 @@ function update(dt){
 
 function draw(){ctx.clearRect(0,0,W,H);const ox=W/2-camX,oy=H/2-camY;ctx.save();ctx.translate(ox,oy);drawGrid();drawFireZones();drawOrbs();drawParts();drawExplosions();drawEnemies();if(bossData)drawBoss();drawTurrets();drawOthers();if(myPlayer&&!myPlayer.dead)drawMe();drawProjs();ctx.restore();drawMinimap();}
 function drawMinimap(){if(!myPlayer||!running)return;const mCtx=minimapCtx,size=120;mCtx.clearRect(0,0,size,size);mCtx.fillStyle='rgba(20,20,30,0.8)';mCtx.fillRect(0,0,size,size);mCtx.strokeStyle='#444';mCtx.lineWidth=1;mCtx.strokeRect(0,0,size,size);const scale=size/(MAP_SIZE*2),cx=size/2,cy=size/2;mCtx.strokeStyle='#333';mCtx.beginPath();mCtx.moveTo(cx,0);mCtx.lineTo(cx,size);mCtx.moveTo(0,cy);mCtx.lineTo(size,cy);mCtx.stroke();allPlayers.forEach(p=>{if(p.id===myId||p.dead)return;const cls=CLASSES[p.cls];mCtx.fillStyle=cls?cls.color:'#66aaff';mCtx.beginPath();mCtx.arc(cx+p.x*scale,cy+p.y*scale,4,0,Math.PI*2);mCtx.fill();});if(bossData&&!bossData.dead){mCtx.fillStyle='#ff3300';mCtx.beginPath();mCtx.arc(cx+bossData.x*scale,cy+bossData.y*scale,6,0,Math.PI*2);mCtx.fill();mCtx.strokeStyle='#ff6600';mCtx.lineWidth=2;mCtx.stroke();}mCtx.fillStyle=CLASSES[myClass]?CLASSES[myClass].color:'#ffcc00';mCtx.beginPath();mCtx.arc(cx+myPlayer.x*scale,cy+myPlayer.y*scale,5,0,Math.PI*2);mCtx.fill();mCtx.strokeStyle='#fff';mCtx.lineWidth=2;mCtx.stroke();}
-function drawGrid(){const gi=Math.min(currentStage-1,2);ctx.strokeStyle=STAGE_GRID[gi];ctx.lineWidth=1;const gs=80,sx=Math.floor((camX-W/2)/gs)*gs,sy=Math.floor((camY-H/2)/gs)*gs;for(let x=sx;x<camX+W/2+gs;x+=gs){ctx.beginPath();ctx.moveTo(x,camY-H/2);ctx.lineTo(x,camY+H/2);ctx.stroke();}for(let y=sy;y<camY+H/2+gs;y+=gs){ctx.beginPath();ctx.moveTo(camX-W/2,y);ctx.lineTo(camX+W/2,y);ctx.stroke();}}
-function drawMe(){if(!myClass)return;const{x,y}=myPlayer,cls=CLASSES[myClass];ctx.save();if(invincible){const alpha=Math.sin(performance.now()*0.01)>0?1:0.3;ctx.globalAlpha=alpha;ctx.strokeStyle='#ffcc00';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,15,0,Math.PI*2);ctx.stroke();}ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;ctx.fillStyle=cls.color;ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,x,y);const hpPct=Math.max(0,myPlayer.hp/myPlayer.maxHp),bW=30,bH=4,bX=x-bW/2,bY=y-22;ctx.fillStyle='#1a0000';ctx.fillRect(bX,bY,bW,bH);ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';ctx.fillRect(bX,bY,bW*hpPct,bH);ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.strokeRect(bX,bY,bW,bH);ctx.restore();}
+function drawGrid(){
+  const gi=Math.min(currentStage-1,2);
+  if(gi===0&&DUNGEON_TILE.complete&&DUNGEON_TILE.naturalWidth>0){
+    // 스테이지1: 던전 타일 반복
+    ctx.save();
+    ctx.imageSmoothingEnabled=false;
+    const ts=16; // 타일 크기
+    const sx=Math.floor((camX-W/2)/ts)*ts;
+    const sy=Math.floor((camY-H/2)/ts)*ts;
+    for(let x=sx;x<camX+W/2+ts;x+=ts){
+      for(let y=sy;y<camY+H/2+ts;y+=ts){
+        ctx.drawImage(DUNGEON_TILE,x,y,ts,ts);
+      }
+    }
+    ctx.restore();
+  }else{
+    // 스테이지2~3: 기존 그리드
+    ctx.strokeStyle=STAGE_GRID[gi];ctx.lineWidth=1;
+    const gs=80,sx=Math.floor((camX-W/2)/gs)*gs,sy=Math.floor((camY-H/2)/gs)*gs;
+    for(let x=sx;x<camX+W/2+gs;x+=gs){ctx.beginPath();ctx.moveTo(x,camY-H/2);ctx.lineTo(x,camY+H/2);ctx.stroke();}
+    for(let y=sy;y<camY+H/2+gs;y+=gs){ctx.beginPath();ctx.moveTo(camX-W/2,y);ctx.lineTo(camX+W/2,y);ctx.stroke();}
+  }
+}
+function drawMe(){
+  if(!myClass)return;
+  const{x,y}=myPlayer,cls=CLASSES[myClass];
+  ctx.save();
+  if(invincible){const alpha=Math.sin(performance.now()*0.01)>0?1:0.3;ctx.globalAlpha=alpha;ctx.strokeStyle='#ffcc00';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,15,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}
+  const spr=SPRITES[myClass];
+  if(spr&&spr.complete&&spr.naturalWidth>0){
+    ctx.imageSmoothingEnabled=false;
+    ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
+    ctx.drawImage(spr,x-16,y-16,32,32);
+    ctx.shadowBlur=0;
+  }else{
+    ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
+    ctx.fillStyle=cls.color;ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,x,y);
+  }
+  const hpPct=Math.max(0,myPlayer.hp/myPlayer.maxHp),bW=30,bH=4,bX=x-bW/2,bY=y-22;
+  ctx.fillStyle='#1a0000';ctx.fillRect(bX,bY,bW,bH);
+  ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';ctx.fillRect(bX,bY,bW*hpPct,bH);
+  ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.strokeRect(bX,bY,bW,bH);
+  ctx.restore();
+}
 const PC=['#66aaff','#ff8866','#88ff88','#ffcc44'];
-function drawOthers(){allPlayers.forEach((p,i)=>{if(p.id===myId||p.dead)return;const cls=CLASSES[p.cls]||null,c=cls?cls.color:PC[i%4];ctx.save();ctx.shadowColor=c;ctx.shadowBlur=10;ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;if(cls){ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,p.x,p.y);}ctx.fillStyle='#ffffffcc';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText(p.name||'?',p.x,p.y-28);const hpPct=Math.max(0,p.hp/(p.maxHp||100)),bW=30,bH=4,bX=p.x-bW/2,bY=p.y-20;ctx.fillStyle='#1a0000';ctx.fillRect(bX,bY,bW,bH);ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';ctx.fillRect(bX,bY,bW*hpPct,bH);ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.strokeRect(bX,bY,bW,bH);ctx.restore();});}
+function drawOthers(){allPlayers.forEach((p,i)=>{
+  if(p.id===myId||p.dead)return;
+  const cls=CLASSES[p.cls]||null,c=cls?cls.color:PC[i%4];
+  ctx.save();
+  const spr=cls?SPRITES[p.cls]:null;
+  if(spr&&spr.complete&&spr.naturalWidth>0){
+    ctx.imageSmoothingEnabled=false;
+    ctx.shadowColor=c;ctx.shadowBlur=10;
+    ctx.drawImage(spr,p.x-16,p.y-16,32,32);
+    ctx.shadowBlur=0;
+  }else{
+    ctx.shadowColor=c;ctx.shadowBlur=10;ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    if(cls){ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,p.x,p.y);}
+  }
+  ctx.fillStyle='#ffffffcc';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText(p.name||'?',p.x,p.y-20);
+  const hpPct=Math.max(0,p.hp/(p.maxHp||100)),bW=30,bH=4,bX=p.x-bW/2,bY=p.y-22;
+  ctx.fillStyle='#1a0000';ctx.fillRect(bX,bY,bW,bH);
+  ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';ctx.fillRect(bX,bY,bW*hpPct,bH);
+  ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.strokeRect(bX,bY,bW,bH);
+  ctx.restore();
+});}
 const E_STYLES={basic:{fill:'#bb1111',eye:'#ff5555',shadow:'#ff2222'},ranged:{fill:'#bb4411',eye:'#ffaa44',shadow:'#ff8822'},shield:{fill:'#226688',eye:'#44bbff',shadow:'#2299ff'},fast:{fill:'#1144bb',eye:'#44aaff',shadow:'#2266ff'},mage:{fill:'#662288',eye:'#dd44ff',shadow:'#aa22ff'}};
 const E_ICONS={basic:'',ranged:'🎯',shield:'🛡',fast:'💨',mage:'🌀'};
 // 렌더 크기 고정값 (히트박스 r과 별개)
