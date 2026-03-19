@@ -202,7 +202,7 @@ function connect(cb){
     if(_wsHeartbeat)clearInterval(_wsHeartbeat);
     _wsHeartbeat=setInterval(()=>{
       if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'ping'}));
-    },15000);
+    },10000);
     cb();
   };
   ws.onmessage=e=>handleMsg(JSON.parse(e.data));
@@ -1439,7 +1439,7 @@ const heartbeatInterval=setInterval(()=>{
     ws.isAlive=false;
     try{ws.ping();}catch(e){}
   });
-},30000);
+},20000);
 wss.on('close',()=>clearInterval(heartbeatInterval));
 
 server.listen(PORT,()=>console.log('Dark Survival Final → http://localhost:'+PORT));
