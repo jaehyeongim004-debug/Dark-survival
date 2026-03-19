@@ -184,12 +184,12 @@ const DUNGEON_TILES=[];
 // 타일 인덱스 결정 (시드 기반 - 위치마다 고정된 패턴)
 function getTileIdx(tx,ty){
   const h=((tx*73856093)^(ty*19349663))>>>0;
-  const r=h%100;
-  if(r<2)return 1;   // 해골 2%
-  if(r<6)return 2;   // 곰팡이 4%
-  if(r<9)return 3;   // 핏자국 3%
-  if(r<13)return 4;  // 균열 4%
-  return 0;          // 기본 87%
+  const r=h%200;
+  if(r<1)return 1;   // 해골 0.5%
+  if(r<3)return 2;   // 곰팡이 1%
+  if(r<4)return 3;   // 핏자국 0.5%
+  if(r<6)return 4;   // 균열 1%
+  return 0;          // 기본 97%
 }
 canvas.width=W;canvas.height=H;
 const WS_URL=(location.protocol==='https:'?'wss://':'ws://')+location.host;
@@ -630,6 +630,170 @@ function drawGrid(){
     for(let y=sy;y<camY+H/2+gs;y+=gs){ctx.beginPath();ctx.moveTo(camX-W/2,y);ctx.lineTo(camX+W/2,y);ctx.stroke();}
   }
 }
+// ── 직업별 애니메이션 ────────────────────────────────────────
+function drawClassAnim(ctx, cls, x, y, isMoving, t, scale=1){
+  const s=scale;
+  ctx.save();
+  ctx.translate(x,y);
+
+  if(cls==='assassin'){
+    // 망토: 이동 시 펄럭임, 정지 시 잔잔하게
+    const flutter=isMoving?Math.sin(t*0.018)*8:Math.sin(t*0.006)*2;
+    const cloakAlpha=isMoving?0.75:0.55;
+    // 망토 좌측
+    ctx.save();
+    ctx.globalAlpha=cloakAlpha;
+    ctx.fillStyle='#1a1a22';
+    ctx.beginPath();
+    ctx.moveTo(-8*s,-10*s);
+    ctx.quadraticCurveTo((-14+flutter)*s,2*s,(-10+flutter*0.5)*s,16*s);
+    ctx.quadraticCurveTo(-6*s,18*s,-4*s,8*s);
+    ctx.closePath();ctx.fill();
+    // 빨간 안감
+    ctx.fillStyle='#6a0000';
+    ctx.beginPath();
+    ctx.moveTo(-6*s,-6*s);
+    ctx.quadraticCurveTo((-11+flutter)*s,2*s,(-8+flutter*0.4)*s,14*s);
+    ctx.quadraticCurveTo(-5*s,15*s,-4*s,6*s);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+    // 망토 우측
+    ctx.save();
+    ctx.globalAlpha=cloakAlpha;
+    ctx.fillStyle='#1a1a22';
+    ctx.beginPath();
+    ctx.moveTo(8*s,-10*s);
+    ctx.quadraticCurveTo((14-flutter)*s,2*s,(10-flutter*0.5)*s,16*s);
+    ctx.quadraticCurveTo(6*s,18*s,4*s,8*s);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+    // 이동 시 잔상 효과
+    if(isMoving){
+      ctx.globalAlpha=0.15;
+      ctx.fillStyle='#ff88aa';
+      ctx.beginPath();ctx.arc(-flutter*0.3,0,9*s,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+    }
+  }
+
+  else if(cls==='warrior'){
+    // 붉은 천: 이동 시 펄럭임
+    const swing=isMoving?Math.sin(t*0.014)*5:Math.sin(t*0.005)*1.5;
+    ctx.save();
+    ctx.globalAlpha=0.8;
+    ctx.fillStyle='#880a0a';
+    ctx.beginPath();
+    ctx.moveTo(-7*s,6*s);
+    ctx.lineTo(7*s,6*s);
+    ctx.lineTo((8+swing)*s,16*s);
+    ctx.lineTo((0+swing*0.3)*s,18*s);
+    ctx.lineTo((-8-swing)*s,16*s);
+    ctx.closePath();ctx.fill();
+    // 천 하이라이트
+    ctx.globalAlpha=0.4;
+    ctx.fillStyle='#cc1111';
+    ctx.beginPath();
+    ctx.moveTo(-3*s,6*s);ctx.lineTo(3*s,6*s);
+    ctx.lineTo((3+swing*0.5)*s,14*s);ctx.lineTo((-3-swing*0.5)*s,14*s);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+    // 검 글로우 (무기강화 시)
+    if(weaponUpgradeLevel>0){
+      const glow=Math.sin(t*0.008)*0.3+0.5;
+      ctx.globalAlpha=glow*0.4;
+      ctx.fillStyle='#aaaaff';
+      ctx.beginPath();ctx.arc(12*s,-8*s,4+weaponUpgradeLevel,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+    }
+  }
+
+  else if(cls==='gunner'){
+    // 롱코트 자락: 이동 시 翻
+    const coat=isMoving?Math.sin(t*0.016)*6:Math.sin(t*0.005)*1;
+    ctx.save();
+    ctx.globalAlpha=0.7;
+    ctx.fillStyle='#18181e';
+    // 코트 좌측
+    ctx.beginPath();
+    ctx.moveTo(-6*s,4*s);
+    ctx.lineTo(-10*s,4*s);
+    ctx.lineTo((-12+coat)*s,18*s);
+    ctx.lineTo(-6*s,16*s);
+    ctx.closePath();ctx.fill();
+    // 코트 우측
+    ctx.beginPath();
+    ctx.moveTo(6*s,4*s);
+    ctx.lineTo(10*s,4*s);
+    ctx.lineTo((12-coat)*s,18*s);
+    ctx.lineTo(6*s,16*s);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+    // 스카프 펄럭임
+    const scarf=isMoving?Math.sin(t*0.02)*3:0;
+    ctx.save();
+    ctx.globalAlpha=0.85;
+    ctx.fillStyle='#cc2222';
+    ctx.beginPath();
+    ctx.moveTo(-6*s,-4*s);ctx.lineTo(6*s,-4*s);
+    ctx.lineTo((8+scarf)*s,2*s);ctx.lineTo((-8-scarf)*s,2*s);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+    // 총구 플래시 (공격 직후)
+    if(performance.now()-lastShot<80){
+      ctx.globalAlpha=0.6;
+      ctx.fillStyle='#ffffaa';
+      ctx.beginPath();ctx.arc(14*s,2*s,5,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+    }
+  }
+
+  else if(cls==='mage'){
+    // 마법 오라: 항상 회전
+    const orbAng=t*0.01;
+    const orbR=isMoving?14:12;
+    const orbAlpha=isMoving?0.6:0.4;
+    // 마법진 (바닥)
+    ctx.save();
+    ctx.globalAlpha=0.2+Math.sin(t*0.008)*0.1;
+    ctx.strokeStyle='#cc2222';
+    ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(0,10*s,10*s,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(0,10*s,7*s,0,Math.PI*2);ctx.stroke();
+    ctx.restore();
+    // 오브 3개 회전
+    for(let i=0;i<3;i++){
+      const a=orbAng+(i/3)*Math.PI*2;
+      const ox=Math.cos(a)*orbR*s,oy=Math.sin(a)*orbR*s*0.4+4*s;
+      ctx.save();
+      ctx.globalAlpha=orbAlpha;
+      ctx.shadowColor='#ff3300';ctx.shadowBlur=6;
+      ctx.fillStyle=i===0?'#ff2200':i===1?'#ff6600':'#cc0000';
+      ctx.beginPath();ctx.arc(ox,oy,2.5*s,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    }
+    // 로브 펄럭임
+    if(isMoving){
+      const robeFlap=Math.sin(t*0.018)*4;
+      ctx.save();
+      ctx.globalAlpha=0.5;
+      ctx.fillStyle='#0d0a12';
+      ctx.beginPath();
+      ctx.moveTo(-7*s,8*s);
+      ctx.lineTo((-10+robeFlap)*s,18*s);
+      ctx.lineTo(-4*s,16*s);
+      ctx.closePath();ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(7*s,8*s);
+      ctx.lineTo((10-robeFlap)*s,18*s);
+      ctx.lineTo(4*s,16*s);
+      ctx.closePath();ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  ctx.restore();
+}
+
 function drawMe(){
   if(!myClass)return;
   const{x,y}=myPlayer,cls=CLASSES[myClass];
@@ -642,7 +806,6 @@ function drawMe(){
       ctx.imageSmoothingEnabled=false;ctx.drawImage(spr,x-16,y-16,32,32);
     }else{ctx.fillStyle='#666';ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();}
     ctx.globalAlpha=1;
-    // 그로기 타이머 바
     const gt=myPlayer.groggyTimer||0;
     const bW=40,bH=5,bX=x-bW/2,bY=y-28;
     ctx.fillStyle='#330000';ctx.fillRect(bX,bY,bW,bH);
@@ -655,16 +818,22 @@ function drawMe(){
   }
   if(invincible){const alpha=Math.sin(performance.now()*0.01)>0?1:0.3;ctx.globalAlpha=alpha;ctx.strokeStyle='#ffcc00';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,15,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}
   const spr=SPRITES[myClass];
+  const t=performance.now();
+  const isMoving=(jsX!==0||jsY!==0||keys['w']||keys['s']||keys['a']||keys['d']||keys['arrowup']||keys['arrowdown']||keys['arrowleft']||keys['arrowright']);
+  // 이동 시 상하 바운스
+  const bounce=isMoving?Math.sin(t*0.015)*2:0;
   if(spr&&spr.complete&&spr.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
     ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
-    ctx.drawImage(spr,x-16,y-16,32,32);
+    ctx.drawImage(spr,x-16,y-16+bounce,32,32);
     ctx.shadowBlur=0;
   }else{
     ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
-    ctx.fillStyle=cls.color;ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();
-    ctx.shadowBlur=0;ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,x,y);
+    ctx.fillStyle=cls.color;ctx.beginPath();ctx.arc(x,y+bounce,11,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,x,y+bounce);
   }
+  // 직업별 애니메이션 레이어
+  drawClassAnim(ctx,myClass,x,y+bounce,isMoving,t);
   const hpPct=Math.max(0,myPlayer.hp/myPlayer.maxHp),bW=30,bH=4,bX=x-bW/2,bY=y-22;
   ctx.fillStyle='#1a0000';ctx.fillRect(bX,bY,bW,bH);
   ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';ctx.fillRect(bX,bY,bW*hpPct,bH);
@@ -697,13 +866,19 @@ function drawOthers(){allPlayers.forEach((p,i)=>{
     ctx.restore();return;
   }
   const spr=cls?SPRITES[p.cls]:null;
+  const t2=performance.now();
+  // 다른 플레이어 이동 감지 (위치 변화로 추정)
+  const pMoving=p._lastX!==undefined&&(Math.abs(p.x-p._lastX)>0.5||Math.abs(p.y-p._lastY)>0.5);
+  p._lastX=p.x;p._lastY=p.y;
+  const pBounce=pMoving?Math.sin(t2*0.015)*2:0;
   if(spr&&spr.complete&&spr.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;ctx.shadowColor=c;ctx.shadowBlur=10;
-    ctx.drawImage(spr,p.x-16,p.y-16,32,32);ctx.shadowBlur=0;
+    ctx.drawImage(spr,p.x-16,p.y-16+pBounce,32,32);ctx.shadowBlur=0;
   }else{
-    ctx.shadowColor=c;ctx.shadowBlur=10;ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
-    if(cls){ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,p.x,p.y);}
+    ctx.shadowColor=c;ctx.shadowBlur=10;ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,p.y+pBounce,11,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    if(cls){ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,p.x,p.y+pBounce);}
   }
+  if(p.cls)drawClassAnim(ctx,p.cls,p.x,p.y+pBounce,pMoving,t2);
   ctx.fillStyle='#ffffffcc';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
   ctx.fillText(p.name||'?',p.x,p.y-20);
   const hpPct=Math.max(0,p.hp/(p.maxHp||100)),bW=30,bH=4,bX=p.x-bW/2,bY=p.y-22;
