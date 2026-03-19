@@ -330,6 +330,7 @@ function updateStatsPanel(){
 function getW(){const w=myWeapon,s=myStats;const critHit=s.critRate>0&&Math.random()<(s.critRate/100);return{...w,dmg:w.baseDmg*s.dmgMult*(critHit?2:1),cd:w.baseCd*s.cdMult,range:w.baseRange*s.rangeMult,count:1+s.multishot,crit:critHit};}
 
 let running=false,stageTime=600,currentStage=1,midBossSpawned=false,finalBossSpawned=false,bossAlive=false;
+let bossWarning=null; // {x,y,isFinal,countdown,startTime}
 let kills=0,score=0,camX=0,camY=0;
 let myPlayer=null,allPlayers=[],enemies=[],bossData=null,turrets=[];
 let projs=[],parts=[],orbs=[],remoteEffects=[],explosions=[],fireZones=[];
@@ -352,13 +353,32 @@ function handleMsg(msg){
   else if(msg.t==='allReady'){hideClassScreen();initGameState();}
   else if(msg.t==='state'){applyState(msg);}
   else if(msg.t==='lvUp'){showTraitSelect();}
-  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);}
+  else if(msg.t==='bossWarning'){
+    bossWarning={x:msg.x,y:msg.y,isFinal:msg.isFinal,startTime:performance.now()};
+    const ARENA=800;
+    if(myPlayer){
+      const d=Math.sqrt(myPlayer.x*myPlayer.x+myPlayer.y*myPlayer.y);
+      if(d>ARENA*0.7){
+        const a=Math.atan2(myPlayer.y,myPlayer.x);
+        myPlayer.x=Math.cos(a)*ARENA*0.6;
+        myPlayer.y=Math.sin(a)*ARENA*0.6;
+        camX=myPlayer.x;camY=myPlayer.y;
+      }
+    }
+    showPop(msg.isFinal?'☠ 최종 보스 5초 후 등장!':'⚠ 중간 보스 5초 후 등장!',5500);
+    let cd=4;
+    const cdInt=setInterval(()=>{
+      if(cd>0){showPop(cd+'....',1100);cd--;}
+      else clearInterval(cdInt);
+    },1000);
+  }
+  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);}
   else if(msg.t==='midBossDead'){
     bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);
     myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);
     if(weaponUpgradeLevel<3){setTimeout(()=>{running=false;const wt={id:'weapon',icon:'🌟',name:'무기 강화',desc:'무기 성능 향상'};const cards=document.getElementById('traitCards');cards.innerHTML='';const div=document.createElement('div');div.className='traitCard';let desc=weaponUpgradeLevel===0?'무기 능력치 강화':weaponUpgradeLevel===1?'속성 부여 (화염/독/냉기)':'속성 2배 강화 + 이펙트';div.innerHTML='<div class="traitIcon">'+wt.icon+'</div><div class="traitName">'+wt.name+'</div><div class="traitDesc">'+desc+'</div>';div.onclick=()=>pickTrait(wt);cards.appendChild(div);document.getElementById('lvlUpTitle').textContent='보스 보상!';document.getElementById('lvlUpSub').textContent='무기가 강화됩니다';document.getElementById('lvlUpScreen').style.display='flex';},1000);}
   }
-  else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
+  else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
   else if(msg.t==='finalBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('최종 보스 처치!',3000);myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);}
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
@@ -390,7 +410,7 @@ function initGameState(){
   running=true;stageTime=600;currentStage=1;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;
   kills=0;score=0;projs=[];parts=[];orbs=[];remoteEffects=[];explosions=[];fireZones=[];turrets=[];
   myPlayer={x:0,y:0,hp:myStats.hp,maxHp:myStats.maxHp,lv:1,exp:0,expNext:50,dead:false};
-  invincible=false;invincibleEnd=0;localLvUpQueue=0;
+  invincible=false;invincibleEnd=0;localLvUpQueue=0;bossWarning=null;
   showGameUI();
   document.getElementById('classTag').innerHTML='<span>'+cls.icon+' '+cls.name+'</span>';
   document.getElementById('bossBar').style.display='none';
@@ -604,7 +624,94 @@ function update(dt){
   if(bossData)document.getElementById('bossFill').style.width=(bossData.hp/bossData.maxHp*100)+'%';
 }
 
-function draw(){ctx.clearRect(0,0,W,H);const ox=W/2-camX,oy=H/2-camY;ctx.save();ctx.translate(ox,oy);drawGrid();drawFireZones();drawOrbs();drawParts();drawExplosions();drawEnemies();if(bossData)drawBoss();drawTurrets();drawOthers();if(myPlayer&&!myPlayer.dead)drawMe();drawProjs();ctx.restore();drawMinimap();}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const ox=W/2-camX,oy=H/2-camY;
+  ctx.save();ctx.translate(ox,oy);
+  drawGrid();drawFireZones();drawOrbs();drawParts();drawExplosions();
+  // 보스 아레나 경계 (보스전 중이거나 경고 중)
+  if(bossAlive||bossWarning) drawArenaBorder();
+  // 보스 등장 위치 표시 (경고 중)
+  if(bossWarning) drawBossSpawnMarker();
+  drawEnemies();if(bossData)drawBoss();drawTurrets();drawOthers();
+  if(myPlayer&&!myPlayer.dead)drawMe();
+  drawProjs();ctx.restore();drawMinimap();
+}
+
+function drawArenaBorder(){
+  const ARENA=800;
+  const t=performance.now();
+  const pulse=Math.sin(t*0.004)*0.3+0.7;
+  ctx.save();
+  // 경계 바깥 어둡게 (비네팅 효과)
+  const isFinalBoss=(bossData&&bossData.isFinal)||(bossWarning&&bossWarning.isFinal);
+  const borderColor=isFinalBoss?'rgba(180,0,0,'+(pulse*0.25)+')':'rgba(255,140,0,'+(pulse*0.2)+')';
+  const lineColor=isFinalBoss?'rgba(220,30,30,'+(pulse*0.9)+')':'rgba(255,180,0,'+(pulse*0.85)+')';
+  // 경계 채우기 (바깥쪽 반투명 어둠)
+  ctx.fillStyle=isFinalBoss?'rgba(60,0,0,0.35)':'rgba(40,20,0,0.3)';
+  ctx.beginPath();
+  ctx.rect(-5000,-5000,10000,10000);
+  ctx.arc(0,0,ARENA,0,Math.PI*2,true);
+  ctx.fill('evenodd');
+  // 경계선
+  ctx.strokeStyle=lineColor;
+  ctx.lineWidth=3+pulse*2;
+  ctx.shadowColor=lineColor;
+  ctx.shadowBlur=16;
+  ctx.setLineDash([20,8]);
+  ctx.lineDashOffset=-(t*0.05)%28; // 흐르는 애니메이션
+  ctx.beginPath();ctx.arc(0,0,ARENA,0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.shadowBlur=0;
+  // 경계 안쪽 내부 링 (얇게)
+  ctx.strokeStyle=isFinalBoss?'rgba(220,30,30,0.3)':'rgba(255,180,0,0.3)';
+  ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(0,0,ARENA-8,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+
+function drawBossSpawnMarker(){
+  if(!bossWarning)return;
+  const{x,y,isFinal,startTime}=bossWarning;
+  const elapsed=(performance.now()-startTime)/1000;
+  const remaining=Math.max(0,5-elapsed);
+  const t=performance.now();
+  ctx.save();
+  // 등장 위치 바닥 원형 경고
+  const warningPulse=Math.sin(t*0.008)*0.4+0.6;
+  const warnR=60+Math.sin(t*0.005)*10;
+  ctx.globalAlpha=warningPulse*0.5;
+  ctx.fillStyle=isFinal?'#aa0000':'#cc6600';
+  ctx.beginPath();ctx.arc(x,y,warnR,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+  // 경고 원 외곽선
+  ctx.strokeStyle=isFinal?'#ff2200':'#ffaa00';
+  ctx.lineWidth=2+warningPulse*2;
+  ctx.shadowColor=isFinal?'#ff0000':'#ff8800';
+  ctx.shadowBlur=20;
+  ctx.beginPath();ctx.arc(x,y,warnR,0,Math.PI*2);ctx.stroke();
+  // 십자 표시
+  ctx.strokeStyle=isFinal?'rgba(255,50,50,'+warningPulse+')':'rgba(255,180,0,'+warningPulse+')';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(x-warnR,y);ctx.lineTo(x+warnR,y);
+  ctx.moveTo(x,y-warnR);ctx.lineTo(x,y+warnR);
+  ctx.stroke();
+  ctx.shadowBlur=0;
+  // 카운트다운 숫자
+  const cdNum=Math.ceil(remaining);
+  ctx.globalAlpha=warningPulse;
+  ctx.fillStyle=isFinal?'#ff4444':'#ffcc00';
+  ctx.font='bold '+(28+warningPulse*8)+'px monospace';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(cdNum>0?cdNum+'':'!!',x,y);
+  // 라벨
+  ctx.font='bold 11px monospace';
+  ctx.fillStyle=isFinal?'#ff8888':'#ffcc88';
+  ctx.fillText(isFinal?'☠ FINAL BOSS':'⚠ BOSS',x,y-warnR-12);
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
 function drawMinimap(){if(!myPlayer||!running)return;const mCtx=minimapCtx,size=120;mCtx.clearRect(0,0,size,size);mCtx.fillStyle='rgba(20,20,30,0.8)';mCtx.fillRect(0,0,size,size);mCtx.strokeStyle='#444';mCtx.lineWidth=1;mCtx.strokeRect(0,0,size,size);const scale=size/(MAP_SIZE*2),cx=size/2,cy=size/2;mCtx.strokeStyle='#333';mCtx.beginPath();mCtx.moveTo(cx,0);mCtx.lineTo(cx,size);mCtx.moveTo(0,cy);mCtx.lineTo(size,cy);mCtx.stroke();allPlayers.forEach(p=>{if(p.id===myId||p.dead)return;const cls=CLASSES[p.cls];mCtx.globalAlpha=p.groggy?0.4:1;mCtx.fillStyle=p.groggy?'#888':(cls?cls.color:'#66aaff');mCtx.beginPath();mCtx.arc(cx+p.x*scale,cy+p.y*scale,4,0,Math.PI*2);mCtx.fill();mCtx.globalAlpha=1;});if(bossData&&!bossData.dead){mCtx.fillStyle='#ff3300';mCtx.beginPath();mCtx.arc(cx+bossData.x*scale,cy+bossData.y*scale,6,0,Math.PI*2);mCtx.fill();mCtx.strokeStyle='#ff6600';mCtx.lineWidth=2;mCtx.stroke();}mCtx.globalAlpha=myPlayer.groggy?0.4:1;mCtx.fillStyle=CLASSES[myClass]?CLASSES[myClass].color:'#ffcc00';mCtx.beginPath();mCtx.arc(cx+myPlayer.x*scale,cy+myPlayer.y*scale,5,0,Math.PI*2);mCtx.fill();mCtx.strokeStyle='#fff';mCtx.lineWidth=2;mCtx.stroke();mCtx.globalAlpha=1;}
 // 타일 캐시 (뷰포트 이동 시만 갱신)
 let _tileCache=null,_tileCamX=null,_tileCamY=null,_tileW=0,_tileH=0;
@@ -925,7 +1032,39 @@ const SPAWN_WEIGHTS=[[0.55,0.2,0.1,0.1,0.05],[0.35,0.2,0.15,0.15,0.15],[0.2,0.2,
 function pickEtype(stage){const w=SPAWN_WEIGHTS[Math.min(stage-1,2)];const r=Math.random();let cum=0;for(let i=0;i<w.length;i++){cum+=w[i];if(r<cum)return ETYPES[i];}return ETYPES[0];}
 function spawnEnemies(room){if(room.midBossAlive||room.finalBossAlive)return;const gp=(600-room.stageTime)/600,pc=room.players.size,sm=room.currentStage;const cnt=Math.max(1,Math.floor((1+gp*1.5+(pc-1)*0.4)*sm*1.8));const arr=[...room.players.values()].filter(p=>!p.dead);if(!arr.length)return;const ref=arr[Math.floor(Math.random()*arr.length)];for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,r=350+Math.random()*80,et=pickEtype(room.currentStage);const bh=(20+Math.random()*15*(1+gp*2))*sm*(1+(pc-1)*0.3);room.enemies.push({id:room.eid++,x:ref.x+Math.cos(a)*r,y:ref.y+Math.sin(a)*r,hp:bh*et.hpMult,maxHp:bh*et.hpMult,spd:et.spd*(1+(room.currentStage-1)*0.3+gp*0.4),type:et.type,r:et.r,dead:false,lastShot:0,shieldHp:et.shieldHp?Math.floor(bh*0.5):0,dmgMult:et.dmgMult*(1+gp*0.3),poison:0,ice:false,atkSlow:false});}if(room.enemies.length>150)room.enemies=room.enemies.filter(e=>!e.dead).slice(-150);}
 function spawnBossMobs(room){const pc=room.players.size,cnt=3+pc*2;const arr=[...room.players.values()].filter(p=>!p.dead);if(!arr.length)return;const br=room.boss||{x:0,y:0};for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,r=200+Math.random()*150;const et=Math.random()<0.8?ETYPES[1]:ETYPES[2];const bh=(30+Math.random()*20)*(1+(pc-1)*0.3);room.enemies.push({id:room.eid++,x:br.x+Math.cos(a)*r,y:br.y+Math.sin(a)*r,hp:bh*et.hpMult,maxHp:bh*et.hpMult,spd:et.spd*1.2,type:et.type,r:et.r,dead:false,lastShot:0,shieldHp:et.shieldHp?Math.floor(bh*0.5):0,dmgMult:et.dmgMult*1.3,poison:0,ice:false,atkSlow:false});}}
-function spawnBoss(room,isFinal){const arr=[...room.players.values()];const ref=arr[0]||{x:0,y:0};const pc=room.players.size;const bh=isFinal?(4500+room.currentStage*800):(2200+room.currentStage*400);const hp=bh*(1+(pc-1)*0.5);room.boss={hp,maxHp:hp,x:ref.x+320,y:ref.y,r:42,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5};room.enemies=[];if(isFinal){room.turrets=[];for(let i=0;i<5+pc;i++){const angle=(i/(5+pc))*Math.PI*2,dist=250+Math.random()*100;room.turrets.push({id:'turret_'+i,x:ref.x+Math.cos(angle)*dist,y:ref.y+Math.sin(angle)*dist,hp:1000,maxHp:1000,r:25,isTurret:true,dead:false});}bcastAll(room,{t:'finalBoss',boss:room.boss});bcastAll(room,{t:'turrets',turrets:room.turrets});}else{room.midBossAlive=true;bcastAll(room,{t:'midBoss',boss:room.boss});}}
+function spawnBoss(room,isFinal){
+  const pc=room.players.size;
+  const ARENA=800; // 보스전 아레나 반경
+  // 1. 모든 플레이어를 아레나 안으로 순간이동
+  room.players.forEach(p=>{
+    const d=Math.sqrt(p.x*p.x+p.y*p.y);
+    if(d>ARENA*0.7){
+      const a=Math.atan2(p.y,p.x);
+      p.x=Math.cos(a)*ARENA*0.6;
+      p.y=Math.sin(a)*ARENA*0.6;
+    }
+  });
+  // 2. 보스 등장 위치 (중앙 기준)
+  const bossSpawnX=0, bossSpawnY=0;
+  // 3. 5초 예고 전송
+  bcastAll(room,{t:'bossWarning',isFinal,x:bossSpawnX,y:bossSpawnY,countdown:5});
+  // 4. 5초 후 실제 보스 등장
+  setTimeout(()=>{
+    const bh=isFinal?(4500+room.currentStage*800):(2200+room.currentStage*400);
+    const hp=bh*(1+(pc-1)*0.5);
+    room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:42,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5};
+    room.enemies=[];
+    if(isFinal){
+      room.turrets=[];
+      for(let i=0;i<5+pc;i++){const angle=(i/(5+pc))*Math.PI*2,dist=250+Math.random()*100;room.turrets.push({id:'turret_'+i,x:Math.cos(angle)*dist,y:Math.sin(angle)*dist,hp:1000,maxHp:1000,r:25,isTurret:true,dead:false});}
+      bcastAll(room,{t:'finalBoss',boss:room.boss});
+      bcastAll(room,{t:'turrets',turrets:room.turrets});
+    }else{
+      room.midBossAlive=true;
+      bcastAll(room,{t:'midBoss',boss:room.boss});
+    }
+  },5000);
+}
 
 function tickRoom(code){
   const room=rooms.get(code);if(!room||!room.started)return;
