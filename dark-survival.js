@@ -207,7 +207,7 @@ function connect(cb){
     },15000);
     cb();
   };
-  ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+  ws.onmessage=e=>{try{handleMsg(JSON.parse(e.data));}catch(err){console.warn('[msg err]',err);}};
   ws.onerror=()=>showErr('서버 연결 실패');
   ws.onclose=(e)=>{
     if(_wsHeartbeat){clearInterval(_wsHeartbeat);_wsHeartbeat=null;}
@@ -454,6 +454,7 @@ function initGameState(){
 }
 
 function applyState(msg){
+  try{
   allPlayers=msg.players||[];
   if(msg.enemies!==undefined){
     const newEnemies=msg.enemies,oldMap=new Map(enemies.map(e=>[e.id,e])),aliveIds=new Set(newEnemies.map(e=>e.id));
@@ -466,23 +467,40 @@ function applyState(msg){
     myPlayer.hp=me.hp;myPlayer.maxHp=me.maxHp;myPlayer.lv=me.lv;myPlayer.dead=me.dead;myPlayer.exp=me.exp;myPlayer.expNext=me.expNext;
     if(myStats){
       myStats.maxHp=me.maxHp;
-      if(me.armor!==undefined)myStats.armor=me.armor;
-      if(me.regen!==undefined)myStats.regen=me.regen;
-      // [FIX1] dmgBonus - 서버 변화분만 비율로 반영 (특성 보존)
-      if(me.dmgBonus!==undefined){const prev=myStats._lastDmgBonus||1;if(me.dmgBonus!==prev){myStats.dmgMult*=me.dmgBonus/prev;myStats._lastDmgBonus=me.dmgBonus;}}
-      // [FIX1] cdMult - 동일 방식
-      if(me.cdMult!==undefined){const prev=myStats._lastCdMult||1;if(me.cdMult!==prev){myStats.cdMult*=me.cdMult/prev;myStats._lastCdMult=me.cdMult;}}
-      if(me.critRate!==undefined&&me.critRate>myStats.critRate){myStats.critRate=me.critRate;if(myStats.critRate>0)myStats.crit=true;}
+      if(me.armor!==undefined&&!isNaN(me.armor))myStats.armor=me.armor;
+      if(me.regen!==undefined&&!isNaN(me.regen))myStats.regen=me.regen;
+      // dmgBonus - NaN 방어 강화
+      if(me.dmgBonus!==undefined&&!isNaN(me.dmgBonus)&&me.dmgBonus>0){
+        const prev=myStats._lastDmgBonus||1;
+        if(me.dmgBonus!==prev&&!isNaN(prev)&&prev>0){
+          const ratio=me.dmgBonus/prev;
+          if(!isNaN(ratio)&&isFinite(ratio))myStats.dmgMult*=ratio;
+          myStats._lastDmgBonus=me.dmgBonus;
+        }
+      }
+      // cdMult - NaN 방어 강화
+      if(me.cdMult!==undefined&&!isNaN(me.cdMult)&&me.cdMult>0){
+        const prev=myStats._lastCdMult||1;
+        if(me.cdMult!==prev&&!isNaN(prev)&&prev>0){
+          const ratio=me.cdMult/prev;
+          if(!isNaN(ratio)&&isFinite(ratio))myStats.cdMult*=ratio;
+          myStats._lastCdMult=me.cdMult;
+        }
+      }
+      if(me.critRate!==undefined&&!isNaN(me.critRate)&&me.critRate>myStats.critRate){myStats.critRate=me.critRate;if(myStats.critRate>0)myStats.crit=true;}
+      // NaN 최종 방어
+      if(isNaN(myStats.dmgMult)||!isFinite(myStats.dmgMult))myStats.dmgMult=1;
+      if(isNaN(myStats.cdMult)||!isFinite(myStats.cdMult))myStats.cdMult=1;
       updateStatsPanel();
     }
     if(me.dead&&running){running=false;endGame(false);}
-    // [GROGGY] 그로기 상태 처리
     const wasGroggy=myPlayer.groggy;
     if(me.groggy&&!wasGroggy){showPop('💀 그로기! 동료가 부활시켜 줄 수 있어요!',3000);}
-    if(wasGroggy&&!me.groggy&&!me.dead){running=true;} // 부활 시 running 복구
+    if(wasGroggy&&!me.groggy&&!me.dead){running=true;}
     myPlayer.groggy=me.groggy||false;
     myPlayer.groggyTimer=me.groggyTimer||0;
   }
+  }catch(err){console.error('[applyState err]',err);}
 }
 
 function showStageClear(stage,next){running=false;const el=document.getElementById('stageClearScreen');document.getElementById('stageClearTitle').textContent='STAGE '+stage+' CLEAR!';document.getElementById('stageClearSub').textContent=next<=3?'다음: '+STAGE_NAMES[next-1]:'모든 스테이지 클리어!';el.style.display='flex';let t=5;document.getElementById('stageClearTimer').textContent=t;const iv=setInterval(()=>{t--;document.getElementById('stageClearTimer').textContent=t;if(t<=0){clearInterval(iv);el.style.display='none';}},1000);}
@@ -1516,11 +1534,14 @@ wss.on('connection',ws=>{
     else if(msg.t==='updateCritRate'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;p.critRate=msg.critRate;}
     else if(msg.t==='hit'){
       const room=rooms.get(ws.roomCode);if(!room)return;const el=msg.element,tier=msg.elementTier||0;
+      // NaN/Infinity 방어
+      const safeDmg=(!isNaN(msg.dmg)&&isFinite(msg.dmg)&&msg.dmg>0)?msg.dmg:0;
+      if(safeDmg<=0)return;
       if(msg.target==='boss'){
         if(room.boss&&!room.boss.dead){
           const wt=msg.weaponType||'melee',ba=wt==='ranged'?0:wt==='magic'?(room.boss.isFinal?0.8:0.6):(room.boss.isFinal?0.7:0.5);
           if(msg.element==='ice'&&tier>=2)room.boss.iceEnd=Date.now()+3000;
-          room.boss.hp-=msg.dmg*(1-ba);
+          room.boss.hp-=safeDmg*(1-ba);
           if(room.boss.hp<=0){room.boss.dead=true;const isFinal=room.boss.isFinal;
             if(isFinal){room.players.forEach(p=>{if(!p.dmgBonus)p.dmgBonus=1;p.dmgBonus*=1.25;});if(room.currentStage<3){
               bcastAll(room,{t:'weaponUpgrade',msg:'최종 보스 처치! (+25% 데미지)'});
@@ -1544,10 +1565,10 @@ wss.on('connection',ws=>{
           }else bcastAll(room,{t:'bossHp',hp:room.boss.hp});
         }
       }else if(msg.target==='turret'){
-        const t=room.turrets?room.turrets.find(tt=>tt.id===msg.tid):null;if(t&&t.hp>0){t.hp-=msg.dmg;if(t.hp<=0){t.hp=0;t.dead=true;if(room.boss&&room.boss.isFinal)spawnBossMobs(room);}bcastAll(room,{t:'turretHp',id:t.id,hp:t.hp});}
+        const t=room.turrets?room.turrets.find(tt=>tt.id===msg.tid):null;if(t&&t.hp>0){t.hp-=safeDmg;if(t.hp<=0){t.hp=0;t.dead=true;if(room.boss&&room.boss.isFinal)spawnBossMobs(room);}bcastAll(room,{t:'turretHp',id:t.id,hp:t.hp});}
       }else{
         const e=room.enemies.find(e=>e.id===msg.eid&&!e.dead);
-        if(e){let dmg=msg.dmg;if(e.shieldHp>0){const ab=Math.min(e.shieldHp,dmg);e.shieldHp-=ab;dmg-=ab;}if(el==='poison'&&tier>=2)e.poison=Math.min(e.poison+1,5);else if(el==='ice'&&tier>=2){e.iceEnd=Date.now()+3000;e.iceSlow=0.15;}e.hp-=dmg;
+        if(e){let dmg=safeDmg;if(e.shieldHp>0){const ab=Math.min(e.shieldHp,dmg);e.shieldHp-=ab;dmg-=ab;}if(el==='poison'&&tier>=2)e.poison=Math.min(e.poison+1,5);else if(el==='ice'&&tier>=2){e.iceEnd=Date.now()+3000;e.iceSlow=0.15;}e.hp-=dmg;
           if(e.hp<=0){e.dead=true;const h=room.players.get(ws);if(h&&!h.groggy){const sc=10+Math.floor(e.maxHp*0.1);const ed=room.players.size<=1?1:room.players.size*0.65;h.exp+=Math.floor(sc/2*(h.expMult||1)/ed);if(h.exp>=h.expNext){h.lv++;h.exp-=h.expNext;h.expNext=Math.floor(h.expNext*1.4);if(h.cls==='warrior'){h.maxHp+=10;h.hp=Math.min(h.hp+10,h.maxHp);h.armor=Math.min((h.armor||0.15)+0.02,0.9);h.regen=(h.regen||2.0)+0.002;if(!h.rangeMult)h.rangeMult=1;h.rangeMult*=1.02;}else if(h.cls==='gunner'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.06;}else if(h.cls==='mage'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.03;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.98;}else if(h.cls==='assassin'){if(!h.spdMult)h.spdMult=1;h.spdMult*=1.01;if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.02;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.99;h.critRate=(h.critRate||40)+3;if(h.critRate>100){const ov=h.critRate-100;h.dmgBonus*=(1+ov/100);h.critRate=100;}}if(!h.lvUpQueue)h.lvUpQueue=0;h.lvUpQueue++;if(h.lvUpQueue===1&&ws.readyState===1){h.lvUpQueue=0;ws.send(JSON.stringify({t:'lvUp'}));}}bcastAll(room,{t:'eDead',eid:e.id,x:e.x,y:e.y,sc});}}
         }
       }
