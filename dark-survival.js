@@ -137,10 +137,10 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="classScreen">
     <div id="classTitle">직업 선택</div><div id="classSub">전투 스타일을 고르세요</div>
     <div id="classCards">
-      <div class="classCard" onclick="pickClass('warrior')"><div class="classIcon">⚔️</div><div class="classInfo"><div class="className">검사</div><div class="classDesc">강력한 근접 공격으로 적을 베어냅니다.<br>높은 체력과 넓은 광역 검격.</div><div class="classStat">HP: ●●●●○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●○○○</div></div></div>
-      <div class="classCard" onclick="pickClass('gunner')"><div class="classIcon">🔫</div><div class="classInfo"><div class="className">저격수</div><div class="classDesc">강력한 저격으로 원거리 적을 제압합니다.<br>높은 데미지와 긴 사거리.</div><div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●●○○</div></div></div>
-      <div class="classCard" onclick="pickClass('mage')"><div class="classIcon">✨</div><div class="classInfo"><div class="className">마법사</div><div class="classDesc">폭발하는 마법탄으로 광역 피해!<br>낮은 HP지만 강력한 범위 공격.</div><div class="classStat">HP: ●○○○○ &nbsp; 공격: ●●●●● &nbsp; 속도: ●●●○○</div></div></div>
-      <div class="classCard" onclick="pickClass('assassin')"><div class="classIcon">🗡️</div><div class="classInfo"><div class="className">암살자</div><div class="classDesc">빠른 이동속도와 높은 치명타.<br>리스크와 리워드가 모두 높음.</div><div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●○○ &nbsp; 속도: ●●●●●</div></div></div>
+      <div class="classCard" onclick="pickClass('warrior',this)"><div class="classIcon">⚔️</div><div class="classInfo"><div class="className">검사</div><div class="classDesc">강력한 근접 공격으로 적을 베어냅니다.<br>높은 체력과 넓은 광역 검격.</div><div class="classStat">HP: ●●●●○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●○○○</div></div></div>
+      <div class="classCard" onclick="pickClass('gunner',this)"><div class="classIcon">🔫</div><div class="classInfo"><div class="className">저격수</div><div class="classDesc">강력한 저격으로 원거리 적을 제압합니다.<br>높은 데미지와 긴 사거리.</div><div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●●○ &nbsp; 속도: ●●●○○</div></div></div>
+      <div class="classCard" onclick="pickClass('mage',this)"><div class="classIcon">✨</div><div class="classInfo"><div class="className">마법사</div><div class="classDesc">폭발하는 마법탄으로 광역 피해!<br>낮은 HP지만 강력한 범위 공격.</div><div class="classStat">HP: ●○○○○ &nbsp; 공격: ●●●●● &nbsp; 속도: ●●●○○</div></div></div>
+      <div class="classCard" onclick="pickClass('assassin',this)"><div class="classIcon">🗡️</div><div class="classInfo"><div class="className">암살자</div><div class="classDesc">빠른 이동속도와 높은 치명타.<br>리스크와 리워드가 모두 높음.</div><div class="classStat">HP: ●●○○○ &nbsp; 공격: ●●●○○ &nbsp; 속도: ●●●●●</div></div></div>
     </div>
     <button class="btn" id="classReady" style="display:none;" onclick="doReady()">준비 완료</button>
   </div>
@@ -246,7 +246,7 @@ let myTraits=[],myStats=null,myWeapon=null,weaponUpgradeLevel=0,weaponElement=nu
 const ELEMENT_COLORS={fire:'#ff4400',poison:'#44ff44',ice:'#44ddff'};
 const ELEMENT_NAMES={fire:'🔥 화염',poison:'☠ 독',ice:'❄ 냉기'};
 
-function pickClass(cls){myClass=cls;document.querySelectorAll('.classCard').forEach(el=>el.classList.remove('sel'));event.currentTarget.classList.add('sel');document.getElementById('classReady').style.display='block';const icons={warrior:'⚔',gunner:'🔫',mage:'✨',assassin:'🗡'};document.querySelector('#js2Wrap .js2Icon').textContent=icons[cls]||'⚔';}
+function pickClass(cls,el){myClass=cls;document.querySelectorAll('.classCard').forEach(e=>e.classList.remove('sel'));if(el)el.classList.add('sel');document.getElementById('classReady').style.display='block';const icons={warrior:'⚔',gunner:'🔫',mage:'✨',assassin:'🗡'};document.querySelector('#js2Wrap .js2Icon').textContent=icons[cls]||'⚔';}
 function doReady(){if(!myClass)return;send({t:'classReady',cls:myClass});document.getElementById('classReady').disabled=true;document.getElementById('classReady').textContent='대기중...';}
 
 const ALL_TRAITS=[
@@ -270,8 +270,8 @@ function rollTraits(){
   let weaponTrait=null;const wi=pool.findIndex(t=>t.id==='weapon');if(wi!==-1){if(weaponUpgradeLevel>=3)pool.splice(wi,1);else weaponTrait=pool.splice(wi,1)[0];}
   const ai=pool.findIndex(t=>t.id==='armor');if(ai!==-1&&myStats.armor>=0.8)pool.splice(ai,1);
   const ci=pool.findIndex(t=>t.id==='crit');if(ci!==-1&&myStats.critRate>=100)pool.splice(ci,1);
-  const result=[];let multishotUsed=false;
-  while(result.length<3&&(pool.length>0||weaponTrait||(!multishotUsed&&multishotTrait))){
+  const result=[];let multishotUsed=false;let safetyBreak=0;
+  while(result.length<3&&(pool.length>0||weaponTrait||(!multishotUsed&&multishotTrait))&&safetyBreak++<50){
     const roll=Math.random();
     if(multishotTrait&&!multishotUsed&&roll<0.01){result.push({...multishotTrait});multishotUsed=true;}
     else if(weaponTrait&&!result.find(t=>t.id==='weapon')&&roll<0.02){result.push({...weaponTrait});weaponTrait=null;}
@@ -444,7 +444,7 @@ function initGameState(){
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
   updateTraitList();updateStatsPanel();updateElementDisplay();
-  lastTime=performance.now();requestAnimationFrame(loop);
+  lastTime=performance.now();_loopRunning=true;requestAnimationFrame(loop);
 }
 
 function applyState(msg){
@@ -502,7 +502,8 @@ function applyState(msg){
   }catch(err){console.error('[applyState err]',err);}
 }
 
-function showStageClear(stage,next){running=false;const el=document.getElementById('stageClearScreen');document.getElementById('stageClearTitle').textContent='STAGE '+stage+' CLEAR!';document.getElementById('stageClearSub').textContent=next<=3?'다음: '+STAGE_NAMES[next-1]:'모든 스테이지 클리어!';el.style.display='flex';let t=5;document.getElementById('stageClearTimer').textContent=t;const iv=setInterval(()=>{t--;document.getElementById('stageClearTimer').textContent=t;if(t<=0){clearInterval(iv);el.style.display='none';}},1000);}
+let _stageClearIv=null;
+function showStageClear(stage,next){running=false;if(_stageClearIv){clearInterval(_stageClearIv);_stageClearIv=null;}const el=document.getElementById('stageClearScreen');document.getElementById('stageClearTitle').textContent='STAGE '+stage+' CLEAR!';document.getElementById('stageClearSub').textContent=next<=3?'다음: '+STAGE_NAMES[next-1]:'모든 스테이지 클리어!';el.style.display='flex';let t=5;document.getElementById('stageClearTimer').textContent=t;_stageClearIv=setInterval(()=>{t--;document.getElementById('stageClearTimer').textContent=t;if(t<=0){clearInterval(_stageClearIv);_stageClearIv=null;el.style.display='none';}},1000);}
 function nextStage(stage){currentStage=stage;stageTime=600;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;bossData=null;enemies=[];projs=[];parts=[];orbs=[];explosions=[];fireZones=[];turrets=[];invincible=false;invincibleEnd=0;document.getElementById('bossBar').style.display='none';G.style.background=STAGE_BG[Math.min(stage-1,2)];running=true;showPop('STAGE '+stage+' START!',2500);}
 
 // [FIX2] 조이스틱 완전 분리 - 각각 touchId 추적
@@ -609,7 +610,7 @@ function mkBB(bx,by,vx,vy,dmg,col,r,range=600){projs.push({x:bx,y:by,vx,vy,dmg,r
 function bossSpiral(bx,by,ang,phase,range=600){const cnt=phase===2?14:10;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang;mkBB(bx,by,Math.cos(a)*4.2,Math.sin(a)*4.2,18,'#ff6600',8,range);}}
 function bossBlast(bx,by,ang,phase,range=600){for(let i=0;i<20;i++){const a=(i/20)*Math.PI*2;mkBB(bx,by,Math.cos(a)*2.6,Math.sin(a)*2.6,22,'#ff2200',10,range);}spawnParts(bx,by,'#ff6600',16);}
 function bossCross(bx,by,ang,phase,range=600){const dirs=[[1,0],[-1,0],[0,1],[0,-1],[.71,.71],[-.71,.71],[.71,-.71],[-.71,-.71]];const cnt=phase===2?4:3;dirs.forEach(([dx,dy])=>{for(let n=0;n<cnt;n++)setTimeout(()=>mkBB(bx,by,dx*5.5,dy*5.5,20,'#cc44ff',7,range),n*150);});}
-function bossRapid(bx,by,ang,phase,range=600){if(!myPlayer)return;const cnt=8;for(let n=0;n<cnt;n++)setTimeout(()=>{if(!myPlayer)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1,a=Math.atan2(dy,dx)+(Math.random()-.5)*.6;mkBB(bx,by,Math.cos(a)*6.5,Math.sin(a)*6.5,16,'#ff4444',6,range);},n*90);}
+function bossRapid(bx,by,ang,phase,range=600){if(!myPlayer)return;const cnt=8;for(let n=0;n<cnt;n++)setTimeout(()=>{if(!myPlayer||!bossData||!running)return;const dx=myPlayer.x-bx,dy=myPlayer.y-by,d=Math.sqrt(dx*dx+dy*dy)||1,a=Math.atan2(dy,dx)+(Math.random()-.5)*.6;mkBB(bx,by,Math.cos(a)*6.5,Math.sin(a)*6.5,16,'#ff4444',6,range);},n*90);}
 function bossRing(bx,by,ang,phase,range=600){const cnt=phase===2?20:16;for(let i=0;i<cnt;i++){const a=(i/cnt)*Math.PI*2+ang*2,s=2.2+Math.random()*2.2;mkBB(bx,by,Math.cos(a)*s,Math.sin(a)*s,24,'#ffaa00',9,range);}}
 
 function spawnRemoteFx(fx){const cls=CLASSES[fx.w]||CLASSES.warrior,wc=cls.weapon;if(wc.type==='sword'||wc.type==='dagger'){const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x),range=fx.range||wc.baseRange||80,spread=wc.type==='dagger'?0.5:0.9,step=wc.type==='dagger'?0.18:0.25,ps=wc.type==='dagger'?12:16;for(let a=ang-spread;a<=ang+spread;a+=step)for(let r=18;r<range;r+=ps)parts.push({x:fx.x+Math.cos(a)*r,y:fx.y+Math.sin(a)*r,vx:0,vy:0,life:140,maxLife:140,r:4,color:wc.color+'88'});}else if(wc.type==='magic'){const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x);projs.push({x:fx.x,y:fx.y,vx:Math.cos(ang)*(wc.spd||6),vy:Math.sin(ang)*(wc.spd||6),dmg:0,range:wc.baseRange||300,traveled:0,gone:false,color:wc.color+'aa',r:8,enemy:false,visual:true,isMagic:true});}else{const ang=Math.atan2(fx.ay-fx.y,fx.ax-fx.x),cnt=fx.cnt||1;for(let i=0;i<cnt;i++){const a=ang+(i-(cnt-1)/2)*0.28;projs.push({x:fx.x,y:fx.y,vx:Math.cos(a)*(wc.spd||7),vy:Math.sin(a)*(wc.spd||7),dmg:0,range:wc.baseRange||300,traveled:0,gone:false,color:wc.color+'aa',r:3,enemy:false,visual:true});}}}
@@ -686,12 +687,13 @@ function draw(){
   const ox=W/2-camX,oy=H/2-camY;
   ctx.save();ctx.translate(ox,oy);
   drawGrid();drawFireZones();drawOrbs();drawParts();drawExplosions();
-  if(bossAlive||bossWarning) drawArenaBorder();
   if(bossWarning) drawBossSpawnMarker();
   drawEnemies();if(bossData)drawBoss();drawTurrets();drawOthers();
   if(myPlayer&&!myPlayer.dead)drawMe();
   drawProjs();
   ctx.restore();
+  // 아레나 경계는 translate 바깥에서 화면 좌표로 그림 (path 오염 완전 차단)
+  if(bossAlive||bossWarning) drawArenaBorder(ox,oy);
   // restore 후 상태 보장
   ctx.setLineDash([]);
   ctx.shadowBlur=0;
@@ -699,57 +701,46 @@ function draw(){
   drawMinimap();
 }
 
-// 아레나 경계 오프스크린 캔버스 (path 오염 방지)
-let _arenaCanvas=null,_arenaCtx=null,_arenaSize=0;
-function getArenaCanvas(ARENA){
-  const size=ARENA*2+60;
-  if(!_arenaCanvas||_arenaSize!==size){
-    _arenaCanvas=document.createElement('canvas');
-    _arenaCanvas.width=size;_arenaCanvas.height=size;
-    _arenaCtx=_arenaCanvas.getContext('2d');
-    _arenaSize=size;
-  }
-  return{c:_arenaCanvas,ctx:_arenaCtx,size,cx:size/2,cy:size/2};
-}
-
-function drawArenaBorder(){
+function drawArenaBorder(ox,oy){
   const ARENA=800;
   const t=performance.now();
   const pulse=Math.sin(t*0.004)*0.3+0.7;
   const isFinalBoss=(bossData&&bossData.isFinal)||(bossWarning&&bossWarning.isFinal);
+  // 아레나 중심의 화면 좌표
+  const scx=ox,scy=oy; // 월드 (0,0)의 화면 위치
+  const lineColor=isFinalBoss?'rgba(220,30,30,'+(pulse*0.9)+')':'rgba(255,180,0,'+(pulse*0.85)+')';
+  const darkColor=isFinalBoss?'rgba(60,0,0,0.35)':'rgba(40,20,0,0.3)';
 
-  // 오프스크린에서 바깥 어둠 그리기 (메인 ctx path 오염 없음)
-  const{c,ctx:ac,size,cx,cy}=getArenaCanvas(ARENA);
-  ac.clearRect(0,0,size,size);
-  // 전체를 어두운 색으로 채우고
-  ac.fillStyle=isFinalBoss?'rgba(60,0,0,0.35)':'rgba(40,20,0,0.3)';
-  ac.fillRect(0,0,size,size);
-  // 아레나 안쪽만 지우기
-  ac.globalCompositeOperation='destination-out';
-  ac.beginPath();
-  ac.arc(cx,cy,ARENA,0,Math.PI*2);
-  ac.fill();
-  ac.globalCompositeOperation='source-over';
-  // 메인 캔버스에 오프스크린 결과 합성
-  ctx.save();
-  ctx.drawImage(c,-cx,-cy);
-  ctx.restore();
-
-  // 경계선 (메인 ctx에 직접, 하지만 save/restore + 완전 초기화)
   ctx.save();
   ctx.globalAlpha=1;
   ctx.globalCompositeOperation='source-over';
   ctx.shadowBlur=0;
   ctx.setLineDash([]);
-  const lineColor=isFinalBoss?'rgba(220,30,30,'+(pulse*0.9)+')':'rgba(255,180,0,'+(pulse*0.85)+')';
+
+  // 바깥 어둠: 화면 전체에서 아레나 원만 빼기
+  // 직사각형 4개로 아레나 밖을 덮음 (path 오염 없음)
+  const px=scx,py=scy; // 아레나 중심 화면 좌표
+  ctx.fillStyle=darkColor;
+  // 위쪽
+  if(py-ARENA>0)ctx.fillRect(0,0,W,py-ARENA);
+  // 아래쪽
+  if(py+ARENA<H)ctx.fillRect(0,py+ARENA,W,H-(py+ARENA));
+  // 왼쪽
+  if(px-ARENA>0)ctx.fillRect(0,Math.max(0,py-ARENA),px-ARENA,Math.min(H,py+ARENA)-Math.max(0,py-ARENA));
+  // 오른쪽
+  if(px+ARENA<W)ctx.fillRect(px+ARENA,Math.max(0,py-ARENA),W-(px+ARENA),Math.min(H,py+ARENA)-Math.max(0,py-ARENA));
+  // 코너: arc clipping 없이 단순히 반투명 오버레이로 표현
+  // (evenodd path 완전 제거 - iOS Safari path 오염 방지)
+
+  // 경계선
+  ctx.beginPath();
   ctx.strokeStyle=lineColor;
   ctx.lineWidth=3+pulse*2;
   ctx.shadowColor=lineColor;
   ctx.shadowBlur=16;
   ctx.setLineDash([20,8]);
   ctx.lineDashOffset=-(t*0.05)%28;
-  ctx.beginPath();
-  ctx.arc(0,0,ARENA,0,Math.PI*2);
+  ctx.arc(px,py,ARENA,0,Math.PI*2);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.lineDashOffset=0;
@@ -757,7 +748,7 @@ function drawArenaBorder(){
   ctx.strokeStyle=isFinalBoss?'rgba(220,30,30,0.3)':'rgba(255,180,0,0.3)';
   ctx.lineWidth=1;
   ctx.beginPath();
-  ctx.arc(0,0,ARENA-8,0,Math.PI*2);
+  ctx.arc(px,py,ARENA-8,0,Math.PI*2);
   ctx.stroke();
   ctx.restore();
   ctx.setLineDash([]);
@@ -1448,8 +1439,15 @@ function spawnParts(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math
 let msgTimer=0;
 function showPop(txt,dur){const el=document.getElementById('msgPop');el.textContent=txt;el.style.display='block';msgTimer=dur||1400;}
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
-function endGame(win){running=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+(myPlayer?myPlayer.lv:1)+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');}
-function loop(ts){const dt=Math.min(ts-lastTime,50);lastTime=ts;if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)document.getElementById('msgPop').style.display='none';}if(running){update(dt);draw();}else if(myPlayer&&!myPlayer.dead&&document.getElementById('lvlUpScreen').style.display==='flex'){draw();}requestAnimationFrame(loop);}
+function endGame(win){running=false;_loopRunning=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+(myPlayer?myPlayer.lv:1)+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');}
+let _loopRunning=false;
+function loop(ts){
+  const dt=Math.min(ts-lastTime,50);lastTime=ts;
+  if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)document.getElementById('msgPop').style.display='none';}
+  if(running){update(dt);draw();}
+  else if(myPlayer&&!myPlayer.dead&&document.getElementById('lvlUpScreen').style.display==='flex'){draw();}
+  if(_loopRunning)requestAnimationFrame(loop);
+}
 window.addEventListener('resize',()=>{W=G.clientWidth;H=G.clientHeight;canvas.width=W;canvas.height=H;});
 </script>
 </body>
@@ -1490,8 +1488,10 @@ function spawnBoss(room,isFinal){
       p.y=Math.sin(a)*ARENA*0.6;
     }
   });
+  // 서버 적 즉시 제거 (teleport state 전송 전)
+  room.enemies=[];
   const bossSpawnX=0, bossSpawnY=0;
-  // 2. 이동된 플레이어 위치를 즉시 state로 전송 (클라이언트가 myPlayer 위치를 올바르게 인식)
+  // 이동된 플레이어 위치 + 빈 enemies를 즉시 state로 전송
   const ps=[];
   room.players.forEach(p=>{
     ps.push({id:p.id,x:Math.round(p.x),y:Math.round(p.y),hp:p.hp,maxHp:p.maxHp,lv:p.lv,dead:p.dead,groggy:p.groggy||false,groggyTimer:p.groggyTimer||0,reviveProgress:p.reviveProgress||0,name:p.name,exp:p.exp,expNext:p.expNext,cls:p.cls,dmgBonus:p.dmgBonus||1,armor:p.armor||0,regen:p.regen||0,rangeMult:p.rangeMult||1,cdMult:p.cdMult||1,spdMult:p.spdMult||1,critRate:p.critRate||0});
