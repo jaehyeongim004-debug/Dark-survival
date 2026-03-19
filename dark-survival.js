@@ -235,9 +235,9 @@ function doJoin(){const name=document.getElementById('nameInp').value.trim()||'P
 function doStart(){send({t:'start'});}
 
 const CLASSES={
-  warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.5,multishot:0,magnetRange:1,armor:0.1,crit:false,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:40,baseCd:1000,baseRange:140,color:'#66ccff'}},
-  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:20}},
-  mage:{name:'마법사',icon:'✨',color:'#cc88ff',stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'마법',type:'magic',baseDmg:55,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}},
+  warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.5,multishot:0,magnetRange:1,armor:0.1,crit:true,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:10,baseCd:1000,baseRange:140,color:'#66ccff'}},
+  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:0,expMult:1.5},weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1000,baseRange:500,color:'#ffee44',spd:20}},
+  mage:{name:'마법사',icon:'✨',color:'#cc88ff',stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:0,expMult:1},weapon:{name:'마법',type:'magic',baseDmg:55,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}},
   assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:30,expMult:1},weapon:{name:'단검',type:'dagger',baseDmg:34,baseCd:280,baseRange:85,color:'#ff88aa',spd:12}}
 };
 let myTraits=[],myStats=null,myWeapon=null,weaponUpgradeLevel=0,weaponElement=null;
@@ -551,8 +551,8 @@ function tryShoot(){
       const projR=10+weaponUpgradeLevel; // [FIX] 히트박스 확대
       // 기본탄 - 항상 정조준 방향
       projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(ang)*(w.spd||7),vy:Math.sin(ang)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement});
-      // 추가탄 - 15도(0.26rad) 간격으로 좌우 교대
-      const extraAngles=[0.26,-0.26,0.52,-0.52,0.78];
+      // 추가탄 - 15도(0.13rad) 간격으로 좌우 교대
+      const extraAngles=[0.13,-0.13,0.26,-0.26,0.39];
       for(let i=0;i<w.count-1;i++){
         const a=ang+extraAngles[i%extraAngles.length];
         projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement});
@@ -1276,7 +1276,7 @@ function tickRoom(code){
       if(Math.sqrt(dx*dx+dy*dy)<60)nearReviver=true;
     });
     if(nearReviver){
-      gp.reviveProgress=(gp.reviveProgress||0)+dt/5;
+      gp.reviveProgress=(gp.reviveProgress||0)+dt/3;
       if(gp.reviveProgress>=1){
         gp.groggy=false;gp.dead=false;gp.hp=gp.maxHp*0.3;gp.reviveProgress=0;
         bcastAll(room,{t:'revived',id:gp.id});
