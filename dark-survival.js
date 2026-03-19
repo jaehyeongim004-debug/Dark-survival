@@ -699,46 +699,67 @@ function draw(){
   drawMinimap();
 }
 
+// 아레나 경계 오프스크린 캔버스 (path 오염 방지)
+let _arenaCanvas=null,_arenaCtx=null,_arenaSize=0;
+function getArenaCanvas(ARENA){
+  const size=ARENA*2+60;
+  if(!_arenaCanvas||_arenaSize!==size){
+    _arenaCanvas=document.createElement('canvas');
+    _arenaCanvas.width=size;_arenaCanvas.height=size;
+    _arenaCtx=_arenaCanvas.getContext('2d');
+    _arenaSize=size;
+  }
+  return{c:_arenaCanvas,ctx:_arenaCtx,size,cx:size/2,cy:size/2};
+}
+
 function drawArenaBorder(){
   const ARENA=800;
   const t=performance.now();
   const pulse=Math.sin(t*0.004)*0.3+0.7;
+  const isFinalBoss=(bossData&&bossData.isFinal)||(bossWarning&&bossWarning.isFinal);
+
+  // 오프스크린에서 바깥 어둠 그리기 (메인 ctx path 오염 없음)
+  const{c,ctx:ac,size,cx,cy}=getArenaCanvas(ARENA);
+  ac.clearRect(0,0,size,size);
+  // 전체를 어두운 색으로 채우고
+  ac.fillStyle=isFinalBoss?'rgba(60,0,0,0.35)':'rgba(40,20,0,0.3)';
+  ac.fillRect(0,0,size,size);
+  // 아레나 안쪽만 지우기
+  ac.globalCompositeOperation='destination-out';
+  ac.beginPath();
+  ac.arc(cx,cy,ARENA,0,Math.PI*2);
+  ac.fill();
+  ac.globalCompositeOperation='source-over';
+  // 메인 캔버스에 오프스크린 결과 합성
   ctx.save();
-  // 모든 상태 명시적 초기화
+  ctx.drawImage(c,-cx,-cy);
+  ctx.restore();
+
+  // 경계선 (메인 ctx에 직접, 하지만 save/restore + 완전 초기화)
+  ctx.save();
   ctx.globalAlpha=1;
   ctx.globalCompositeOperation='source-over';
   ctx.shadowBlur=0;
   ctx.setLineDash([]);
-  // 경계 바깥 어둡게
-  const isFinalBoss=(bossData&&bossData.isFinal)||(bossWarning&&bossWarning.isFinal);
   const lineColor=isFinalBoss?'rgba(220,30,30,'+(pulse*0.9)+')':'rgba(255,180,0,'+(pulse*0.85)+')';
-  ctx.fillStyle=isFinalBoss?'rgba(60,0,0,0.35)':'rgba(40,20,0,0.3)';
-  ctx.beginPath();
-  ctx.rect(-5000,-5000,10000,10000);
-  ctx.arc(0,0,ARENA,0,Math.PI*2,true);
-  ctx.fill('evenodd');
-  // 경계선
-  ctx.beginPath();
   ctx.strokeStyle=lineColor;
   ctx.lineWidth=3+pulse*2;
   ctx.shadowColor=lineColor;
   ctx.shadowBlur=16;
   ctx.setLineDash([20,8]);
   ctx.lineDashOffset=-(t*0.05)%28;
+  ctx.beginPath();
   ctx.arc(0,0,ARENA,0,Math.PI*2);
   ctx.stroke();
-  // 완전 리셋
   ctx.setLineDash([]);
   ctx.lineDashOffset=0;
   ctx.shadowBlur=0;
-  // 내부 링
-  ctx.beginPath();
   ctx.strokeStyle=isFinalBoss?'rgba(220,30,30,0.3)':'rgba(255,180,0,0.3)';
   ctx.lineWidth=1;
+  ctx.beginPath();
   ctx.arc(0,0,ARENA-8,0,Math.PI*2);
   ctx.stroke();
   ctx.restore();
-  // restore 후에도 명시적으로 보장
   ctx.setLineDash([]);
   ctx.shadowBlur=0;
   ctx.globalAlpha=1;
