@@ -204,7 +204,7 @@ function connect(cb){
     if(_wsHeartbeat)clearInterval(_wsHeartbeat);
     _wsHeartbeat=setInterval(()=>{
       if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'ping'}));
-    },10000);
+    },15000);
     cb();
   };
   ws.onmessage=e=>handleMsg(JSON.parse(e.data));
@@ -237,10 +237,10 @@ function doJoin(){const name=document.getElementById('nameInp').value.trim()||'P
 function doStart(){send({t:'start'});}
 
 const CLASSES={
-  warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.5,multishot:0,magnetRange:1,armor:0.1,crit:false,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:40,baseCd:1000,baseRange:140,color:'#66ccff'}},
-  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1500,baseRange:500,color:'#ffee44',spd:20}},
-  mage:{name:'마법사',icon:'✨',color:'#cc88ff',stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'마법',type:'magic',baseDmg:55,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}},
-  assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:30,expMult:1},weapon:{name:'단검',type:'dagger',baseDmg:34,baseCd:280,baseRange:85,color:'#ff88aa',spd:12}}
+  warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:2.0,multishot:0,magnetRange:1,armor:0.15,crit:false,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:15,baseCd:1000,baseRange:140,color:'#66ccff'}},
+  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1,rangeMult:1.5,regen:0.5,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'저격총',type:'bullet',baseDmg:90,baseCd:1000,baseRange:500,color:'#ffee44',spd:20}},
+  mage:{name:'마법사',icon:'✨',color:'#cc88ff',stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.7,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'마법',type:'magic',baseDmg:50,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}},
+  assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:40,expMult:1},weapon:{name:'단검',type:'dagger',baseDmg:28,baseCd:280,baseRange:90,color:'#ff88aa',spd:12}}
 };
 let myTraits=[],myStats=null,myWeapon=null,weaponUpgradeLevel=0,weaponElement=null;
 const ELEMENT_COLORS={fire:'#ff4400',poison:'#44ff44',ice:'#44ddff'};
@@ -1108,19 +1108,19 @@ function drawMe(){
   const spr=SPRITES[myClass];
   const t=performance.now();
   const isMoving=(jsX!==0||jsY!==0||keys['w']||keys['s']||keys['a']||keys['d']||keys['arrowup']||keys['arrowdown']||keys['arrowleft']||keys['arrowright']);
-  // 이동 시 상하 바운스
+  // 바운스는 시각 전용 - 히트박스/공격위치(x,y)는 절대 변경 안 함
   const bounce=isMoving?Math.sin(t*0.015)*2:0;
   if(spr&&spr.complete&&spr.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
     ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
-    ctx.drawImage(spr,x-16,y-16+bounce,32,32);
+    ctx.drawImage(spr,x-16,y-16+bounce,32,32); // 시각만 bounce 적용
     ctx.shadowBlur=0;
   }else{
     ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
     ctx.fillStyle=cls.color;ctx.beginPath();ctx.arc(x,y+bounce,11,0,Math.PI*2);ctx.fill();
     ctx.shadowBlur=0;ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,x,y+bounce);
   }
-  // 직업별 애니메이션 레이어
+  // 애니메이션도 시각 오프셋만 - x,y는 그대로
   drawClassAnim(ctx,myClass,x,y+bounce,isMoving,t);
   const hpPct=Math.max(0,myPlayer.hp/myPlayer.maxHp),bW=30,bH=4,bX=x-bW/2,bY=y-22;
   ctx.fillStyle='#1a0000';ctx.fillRect(bX,bY,bW,bH);
@@ -1155,9 +1155,10 @@ function drawOthers(){allPlayers.forEach((p,i)=>{
   }
   const spr=cls?SPRITES[p.cls]:null;
   const t2=performance.now();
-  // 다른 플레이어 이동 감지 (위치 변화로 추정)
+  // 위치 변화로 이동 감지
   const pMoving=p._lastX!==undefined&&(Math.abs(p.x-p._lastX)>0.5||Math.abs(p.y-p._lastY)>0.5);
   p._lastX=p.x;p._lastY=p.y;
+  // 바운스는 시각 전용
   const pBounce=pMoving?Math.sin(t2*0.015)*2:0;
   if(spr&&spr.complete&&spr.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;ctx.shadowColor=c;ctx.shadowBlur=10;
@@ -1492,7 +1493,7 @@ wss.on('connection',ws=>{
     else if(msg.t==='classReady'){
       const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;
       p.cls=msg.cls||'warrior';
-      const CLS={warrior:{hp:150,maxHp:150,regen:0.5,armor:0.1,critRate:0,expMult:1},gunner:{hp:80,maxHp:80,regen:0.2,armor:0,critRate:0,expMult:1},mage:{hp:65,maxHp:65,regen:0.2,armor:0,critRate:0,expMult:1},assassin:{hp:85,maxHp:85,regen:0.2,armor:0,critRate:30,expMult:1}};
+      const CLS={warrior:{hp:150,maxHp:150,regen:2.0,armor:0.15,critRate:0,expMult:1},gunner:{hp:80,maxHp:80,regen:0.5,armor:0,critRate:0,expMult:1},mage:{hp:65,maxHp:65,regen:0.7,armor:0,critRate:0,expMult:1},assassin:{hp:85,maxHp:85,regen:0.2,armor:0,critRate:40,expMult:1}};
       const cls=CLS[p.cls]||CLS.warrior;p.hp=cls.hp;p.maxHp=cls.maxHp;p.regen=cls.regen;p.armor=cls.armor;p.critRate=cls.critRate;p.expMult=cls.expMult;p.rangeMult=1;p.cdMult=1;p.spdMult=1;
       room.readyCount=(room.readyCount||0)+1;if(room.readyCount>=room.players.size){room.started=true;room.lastTick=Date.now();bcastAll(room,{t:'allReady'});room.tick=setInterval(()=>tickRoom(ws.roomCode),60);}
     }
@@ -1547,7 +1548,7 @@ wss.on('connection',ws=>{
       }else{
         const e=room.enemies.find(e=>e.id===msg.eid&&!e.dead);
         if(e){let dmg=msg.dmg;if(e.shieldHp>0){const ab=Math.min(e.shieldHp,dmg);e.shieldHp-=ab;dmg-=ab;}if(el==='poison'&&tier>=2)e.poison=Math.min(e.poison+1,5);else if(el==='ice'&&tier>=2){e.iceEnd=Date.now()+3000;e.iceSlow=0.15;}e.hp-=dmg;
-          if(e.hp<=0){e.dead=true;const h=room.players.get(ws);if(h&&!h.groggy){const sc=10+Math.floor(e.maxHp*0.1);const ed=room.players.size<=1?1:room.players.size*0.65;h.exp+=Math.floor(sc/2*(h.expMult||1)/ed);if(h.exp>=h.expNext){h.lv++;h.exp-=h.expNext;h.expNext=Math.floor(h.expNext*1.4);if(h.cls==='warrior'){h.maxHp+=20;h.hp=Math.min(h.hp+20,h.maxHp);h.armor=Math.min((h.armor||0.1)+0.01,0.9);h.regen=(h.regen||0.5)+0.1;if(!h.rangeMult)h.rangeMult=1;h.rangeMult*=1.02;}else if(h.cls==='gunner'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.05;}else if(h.cls==='mage'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.03;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.98;}else if(h.cls==='assassin'){if(!h.spdMult)h.spdMult=1;h.spdMult*=1.02;if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.02;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.98;h.critRate=(h.critRate||30)+3;if(h.critRate>100){const ov=h.critRate-100;h.dmgBonus*=(1+ov/100);h.critRate=100;}}if(!h.lvUpQueue)h.lvUpQueue=0;h.lvUpQueue++;if(h.lvUpQueue===1&&ws.readyState===1){h.lvUpQueue=0;ws.send(JSON.stringify({t:'lvUp'}));}}bcastAll(room,{t:'eDead',eid:e.id,x:e.x,y:e.y,sc});}}
+          if(e.hp<=0){e.dead=true;const h=room.players.get(ws);if(h&&!h.groggy){const sc=10+Math.floor(e.maxHp*0.1);const ed=room.players.size<=1?1:room.players.size*0.65;h.exp+=Math.floor(sc/2*(h.expMult||1)/ed);if(h.exp>=h.expNext){h.lv++;h.exp-=h.expNext;h.expNext=Math.floor(h.expNext*1.4);if(h.cls==='warrior'){h.maxHp+=10;h.hp=Math.min(h.hp+10,h.maxHp);h.armor=Math.min((h.armor||0.15)+0.02,0.9);h.regen=(h.regen||2.0)+0.002;if(!h.rangeMult)h.rangeMult=1;h.rangeMult*=1.02;}else if(h.cls==='gunner'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.06;}else if(h.cls==='mage'){if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.03;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.98;}else if(h.cls==='assassin'){if(!h.spdMult)h.spdMult=1;h.spdMult*=1.01;if(!h.dmgBonus)h.dmgBonus=1;h.dmgBonus*=1.02;if(!h.cdMult)h.cdMult=1;h.cdMult*=0.99;h.critRate=(h.critRate||40)+3;if(h.critRate>100){const ov=h.critRate-100;h.dmgBonus*=(1+ov/100);h.critRate=100;}}if(!h.lvUpQueue)h.lvUpQueue=0;h.lvUpQueue++;if(h.lvUpQueue===1&&ws.readyState===1){h.lvUpQueue=0;ws.send(JSON.stringify({t:'lvUp'}));}}bcastAll(room,{t:'eDead',eid:e.id,x:e.x,y:e.y,sc});}}
         }
       }
     }
@@ -1572,7 +1573,7 @@ const heartbeatInterval=setInterval(()=>{
     ws.isAlive=false;
     try{ws.ping();}catch(e){}
   });
-},20000);
+},30000);
 wss.on('close',()=>clearInterval(heartbeatInterval));
 
 server.listen(PORT,()=>console.log('Dark Survival Final → http://localhost:'+PORT));
