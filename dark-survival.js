@@ -200,21 +200,23 @@ let _wsHeartbeat=null;
 function connect(cb){
   ws=new WebSocket(WS_URL);
   ws.onopen=()=>{
-    // heartbeat 시작 (15초마다 ping)
     if(_wsHeartbeat)clearInterval(_wsHeartbeat);
+    // 10초마다 ping - Railway 프록시 idle 타임아웃 방지
     _wsHeartbeat=setInterval(()=>{
-      if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'ping'}));
-    },15000);
+      if(!ws||ws.readyState!==1)return;
+      // JSON ping으로 서버 isAlive 갱신 + 연결 유지
+      ws.send(JSON.stringify({t:'ping'}));
+    },10000);
     cb();
   };
   ws.onmessage=e=>{try{handleMsg(JSON.parse(e.data));}catch(err){console.warn('[msg err]',err);}};
   ws.onerror=()=>showErr('서버 연결 실패');
   ws.onclose=(e)=>{
     if(_wsHeartbeat){clearInterval(_wsHeartbeat);_wsHeartbeat=null;}
-    // 게임 중이었으면 연결 끊김 알림
-    if(running){
+    if(running||_loopRunning){
       running=false;
-      showPop('⚠ 서버 연결이 끊겼습니다. 새로고침 해주세요.',5000);
+      // 멀티: 다른 플레이어에게 알림 후 재연결 유도
+      showPop('⚠ 서버 연결이 끊겼습니다. 새로고침 해주세요.',8000);
       document.getElementById('errMsg').textContent='연결 끊김 ('+e.code+')';
     }
   };
@@ -1645,7 +1647,7 @@ wss.on('connection',ws=>{
   ws.on('message',raw=>{
     let msg;try{msg=JSON.parse(raw);}catch{return;}
     // ping/pong 처리
-    if(msg.t==='ping'){if(ws.readyState===1)ws.send(JSON.stringify({t:'pong'}));return;}
+    if(msg.t==='ping'){ws.isAlive=true;if(ws.readyState===1)ws.send(JSON.stringify({t:'pong'}));return;}
     const newPlayer=(name,x=0,y=0)=>({id:ws.pid,x,y,hp:100,maxHp:100,lv:1,exp:0,expNext:50,dead:false,groggy:false,groggyTimer:0,reviveProgress:0,name,lvUp:false,cls:null,regen:0,armor:0,expMult:1,critRate:0,dmgBonus:1,invincible:false,invincibleEnd:0,lvUpQueue:0});
     if(msg.t==='create'){
       const code=genCode();
@@ -1737,20 +1739,42 @@ wss.on('connection',ws=>{
     else if(msg.t==='traitPicked'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;p.invincible=false;p.invincibleEnd=Date.now()+2000;}
     else if(msg.t==='lvUpReady'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;if(p.lvUpQueue>0){p.lvUpQueue--;if(ws.readyState===1)ws.send(JSON.stringify({t:'lvUp'}));}}
   });
-  ws.on('close',()=>{const room=rooms.get(ws.roomCode);if(!room)return;room.players.delete(ws);if(room.players.size===0){clearInterval(room.tick);rooms.delete(ws.roomCode);}else bcastAll(room,{t:'playerLeft',id:ws.pid});});
+  ws.on('close',()=>{
+    const room=rooms.get(ws.roomCode);
+    if(!room)return;
+    // 멀티: 끊긴 플레이어를 dead 처리 (그로기/어그로 판정 방지)
+    const p=room.players.get(ws);
+    if(p){p.dead=true;p.groggy=false;}
+    room.players.delete(ws);
+    if(room.players.size===0){
+      clearInterval(room.tick);
+      rooms.delete(ws.roomCode);
+    }else{
+      bcastAll(room,{t:'playerLeft',id:ws.pid});
+      // 남은 플레이어 전원 살아있으면 게임 계속, 전원 dead면 종료
+      const arr=[...room.players.values()];
+      const alive=arr.filter(p=>!p.dead&&!p.groggy);
+      if(alive.length===0&&arr.length>0){
+        bcastAll(room,{t:'over',win:false});
+        clearInterval(room.tick);
+        rooms.delete(ws.roomCode);
+      }
+    }
+  });
 });
 
 // 서버 heartbeat: 30초마다 응답없는 연결 강제 종료
 const heartbeatInterval=setInterval(()=>{
   wss.clients.forEach(ws=>{
     if(!ws.isAlive){
-      // 응답 없으면 강제 종료 → onclose 이벤트 발생
+      // 게임 중인 방이 있으면 로그
+      if(ws.roomCode)console.log('[heartbeat] 응답없음 종료:',ws.roomCode);
       return ws.terminate();
     }
     ws.isAlive=false;
     try{ws.ping();}catch(e){}
   });
-},30000);
+},25000);
 wss.on('close',()=>clearInterval(heartbeatInterval));
 
 server.listen(PORT,()=>console.log('Dark Survival Final → http://localhost:'+PORT));
