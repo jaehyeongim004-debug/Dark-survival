@@ -744,42 +744,189 @@ function drawClassAnim(ctx, cls, x, y, isMoving, t, scale=1){
   ctx.translate(x,y);
 
   if(cls==='assassin'){
-    // 망토: 이동 시 펄럭임, 정지 시 잔잔하게
-    const flutter=isMoving?Math.sin(t*0.018)*8:Math.sin(t*0.006)*2;
-    const cloakAlpha=isMoving?0.75:0.55;
-    // 망토 좌측
+    // 이동 방향 감지 (jsX, jsY 활용)
+    const moveX = typeof jsX !== 'undefined' ? jsX : 0;
+    const moveY = typeof jsY !== 'undefined' ? jsY : 0;
+    // 망토 물리: 이동 반대 방향으로 휘어짐 (관성)
+    const windX = isMoving ? -moveX * 10 : 0;
+    const windY = isMoving ? -moveY * 6 : 0;
+    // 주파수 다른 두 사인파 합성 → 자연스러운 펄럭임
+    const f1 = Math.sin(t * 0.016) * 0.6 + Math.sin(t * 0.027) * 0.4;
+    const f2 = Math.sin(t * 0.013 + 1.2) * 0.5 + Math.sin(t * 0.031) * 0.5;
+    const baseFlutter = isMoving ? 6 : 1.5;
+    const flutter1 = windX + f1 * baseFlutter;
+    const flutter2 = windY * 0.4 + f2 * baseFlutter * 0.7;
+    const alpha = isMoving ? 0.88 : 0.65;
+
+    // ── 망토 좌측 (3개 레이어: 외곽/중간/안감) ──────────────
     ctx.save();
-    ctx.globalAlpha=cloakAlpha;
-    ctx.fillStyle='#1a1a22';
+
+    // 레이어1: 외곽 (가장 어둡고 넓음)
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.fillStyle = '#0e0e14';
     ctx.beginPath();
-    ctx.moveTo(-8*s,-10*s);
-    ctx.quadraticCurveTo((-14+flutter)*s,2*s,(-10+flutter*0.5)*s,16*s);
-    ctx.quadraticCurveTo(-6*s,18*s,-4*s,8*s);
-    ctx.closePath();ctx.fill();
-    // 빨간 안감
-    ctx.fillStyle='#6a0000';
+    ctx.moveTo(-5*s, -12*s);
+    ctx.bezierCurveTo(
+      (-9 + flutter1*0.3)*s, (-4)*s,
+      (-16 + flutter1)*s,    6*s,
+      (-13 + flutter1*0.8)*s,18*s
+    );
+    ctx.bezierCurveTo(
+      (-10 + flutter1*0.5)*s, 22*s,
+      (-4)*s,                  20*s,
+      (-3)*s,                  10*s
+    );
+    ctx.bezierCurveTo(
+      (-4)*s, 2*s,
+      (-5)*s, -6*s,
+      (-5)*s, -12*s
+    );
+    ctx.fill();
+
+    // 레이어2: 중간 (메인 망토)
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#18182a';
     ctx.beginPath();
-    ctx.moveTo(-6*s,-6*s);
-    ctx.quadraticCurveTo((-11+flutter)*s,2*s,(-8+flutter*0.4)*s,14*s);
-    ctx.quadraticCurveTo(-5*s,15*s,-4*s,6*s);
-    ctx.closePath();ctx.fill();
+    ctx.moveTo(-4*s, -11*s);
+    ctx.bezierCurveTo(
+      (-7 + flutter1*0.4)*s, -2*s,
+      (-14 + flutter1*1.1)*s, 8*s,
+      (-11 + flutter1*0.9)*s, 17*s
+    );
+    ctx.bezierCurveTo(
+      (-8 + flutter1*0.5)*s, 21*s,
+      (-3)*s,                 19*s,
+      (-2)*s,                 9*s
+    );
+    ctx.bezierCurveTo(
+      (-3)*s, 0*s,
+      (-4)*s, -6*s,
+      (-4)*s, -11*s
+    );
+    ctx.fill();
+
+    // 레이어3: 빨간 안감 (망토 뒤집힐 때 보임)
+    ctx.globalAlpha = alpha * 0.7;
+    ctx.fillStyle = '#7a0a0a';
+    ctx.beginPath();
+    ctx.moveTo(-4*s, -9*s);
+    ctx.bezierCurveTo(
+      (-6 + flutter1*0.5)*s, 0*s,
+      (-11 + flutter1*1.2)*s, 9*s,
+      (-9 + flutter1)*s,     16*s
+    );
+    ctx.bezierCurveTo(
+      (-7 + flutter1*0.6)*s, 19*s,
+      (-3)*s,                 17*s,
+      (-2)*s,                 8*s
+    );
+    ctx.fill();
+
+    // 주름선 (천의 질감)
+    ctx.globalAlpha = alpha * 0.3;
+    ctx.strokeStyle = '#0a0a12';
+    ctx.lineWidth = 0.8 * s;
+    for(let i=0; i<3; i++){
+      const offset = i * 3;
+      ctx.beginPath();
+      ctx.moveTo((-3-offset*0.3)*s, (-8+offset)*s);
+      ctx.quadraticCurveTo(
+        (-7 + flutter1*0.3 - offset*0.2)*s, (2+offset)*s,
+        (-6 + flutter1*0.5 - offset*0.2)*s, (12+offset*0.5)*s
+      );
+      ctx.stroke();
+    }
+
     ctx.restore();
-    // 망토 우측
+
+    // ── 망토 우측 ──────────────────────────────────────────
     ctx.save();
-    ctx.globalAlpha=cloakAlpha;
-    ctx.fillStyle='#1a1a22';
+
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.fillStyle = '#0e0e14';
     ctx.beginPath();
-    ctx.moveTo(8*s,-10*s);
-    ctx.quadraticCurveTo((14-flutter)*s,2*s,(10-flutter*0.5)*s,16*s);
-    ctx.quadraticCurveTo(6*s,18*s,4*s,8*s);
-    ctx.closePath();ctx.fill();
+    ctx.moveTo(5*s, -12*s);
+    ctx.bezierCurveTo(
+      (9 + flutter2*0.3)*s, (-4)*s,
+      (16 + flutter2)*s,    6*s,
+      (13 + flutter2*0.8)*s,18*s
+    );
+    ctx.bezierCurveTo(
+      (10 + flutter2*0.5)*s, 22*s,
+      4*s,                   20*s,
+      3*s,                   10*s
+    );
+    ctx.bezierCurveTo(
+      4*s, 2*s,
+      5*s, -6*s,
+      5*s, -12*s
+    );
+    ctx.fill();
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#18182a';
+    ctx.beginPath();
+    ctx.moveTo(4*s, -11*s);
+    ctx.bezierCurveTo(
+      (7 + flutter2*0.4)*s, -2*s,
+      (14 + flutter2*1.1)*s, 8*s,
+      (11 + flutter2*0.9)*s, 17*s
+    );
+    ctx.bezierCurveTo(
+      (8 + flutter2*0.5)*s, 21*s,
+      3*s,                   19*s,
+      2*s,                   9*s
+    );
+    ctx.bezierCurveTo(
+      3*s, 0*s,
+      4*s, -6*s,
+      4*s, -11*s
+    );
+    ctx.fill();
+
+    ctx.globalAlpha = alpha * 0.7;
+    ctx.fillStyle = '#7a0a0a';
+    ctx.beginPath();
+    ctx.moveTo(4*s, -9*s);
+    ctx.bezierCurveTo(
+      (6 + flutter2*0.5)*s, 0*s,
+      (11 + flutter2*1.2)*s, 9*s,
+      (9 + flutter2)*s,     16*s
+    );
+    ctx.bezierCurveTo(
+      (7 + flutter2*0.6)*s, 19*s,
+      3*s,                   17*s,
+      2*s,                   8*s
+    );
+    ctx.fill();
+
+    ctx.globalAlpha = alpha * 0.3;
+    ctx.strokeStyle = '#0a0a12';
+    ctx.lineWidth = 0.8 * s;
+    for(let i=0; i<3; i++){
+      const offset = i * 3;
+      ctx.beginPath();
+      ctx.moveTo((3+offset*0.3)*s, (-8+offset)*s);
+      ctx.quadraticCurveTo(
+        (7 + flutter2*0.3 + offset*0.2)*s, (2+offset)*s,
+        (6 + flutter2*0.5 + offset*0.2)*s, (12+offset*0.5)*s
+      );
+      ctx.stroke();
+    }
+
     ctx.restore();
-    // 이동 시 잔상 효과
-    if(isMoving){
-      ctx.globalAlpha=0.15;
-      ctx.fillStyle='#ff88aa';
-      ctx.beginPath();ctx.arc(-flutter*0.3,0,9*s,0,Math.PI*2);ctx.fill();
-      ctx.globalAlpha=1;
+
+    // ── 빠른 이동 시 잔상/속도감 ──────────────────────────
+    if(isMoving && (Math.abs(moveX)>0.3 || Math.abs(moveY)>0.3)){
+      const speed = Math.sqrt(moveX*moveX + moveY*moveY);
+      ctx.save();
+      ctx.globalAlpha = 0.08 * speed;
+      ctx.fillStyle = '#cc4466';
+      // 이동 반대 방향으로 잔상
+      ctx.beginPath();
+      ctx.ellipse(windX*0.5, windY*0.5, 14*s, 8*s, Math.atan2(-moveY,-moveX), 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -1097,11 +1244,13 @@ function tickRoom(code){
       gp.reviveProgress=Math.max(0,(gp.reviveProgress||0)-dt/3);
     }
   });
-  if(!room.midBossAlive&&!room.finalBossAlive){room.spawnT=(room.spawnT||0)+dt;if(room.spawnT>0.7){room.spawnT=0;spawnEnemies(room);}}
+  if(!room.midBossAlive&&!room.finalBossAlive&&!room.stageClearPending){room.spawnT=(room.spawnT||0)+dt;if(room.spawnT>0.7){room.spawnT=0;spawnEnemies(room);}}
   if(!room.midBossSpawned&&room.stageTime<=300){room.midBossSpawned=true;spawnBoss(room,false);}
   if(room.midBossAlive)room.stageTime=Math.max(room.stageTime,0.1);
   if(!room.finalBossSpawned&&!room.midBossAlive&&room.midBossSpawned&&room.stageTime<=0){room.finalBossSpawned=true;room.stageTime=0;spawnBoss(room,true);}
   const arr=[...room.players.values()];
+  // [FIX] 스테이지 클리어 대기 중 적 AI 완전 차단
+  if(!room.stageClearPending){
   room.enemies=room.enemies.filter(e=>!e.dead);
   for(const e of room.enemies){
     if(e.poison>0){e.hp-=e.maxHp*0.004*e.poison*dt;if(e.hp<=1)e.hp=1;}
@@ -1122,6 +1271,7 @@ function tickRoom(code){
     if(near){md=Math.sqrt(md)||1;const dx=near.x-b.x,dy=near.y-b.y;b.x+=dx/md*bs*dt*60;b.y+=dy/md*bs*dt*60;if(md<b.r+14){const isInv=near.invincible||(near.invincibleEnd>0&&near.invincibleEnd>now);if(!isInv){const cd=b.isFinal?(b.phase===1?0.4:0.6):(b.phase===1?0.3:0.45);near.hp-=cd*bd*dt*60*(1-(near.armor||0));if(near.hp<=0){near.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==near).length;if(ac>0){near.groggy=true;near.groggyTimer=30;near.reviveProgress=0;}else near.dead=true;}}}b.lastHeavy=(b.lastHeavy||0)+dt;if(b.lastHeavy>(isIced?4.7:4)){b.lastHeavy=0;bcastAll(room,{t:'pat',i:-2,bx:b.x,by:b.y,ang:Math.atan2(dy,dx),phase:b.phase,isFinal:b.isFinal});}}
     room.patT=(room.patT||0)+dt;const pi=(b.isFinal?(b.phase===1?1.3:0.9):(b.phase===1?1.8:1.3))*(isIced?1.176:1);if(room.patT>pi){room.patT=0;bcastAll(room,{t:'pat',i:(room.patI||0)%(b.phase===1?3:5),bx:b.x,by:b.y,ang:b.ang,phase:b.phase,isFinal:b.isFinal});room.patI=(room.patI||0)+1;}
   }
+  } // end stageClearPending check
   room.syncT=(room.syncT||0)+dt;
   if(room.syncT>0.05){
     room.syncT=0;const ps=[];
@@ -1180,7 +1330,24 @@ wss.on('connection',ws=>{
           if(msg.element==='ice'&&tier>=2)room.boss.iceEnd=Date.now()+3000;
           room.boss.hp-=msg.dmg*(1-ba);
           if(room.boss.hp<=0){room.boss.dead=true;const isFinal=room.boss.isFinal;
-            if(isFinal){room.players.forEach(p=>{if(!p.dmgBonus)p.dmgBonus=1;p.dmgBonus*=1.25;});if(room.currentStage<3){bcastAll(room,{t:'weaponUpgrade',msg:'최종 보스 처치! (+25% 데미지)'});bcastAll(room,{t:'stageClear',stage:room.currentStage,next:room.currentStage+1});setTimeout(()=>{room.currentStage++;room.stageTime=600;room.midBossSpawned=false;room.finalBossSpawned=false;room.midBossAlive=false;room.finalBossAlive=false;room.boss=null;room.enemies=[];room.turrets=[];room.fireZones=[];bcastAll(room,{t:'stageStart',stage:room.currentStage});},5500);}else{bcastAll(room,{t:'weaponUpgrade',msg:'최종 보스 처치! 승리!'});bcastAll(room,{t:'over',win:true});clearInterval(room.tick);rooms.delete(ws.roomCode);}}
+            if(isFinal){room.players.forEach(p=>{if(!p.dmgBonus)p.dmgBonus=1;p.dmgBonus*=1.25;});if(room.currentStage<3){
+              bcastAll(room,{t:'weaponUpgrade',msg:'최종 보스 처치! (+25% 데미지)'});
+              bcastAll(room,{t:'stageClear',stage:room.currentStage,next:room.currentStage+1});
+              // [FIX] 스테이지 전환 대기 중 적 AI/데미지 차단 + 전원 무적
+              room.stageClearPending=true;
+              room.enemies=[];
+              room.players.forEach(p=>{p.invincible=true;p.invincibleEnd=Infinity;});
+              setTimeout(()=>{
+                room.currentStage++;room.stageTime=600;
+                room.midBossSpawned=false;room.finalBossSpawned=false;
+                room.midBossAlive=false;room.finalBossAlive=false;
+                room.boss=null;room.enemies=[];room.turrets=[];room.fireZones=[];
+                room.stageClearPending=false;
+                // 무적 해제
+                room.players.forEach(p=>{p.invincible=false;p.invincibleEnd=0;});
+                bcastAll(room,{t:'stageStart',stage:room.currentStage});
+              },5500);
+            }else{bcastAll(room,{t:'weaponUpgrade',msg:'최종 보스 처치! 승리!'});bcastAll(room,{t:'over',win:true});clearInterval(room.tick);rooms.delete(ws.roomCode);}}
             else{room.midBossAlive=false;room.boss=null;bcastAll(room,{t:'midBossDead'});bcastAll(room,{t:'bossHp',hp:0});room.players.forEach(p=>{if(!p.dmgBonus)p.dmgBonus=1;p.dmgBonus*=1.15;});bcastAll(room,{t:'weaponUpgrade',msg:'중간 보스 처치! (+15% 데미지)'});}
           }else bcastAll(room,{t:'bossHp',hp:room.boss.hp});
         }
