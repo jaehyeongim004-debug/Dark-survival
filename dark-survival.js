@@ -11,9 +11,9 @@ const HTML = `<!DOCTYPE html>
 <title>Dark Survival</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:#000;overflow:hidden;font-family:monospace;}
+body{background:#000;overflow:hidden;font-family:monospace;touch-action:none;}
 #G{position:relative;width:100vw;height:100vh;background:#080810;overflow:hidden;}
-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;touch-action:none;}
+canvas{position:absolute;top:0;left:0;width:100%;height:100%;}
 #hud{position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:5;}
 #topRow{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px 0;}
 .hudL{display:flex;flex-direction:column;gap:4px;}
@@ -34,23 +34,20 @@ canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none
 @keyframes bp{from{opacity:.6}to{opacity:1}}
 #bossWrap{height:9px;background:#1a0000;border:1px solid #880000;border-radius:2px;overflow:hidden;max-width:280px;margin:0 auto;}
 #bossFill{height:100%;background:#ff3300;transition:width .1s;}
-#jsWrap{position:absolute;bottom:30px;left:30px;z-index:5;pointer-events:none;}
+
+#jsWrap{position:absolute;bottom:30px;left:30px;z-index:5;pointer-events:all;}
 #jsBase{width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.15);position:relative;touch-action:none;}
 #jsKnob{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.4);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
-#js2Wrap{position:absolute;bottom:30px;right:30px;z-index:5;pointer-events:none;}
+#js2Wrap{position:absolute;bottom:30px;right:30px;z-index:5;pointer-events:all;}
 #js2Base{width:100px;height:100px;border-radius:50%;background:rgba(255,100,100,0.06);border:2px solid rgba(255,100,100,0.2);position:relative;touch-action:none;}
 #js2Knob{width:42px;height:42px;border-radius:50%;background:rgba(255,100,100,0.3);border:2px solid rgba(255,100,100,0.5);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
 #js2Wrap .js2Icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;pointer-events:none;z-index:1;}
-#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:none;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;display:none;}
+#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:all;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;}
 #statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
 #statsPanel .statName{color:#888;}
 #statsPanel .statVal{color:#ffcc00;font-weight:bold;}
-#autoAimBtn{position:absolute;right:12px;top:230px;z-index:6;pointer-events:all;width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #444;display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;}
-#autoAimBtn .aaIcon{font-size:20px;line-height:1;}
-#autoAimBtn .aaLabel{font-size:7px;color:#666;margin-top:2px;font-family:monospace;}
-#autoAimBtn.on{border-color:#44ff88;}
-#autoAimBtn.on .aaLabel{color:#44ff88;}
-#lobbyScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:20;padding:20px;overflow-y:auto;pointer-events:all;touch-action:auto;}
+
+#lobbyScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:20;padding:20px;overflow-y:auto;}
 h1.title{color:#ffcc00;font-size:24px;letter-spacing:5px;margin-bottom:2px;}
 .sub{color:#555;font-size:11px;margin-bottom:6px;}
 input.inp{background:#111;border:1px solid #333;color:#eee;padding:9px 14px;font-size:14px;font-family:monospace;outline:none;border-radius:4px;width:200px;text-align:center;}
@@ -63,7 +60,8 @@ input.inp:focus{border-color:#ffcc00;}
 #playerListEl{color:#888;font-size:11px;text-align:center;}
 #playerListEl b{color:#aaffaa;}
 #errMsg{color:#ff6666;font-size:11px;min-height:16px;text-align:center;}
-#classScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:20;padding:20px;pointer-events:all;touch-action:auto;}
+
+#classScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:20;padding:20px;}
 #classTitle{color:#ffcc00;font-size:18px;letter-spacing:3px;margin-bottom:4px;}
 #classSub{color:#666;font-size:11px;margin-bottom:6px;}
 #classCards{display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;}
@@ -75,7 +73,8 @@ input.inp:focus{border-color:#ffcc00;}
 .classDesc{color:#777;font-size:10px;line-height:1.5;}
 .classStat{color:#88aacc;font-size:9px;margin-top:4px;}
 #classReady{margin-top:4px;}
-#lvlUpScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:15;padding:20px;pointer-events:all;touch-action:auto;}
+
+#lvlUpScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:15;padding:20px;}
 #lvlUpTitle{color:#ffcc00;font-size:18px;letter-spacing:3px;}
 #lvlUpSub{color:#888;font-size:11px;}
 #traitCards{display:flex;flex-direction:column;gap:10px;width:100%;max-width:320px;}
@@ -84,13 +83,16 @@ input.inp:focus{border-color:#ffcc00;}
 .traitName{color:#ffcc00;font-size:13px;font-weight:bold;margin-bottom:4px;}
 .traitDesc{color:#888;font-size:11px;line-height:1.5;}
 .traitIcon{font-size:20px;margin-bottom:6px;}
-#stageClearScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:18;pointer-events:all;touch-action:auto;}
+
+#stageClearScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:18;}
 #stageClearTitle{font-size:22px;color:#ffcc00;letter-spacing:4px;}
 #stageClearSub{font-size:12px;color:#888;text-align:center;}
 #stageClearTimer{font-size:28px;color:#fff;font-weight:bold;}
-#goScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:20;pointer-events:all;touch-action:auto;}
+
+#goScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:20;}
 #goTitle{font-size:24px;letter-spacing:4px;font-weight:bold;}
 #goStats{font-size:12px;color:#888;text-align:center;line-height:1.9;}
+
 #msgPop{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);font-size:16px;color:#ffcc00;pointer-events:none;z-index:6;display:none;text-align:center;font-weight:bold;text-shadow:0 0 12px #ffcc0088;}
 #killFeed{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;z-index:5;pointer-events:none;}
 .kf{font-size:10px;color:#ff8844;animation:kfade 2.5s forwards;}
@@ -100,19 +102,16 @@ input.inp:focus{border-color:#ffcc00;}
 #classTag{position:absolute;top:48px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #classTag span{color:#ffcc00;}
 #weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
+#statsPanel{position:absolute;top:48px;right:12px;font-size:9px;color:#666;pointer-events:none;z-index:5;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:4px;border:1px solid #333;line-height:14px;}
+#statsPanel .statLine{display:flex;justify-content:space-between;gap:8px;}
+#statsPanel .statName{color:#888;}
+#statsPanel .statVal{color:#ffcc00;font-weight:bold;}
+#autoAimBtn{position:absolute;right:12px;top:230px;z-index:6;pointer-events:all;width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,0.65);border:2px solid #444;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;}
+#autoAimBtn .aaIcon{font-size:20px;line-height:1;}
+#autoAimBtn .aaLabel{font-size:7px;color:#666;margin-top:2px;font-family:monospace;}
+#autoAimBtn.on{border-color:#44ff88;}
+#autoAimBtn.on .aaLabel{color:#44ff88;}
 #minimap{position:absolute;top:80px;left:12px;width:120px;height:120px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
-#hud{position:absolute;top:0;left:0;width:100%;pointer-events:none;z-index:5;}
-#topRow{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px 0;}
-.hudL{display:flex;flex-direction:column;gap:4px;}
-.barOuter{width:130px;height:7px;background:#1a0000;border:1px solid #330000;border-radius:2px;overflow:hidden;}
-#hpFill{height:100%;background:#dd2222;transition:width .1s;}
-.barOuter2{width:130px;height:3px;background:#001122;border:1px solid #002244;border-radius:2px;overflow:hidden;margin-top:1px;}
-#expFill{height:100%;background:#2277cc;transition:width .2s;}
-.hs{font-size:10px;color:#888;margin-top:1px;}
-#timerBox{text-align:center;}
-#timerVal{font-size:20px;color:#ffcc00;letter-spacing:2px;font-weight:bold;}
-#timerLbl{font-size:8px;color:#555;margin-bottom:1px;}
-#stageBox{font-size:9px;color:#888;text-align:center;margin-top:2px;}
 </style>
 </head>
 <body>
@@ -320,11 +319,10 @@ function getTraitGrade(trait,value){
 function rollTraits(){
   const pool=[...ALL_TRAITS];
   
-  // 다중사격: 풀에서 분리해 1% 확률로 등장 가능하도록
-  let multishotTrait = null;
+  // 다중사격은 보스 보상으로만 지급 (레벨업 풀에서 제외)
   const multishotIdx = pool.findIndex(t=>t.id==='multishot');
   if(multishotIdx !== -1) {
-    multishotTrait = pool.splice(multishotIdx, 1)[0];
+    pool.splice(multishotIdx, 1);
   }
   
   // weapon 특성은 3회까지만 가능
@@ -334,6 +332,7 @@ function rollTraits(){
     if(weaponUpgradeLevel >= 3) {
       pool.splice(weaponIdx, 1);
     } else {
+      // 무기 강화 특성을 별도로 분리 (1/10 확률)
       weaponTrait = pool.splice(weaponIdx, 1)[0];
     }
   }
@@ -351,38 +350,34 @@ function rollTraits(){
   }
   
   const result=[];
-  let multishotUsed=false;
-  while(result.length<3&&(pool.length>0||weaponTrait||(!multishotUsed&&multishotTrait))){
-    const roll=Math.random();
-    // 1% 확률로 다중사격 시도 (무기강화와 별개)
-    if(multishotTrait&&!multishotUsed&&roll<0.01){
-      result.push({...multishotTrait});
-      multishotUsed=true;
+  while(result.length<3&&(pool.length>0||weaponTrait)){
     // 1% 확률로 무기 강화 시도
-    }else if(weaponTrait&&!result.find(t=>t.id==='weapon')&&roll<0.02){
-      const trait={...weaponTrait};
+    if(weaponTrait && !result.includes(weaponTrait) && Math.random() < 0.01){
+      const trait = {...weaponTrait};
       result.push(trait);
-      weaponTrait=null;
-    }else if(pool.length>0){
+      weaponTrait = null;
+    } else if(pool.length > 0) {
       const i=Math.floor(Math.random()*pool.length);
-      const trait=pool.splice(i,1)[0];
-      if(trait.min!==undefined&&trait.max!==undefined){
-        if(trait.id==='regen'){
-          trait.value=Math.round((trait.min+Math.random()*(trait.max-trait.min))*10)/10;
-        }else{
-          trait.value=Math.floor(trait.min+Math.random()*(trait.max-trait.min+1));
+      const trait = pool.splice(i,1)[0];
+      
+      // 랜덤 수치 생성
+      if(trait.min !== undefined && trait.max !== undefined) {
+        if(trait.id === 'regen') {
+          trait.value = Math.round((trait.min + Math.random() * (trait.max - trait.min)) * 10) / 10;
+        } else {
+          trait.value = Math.floor(trait.min + Math.random() * (trait.max - trait.min + 1));
         }
       }
+      
       result.push(trait);
-    }else{
+    } else {
       break;
     }
   }
   
   // 3개가 안 채워졌고 무기 강화가 남아있으면 추가
-  if(result.length<3&&weaponTrait&&!result.find(t=>t.id==='weapon')){
+  if(result.length < 3 && weaponTrait && !result.includes(weaponTrait)){
     result.push(weaponTrait);
-  }
   }
   
   return result;
@@ -663,20 +658,6 @@ function showClassScreen(){
   document.getElementById('lobbyScreen').style.display='none';
   document.getElementById('classScreen').style.display='flex';
 }
-function showGameUI(){
-  canvas.style.pointerEvents='all';
-  document.getElementById('jsWrap').style.pointerEvents='all';
-  document.getElementById('js2Wrap').style.pointerEvents='all';
-  document.getElementById('statsPanel').style.display='block';
-  document.getElementById('autoAimBtn').style.display='flex';
-}
-function hideGameUI(){
-  canvas.style.pointerEvents='none';
-  document.getElementById('jsWrap').style.pointerEvents='none';
-  document.getElementById('js2Wrap').style.pointerEvents='none';
-  document.getElementById('statsPanel').style.display='none';
-  document.getElementById('autoAimBtn').style.display='none';
-}
 function hideClassScreen(){
   document.getElementById('classScreen').style.display='none';
 }
@@ -686,7 +667,6 @@ function initGameState(){
   const cls=CLASSES[myClass];
   myStats={...cls.stats};
   myStats._lastDmgBonus=1;
-  myStats._lastCdMult=1;
   myWeapon={...cls.weapon};
   myTraits=[];
   weaponUpgradeLevel=0;
@@ -694,8 +674,7 @@ function initGameState(){
   running=true;stageTime=600;currentStage=1;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;
   kills=0;score=0;projs=[];parts=[];orbs=[];remoteEffects=[];explosions=[];fireZones=[];turrets=[];
   myPlayer={x:0,y:0,hp:myStats.hp,maxHp:myStats.maxHp,lv:1,exp:0,expNext:50,dead:false};
-  invincible=false;invincibleEnd=0;
-  showGameUI(); // 게임 시작 시 조이스틱/스탯창 활성화
+  invincible=false;invincibleEnd=0; // [FIX] 게임 시작 시 무적 초기화
   document.getElementById('classTag').innerHTML='<span>'+cls.icon+' '+cls.name+'</span>';
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
@@ -755,17 +734,13 @@ function applyState(msg){
       myStats.maxHp=me.maxHp;
       if(me.armor !== undefined) myStats.armor = me.armor;
       if(me.regen !== undefined) myStats.regen = me.regen;
-      // dmgBonus: 서버 레벨업/보스처치로 올린 경우만 비율로 반영
+      // [FIX] dmgBonus: 서버에서 보스처치/레벨업으로 올린 경우만 반영
+      // 클라이언트 특성으로 올린 dmgMult는 별도 관리이므로 dmgBonus 비율로만 반영
       if(me.dmgBonus !== undefined && me.dmgBonus !== (myStats._lastDmgBonus||1)){
         const prevBonus = myStats._lastDmgBonus || 1;
-        myStats.dmgMult *= me.dmgBonus / prevBonus;
+        const ratio = me.dmgBonus / prevBonus;
+        myStats.dmgMult *= ratio;
         myStats._lastDmgBonus = me.dmgBonus;
-      }
-      // [FIX] cdMult: 서버 레벨업으로 올린 경우만 비율로 반영 (특성으로 올린 값 보존)
-      if(me.cdMult !== undefined && me.cdMult !== (myStats._lastCdMult||1)){
-        const prevCd = myStats._lastCdMult || 1;
-        myStats.cdMult *= me.cdMult / prevCd;
-        myStats._lastCdMult = me.cdMult;
       }
       if(me.critRate !== undefined){
         if(me.critRate > myStats.critRate){
@@ -804,49 +779,21 @@ function nextStage(stage){
   showPop('STAGE '+stage+' START!',2500);
 }
 
-// ── Joystick 1 (이동) ──────────────────────────────────────
+// ── Joystick ───────────────────────────────────────────────
 const jsBase=document.getElementById('jsBase'),jsKnob=document.getElementById('jsKnob');
-let jsCX=0,jsCY=0,jsTouchId=null;
-function jsStart(e){
-  e.preventDefault();
-  const touch=e.changedTouches?e.changedTouches[0]:e;
-  jsTouchId=touch.identifier!==undefined?touch.identifier:null;
-  const r=jsBase.getBoundingClientRect();
-  jsCX=r.left+r.width/2;jsCY=r.top+r.height/2;
-  jsActive=true;
-  _jsUpdate(touch);
-}
-function _jsUpdate(t){
-  let dx=t.clientX-jsCX,dy=t.clientY-jsCY,d=Math.sqrt(dx*dx+dy*dy),max=30;
-  if(d>max){dx=dx/d*max;dy=dy/d*max;}
-  jsX=dx/max;jsY=dy/max;
-  jsKnob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';
-}
-function jsMove(e){
-  if(!jsActive)return;
-  e.preventDefault();
-  // [FIX] js1 전용 터치 ID만 추적 - js2 터치가 섞이지 않도록
-  const touch=jsTouchId!==null
-    ?[...e.changedTouches].find(t=>t.identifier===jsTouchId)
-    :e.changedTouches?e.changedTouches[0]:e;
-  if(!touch)return;
-  _jsUpdate(touch);
-}
-function jsEnd(e){
-  if(e&&e.changedTouches&&jsTouchId!==null){
-    if(![...e.changedTouches].find(t=>t.identifier===jsTouchId))return;
-  }
-  jsActive=false;jsX=0;jsY=0;jsTouchId=null;
-  jsKnob.style.transform='translate(-50%,-50%)';
-}
+let jsCX=0,jsCY=0;
+function jsStart(e){e.preventDefault();const t=e.touches?e.touches[0]:e,r=jsBase.getBoundingClientRect();jsCX=r.left+r.width/2;jsCY=r.top+r.height/2;jsActive=true;jsMove(e);}
+function jsMove(e){if(!jsActive)return;e.preventDefault();const t=e.touches?e.touches[0]:e;let dx=t.clientX-jsCX,dy=t.clientY-jsCY,d=Math.sqrt(dx*dx+dy*dy),max=30;if(d>max){dx=dx/d*max;dy=dy/d*max;}jsX=dx/max;jsY=dy/max;jsKnob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';}
+function jsEnd(){jsActive=false;jsX=0;jsY=0;jsKnob.style.transform='translate(-50%,-50%)';}
 jsBase.addEventListener('touchstart',jsStart,{passive:false});
 jsBase.addEventListener('touchmove',jsMove,{passive:false});
-jsBase.addEventListener('touchend',jsEnd,{passive:false});
-// js1 마우스
+jsBase.addEventListener('touchend',jsEnd);
+jsBase.addEventListener('mousedown',jsStart);
+// js1은 mousedown 상태에서만 document mousemove 반응
 let js1MouseDown=false;
-jsBase.addEventListener('mousedown',e=>{js1MouseDown=true;jsStart(e);});
+jsBase.addEventListener('mousedown',()=>js1MouseDown=true);
 document.addEventListener('mousemove',e=>{if(js1MouseDown)jsMove(e);});
-document.addEventListener('mouseup',()=>{if(js1MouseDown){js1MouseDown=false;jsEnd();}});
+document.addEventListener('mouseup',()=>{js1MouseDown=false;jsEnd();});
 
 // ── 조준 조이스틱 (js2) ────────────────────────────────────
 const js2Wrap=document.getElementById('js2Wrap');
@@ -921,24 +868,17 @@ function tryShoot(){
   if(now-lastShot<w.cd)return;
   lastShot=now;
 
-  // 자동조준: 범위 내 가장 가까운 적 탐색 (렌더 위치 기준)
+  // 자동조준: 범위 내 가장 가까운 적 탐색
   let target=null,minD=Infinity;
   const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38}]:enemies;
   if(autoAim){
-    for(const e of allE){
-      const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);
-      if(d<minD){minD=d;target=e;}
-    }
+    for(const e of allE){const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);if(d<minD){minD=d;target=e;}}
   }
 
   let tx,ty;
   if(autoAim&&target&&minD<w.range*1.3){
-    // [FIX] 선행 조준(lead targeting): 탄속과 거리를 기반으로 적 미래 위치 예측
-    const projSpd=(w.spd||7)*60; // 픽셀/초
-    const travelTime=minD/projSpd; // 탄환 도달 시간(초)
-    const evx=target.vx||0, evy=target.vy||0;
-    tx=target.x+evx*travelTime;
-    ty=target.y+evy*travelTime;
+    // 자동조준 ON + 범위 내 적
+    tx=target.x;ty=target.y;
   }else if(js2Active){
     // 조준 조이스틱 사용 중 (모바일 수동조준)
     tx=myPlayer.x+js2X*400;ty=myPlayer.y+js2Y*400;
@@ -1530,9 +1470,7 @@ function showPop(txt,dur){const el=document.getElementById('msgPop');el.textCont
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
 
 function endGame(win){
-  running=false;
-  hideGameUI(); // 게임 종료 시 조이스틱/스탯창 숨김
-  const el=document.getElementById('goScreen');el.style.display='flex';
+  running=false;const el=document.getElementById('goScreen');el.style.display='flex';
   document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';
   document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';
   const stagesCleared=win?3:currentStage-1;
