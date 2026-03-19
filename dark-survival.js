@@ -390,13 +390,12 @@ function handleMsg(msg){
   else if(msg.t==='bossWarning'){
     bossWarning={x:msg.x,y:msg.y,isFinal:msg.isFinal,startTime:performance.now()};
     bossAlive=true;
-    // myPlayer.x/y 절대 변경 금지 - camX/Y와 어긋나서 모든 렌더링 틀어짐
-    // 서버가 이미 이동 처리하고 다음 applyState로 반영됨
     showPop(msg.isFinal?'☠ 최종 보스 5초 후 등장!':'⚠ 중간 보스 5초 후 등장!',5500);
     let cd=4;
-    const cdInt=setInterval(()=>{
+    if(window._bossWarningIv)clearInterval(window._bossWarningIv);
+    window._bossWarningIv=setInterval(()=>{
       if(cd>0){showPop(cd+'....',1100);cd--;}
-      else clearInterval(cdInt);
+      else{clearInterval(window._bossWarningIv);window._bossWarningIv=null;}
     },1000);
   }
   else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);}
@@ -417,7 +416,7 @@ function handleMsg(msg){
   else if(msg.t==='over'){endGame(msg.win);}
   else if(msg.t==='statSync'){if(myStats){if(msg.armor!==undefined)myStats.armor=msg.armor;if(msg.regen!==undefined)myStats.regen=msg.regen;updateStatsPanel();}}
   else if(msg.t==='revived'){showPop('💚 부활했습니다!',2000);if(myPlayer){myPlayer.groggy=false;myPlayer.dead=false;}}
-  else if(msg.t==='groggyDead'){if(myPlayer&&myPlayer.groggy){running=false;endGame(false);}}
+  else if(msg.t==='groggyDead'){if(myPlayer&&myPlayer.groggy){running=false;_loopRunning=false;endGame(false);}}
   else if(msg.t==='fx'){remoteEffects.push(msg);}
   else if(msg.t==='explosion'){explosions.push({x:msg.x,y:msg.y,r:msg.r,dmg:msg.dmg,life:300,maxLife:300,color:msg.color||'#cc88ff'});}
   else if(msg.t==='fireZone'){fireZones.push({x:msg.x,y:msg.y,dmg:msg.dmg,life:2000,maxLife:2000});}
