@@ -240,7 +240,7 @@ function doStart(){send({t:'start'});}
 
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:2.0,multishot:0,magnetRange:1,armor:0.15,crit:false,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:15,baseCd:1000,baseRange:140,color:'#66ccff'}},
-  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1,rangeMult:1.5,regen:0.5,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'저격총',type:'bullet',baseDmg:90,baseCd:1000,baseRange:500,color:'#ffee44',spd:20}},
+  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1,rangeMult:1.5,regen:0.5,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'저격총',type:'bullet',baseDmg:60,baseCd:1300,baseRange:500,color:'#ffee44',spd:20}},
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.7,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'마법',type:'magic',baseDmg:50,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}},
   assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:40,expMult:1},weapon:{name:'단검',type:'dagger',baseDmg:28,baseCd:280,baseRange:90,color:'#ff88aa',spd:12}}
 };
@@ -619,14 +619,15 @@ function tryShoot(){
   }else{
     // bullet: 원래 궤도(정조준) 항상 발사 + 다중사격은 ±15도 옆으로 추가탄
     if(w.type==='bullet'){
-      const projR=10+weaponUpgradeLevel; // [FIX] 히트박스 확대
-      // 기본탄 - 항상 정조준 방향
-      projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(ang)*(w.spd||7),vy:Math.sin(ang)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement});
-      // 추가탄 - 15도(0.26rad) 간격으로 좌우 교대
-      const extraAngles=[0.26,-0.26,0.52,-0.52,0.78];
-      for(let i=0;i<w.count-1;i++){
-        const a=ang+extraAngles[i%extraAngles.length];
-        projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(a)*(w.spd||7),vy:Math.sin(a)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement});
+      const projR=10+weaponUpgradeLevel;
+      // 기본탄 즉시 발사
+      projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(ang)*(w.spd||7),vy:Math.sin(ang)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement,pierce:true});
+      // 다중사격: 같은 방향으로 150ms 딜레이씩 탕탕
+      for(let i=1;i<w.count;i++){
+        setTimeout(()=>{
+          if(!myPlayer||!running)return;
+          projs.push({x:myPlayer.x,y:myPlayer.y,vx:Math.cos(ang)*(w.spd||7),vy:Math.sin(ang)*(w.spd||7),dmg:w.dmg,range:w.range,traveled:0,gone:false,color:w.color,r:projR,enemy:false,element:weaponElement,pierce:true});
+        },i*150);
       }
     }else{
       for(let i=0;i<w.count;i++){
@@ -730,9 +731,11 @@ function update(dt){
     if(p.traveled>p.range){if(p.isMagic&&!p.visual&&!p.enemy){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}p.gone=true;continue;}
     if(p.visual)continue;
     if(!p.enemy){
-      for(const e of enemies){const dx=p.x-e.x,dy=p.y-e.y;if(Math.sqrt(dx*dx+dy*dy)<(e.r||10)+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}else{reportHit(e.id,p.dmg,p.element);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,4);}p.gone=true;break;}}
-      if(!p.gone&&bossData){const dx=p.x-bossData.x,dy=p.y-bossData.y;if(Math.sqrt(dx*dx+dy*dy)<38+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}else{reportHit('boss',p.dmg,p.element);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,5);}p.gone=true;}}
-      if(!p.gone){for(const t of turrets){const dx=p.x-t.x,dy=p.y-t.y;if(Math.sqrt(dx*dx+dy*dy)<t.r+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}else{reportHit('turret',p.dmg,p.element,t.id);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,5);}p.gone=true;break;}}}
+      for(const e of enemies){const dx=p.x-e.x,dy=p.y-e.y;if(Math.sqrt(dx*dx+dy*dy)<(e.r||10)+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);p.gone=true;break;}else{// pierce: 이미 맞은 적은 스킵
+          if(p.pierce){if(!p._hit)p._hit=new Set();if(p._hit.has(e.id))continue;p._hit.add(e.id);}
+          reportHit(e.id,p.dmg,p.element);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,4);if(!p.pierce)p.gone=true;}if(!p.pierce)break;}}
+      if(!p.gone&&bossData){const dx=p.x-bossData.x,dy=p.y-bossData.y;if(Math.sqrt(dx*dx+dy*dy)<38+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}else{reportHit('boss',p.dmg,p.element);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,5);}if(!p.pierce)p.gone=true;}}
+      if(!p.gone){for(const t of turrets){const dx=p.x-t.x,dy=p.y-t.y;if(Math.sqrt(dx*dx+dy*dy)<t.r+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}else{reportHit('turret',p.dmg,p.element,t.id);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,5);}if(!p.pierce){p.gone=true;break;}}}}
     }else{if(myPlayer&&!myPlayer.dead&&!invincible){const dx=p.x-myPlayer.x,dy=p.y-myPlayer.y;if(Math.sqrt(dx*dx+dy*dy)<14+p.r){send({t:'enemyHit',dmg:p.dmg});spawnParts(p.x,p.y,p.color,4);p.gone=true;}}}
   }
   projs=projs.filter(p=>!p.gone);
@@ -1448,47 +1451,80 @@ function drawBoss(){
   }else{
     // ── 최종보스: 네크로맨서 스프라이트 ──────────────────────
     const phase2=b.phase===2;
-    const bobY=Math.sin(t*0.0015)*2; // 시각 전용, translate 안 함
+    const bobY=Math.sin(t*0.0015)*2;
+    // 포탑 생존 여부 (배리어 표시 조건)
+    const turretsAlive=turrets.filter(tt=>tt.hp>0).length;
+    const hasBarrier=turretsAlive>0;
 
-    // 체인 파티클
-    ctx.save();
-    const ang=b.ang||t*0.003;
-    for(let i=0;i<8;i++){
-      const a=ang+(i/8)*Math.PI*2;
-      const cr=38+Math.sin(t*0.004+i)*5;
-      ctx.globalAlpha=0.5;
-      ctx.fillStyle=phase2?'#ff4466':'#884422';
-      ctx.fillRect(Math.cos(a)*cr-2,Math.sin(a)*cr-2+bobY,4,4);
+    // 체인 파티클 (포탑 전멸 후 사라짐)
+    if(hasBarrier){
+      ctx.save();
+      const ang=b.ang||t*0.003;
+      for(let i=0;i<8;i++){
+        const a=ang+(i/8)*Math.PI*2;
+        const cr=38+Math.sin(t*0.004+i)*5;
+        ctx.globalAlpha=0.5;
+        ctx.fillStyle=phase2?'#ff4466':'#884422';
+        ctx.fillRect(Math.cos(a)*cr-2,Math.sin(a)*cr-2+bobY,4,4);
+      }
+      ctx.globalAlpha=1;
+      ctx.restore();
     }
-    ctx.globalAlpha=1;
-    ctx.restore();
 
-    // 스프라이트 (bobY는 drawImage에만)
+    // 스프라이트
     const spr=SPRITES['necromancer'];
     ctx.save();
     ctx.imageSmoothingEnabled=false;
+    if(hasBarrier){
+      // 배리어 있을 때: 붉은 반투명 오버레이 대신 그냥 어둡게만
+      ctx.globalAlpha=0.5;
+    }
     if(phase2){ctx.shadowColor='#ff2244';ctx.shadowBlur=35;}
-    else{ctx.shadowColor='#660022';ctx.shadowBlur=22;}
+    else{ctx.shadowColor=hasBarrier?'#660033':'#660022';ctx.shadowBlur=hasBarrier?12:22;}
     if(spr&&spr.complete&&spr.naturalWidth>0){
       ctx.drawImage(spr,-48,-48+bobY,96,96);
     }else{
       ctx.fillStyle=phase2?'#550033':'#880000';
       ctx.beginPath();ctx.arc(0,bobY,42,0,Math.PI*2);ctx.fill();
     }
-    ctx.shadowBlur=0;
-    ctx.restore();
-
-    // 눈 빛 (bobY 적용)
-    const eyeGlow=Math.sin(t*0.005)*0.4+0.6;
-    ctx.save();
-    ctx.globalAlpha=eyeGlow*0.7;
-    ctx.shadowColor=phase2?'#ff2244':'#cc0022';
-    ctx.shadowBlur=10;
-    ctx.fillStyle=phase2?'#ff4466':'#cc1133';
-    ctx.beginPath();ctx.ellipse(-7,-18+bobY,3,3,0,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.ellipse(7,-18+bobY,3,3,0,0,Math.PI*2);ctx.fill();
     ctx.shadowBlur=0;ctx.globalAlpha=1;
     ctx.restore();
+
+    // 배리어 쉴드 링 (포탑 생존 중)
+    if(hasBarrier){
+      ctx.save();
+      const barrierAlpha=0.4+Math.sin(t*0.006)*0.2;
+      const barrierR=55+Math.sin(t*0.004)*4;
+      ctx.globalAlpha=barrierAlpha;
+      ctx.strokeStyle='#ff2244';
+      ctx.lineWidth=4;
+      ctx.shadowColor='#ff0022';
+      ctx.shadowBlur=20;
+      ctx.beginPath();ctx.arc(0,bobY,barrierR,0,Math.PI*2);ctx.stroke();
+      // 쉴드 내부 반투명 채우기
+      ctx.globalAlpha=barrierAlpha*0.15;
+      ctx.fillStyle='#ff0022';
+      ctx.beginPath();ctx.arc(0,bobY,barrierR,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;ctx.globalAlpha=1;
+      // 남은 포탑 수 표시
+      ctx.fillStyle='#ff4466';ctx.font='bold 9px monospace';ctx.textAlign='center';
+      ctx.fillText('🛡 포탑 '+turretsAlive+'개',0,bobY+barrierR+14);
+      ctx.restore();
+    }
+
+    // 눈 빛 (포탑 전멸 후만 표시)
+    if(!hasBarrier){
+      const eyeGlow=Math.sin(t*0.005)*0.4+0.6;
+      ctx.save();
+      ctx.globalAlpha=eyeGlow*0.7;
+      ctx.shadowColor=phase2?'#ff2244':'#cc0022';
+      ctx.shadowBlur=10;
+      ctx.fillStyle=phase2?'#ff4466':'#cc1133';
+      ctx.beginPath();ctx.ellipse(-7,-18+bobY,3,3,0,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.ellipse(7,-18+bobY,3,3,0,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;ctx.globalAlpha=1;
+      ctx.restore();
+    }
 
     const hpPct=b.hp/b.maxHp;
     ctx.fillStyle='#1a0000';ctx.fillRect(-44,-66,88,8);
