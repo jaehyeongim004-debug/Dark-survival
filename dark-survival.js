@@ -236,7 +236,7 @@ function doStart(){send({t:'start'});}
 
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:0.5,multishot:0,magnetRange:1,armor:0.1,crit:true,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:10,baseCd:1000,baseRange:140,color:'#66ccff'}},
-  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:0,expMult:1.5},weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:1000,baseRange:500,color:'#ffee44',spd:20}},
+  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1.2,rangeMult:1.5,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:0,expMult:1.5},weapon:{name:'저격총',type:'bullet',baseDmg:65,baseCd:100,baseRange:500,color:'#ffee44',spd:20}},
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:0,expMult:1},weapon:{name:'마법',type:'magic',baseDmg:55,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}},
   assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:30,expMult:1},weapon:{name:'단검',type:'dagger',baseDmg:34,baseCd:280,baseRange:85,color:'#ff88aa',spd:12}}
 };
