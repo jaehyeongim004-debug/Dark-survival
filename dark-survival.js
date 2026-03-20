@@ -725,7 +725,18 @@ function doBossPat(msg){
   if(i===-3){startLaserWarning(bx,by);return;}
   if(i===-4){fireLaser(bx,by);return;}
   if(i===-2){mkBB(bx,by,Math.cos(ang)*2.8,Math.sin(ang)*2.8,35,'#ff2200',18,bRange);return;}
-  if(i===-1){return;}
+  // [BUG FIX] i===-1 : 잡몹 탄환 처리
+  if(i===-1){
+    if(etype==='ranged'){
+      mkBB(bx,by,Math.cos(ang)*5.5,Math.sin(ang)*5.5,12,'#ff8822',7,400);
+    }else if(etype==='mage'){
+      for(let k=-1;k<=1;k++){
+        const a=ang+k*0.3;
+        mkBB(bx,by,Math.cos(a)*4.0,Math.sin(a)*4.0,18,'#cc44ff',9,500);
+      }
+    }
+    return;
+  }
   [bossSpiral,bossBlast,bossCross,bossRapid,bossRing][Math.min(i,4)](bx,by,ang,phase,bRange);
 }
 
