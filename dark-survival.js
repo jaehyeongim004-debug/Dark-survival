@@ -633,90 +633,80 @@ function doMelee(ang,w){
 function reportHit(id,dmg,element,turretId){let wt='melee';if(myWeapon){if(myWeapon.type==='bullet')wt='ranged';else if(myWeapon.type==='magic')wt='magic';}if(id==='boss')send({t:'hit',target:'boss',dmg,element,elementTier:weaponUpgradeLevel,weaponType:wt});else if(id==='turret')send({t:'hit',target:'turret',dmg,tid:turretId,element,elementTier:weaponUpgradeLevel,weaponType:wt});else send({t:'hit',eid:id,dmg,element,elementTier:weaponUpgradeLevel});}
 function createExplosion(x,y,radius,dmg,color,element){explosions.push({x,y,r:radius,dmg,life:300,maxLife:300,color:color||'#cc88ff'});const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38},...turrets]:enemies;for(const e of allE){const dx=e.x-x,dy=e.y-y,d=Math.sqrt(dx*dx+dy*dy);if(d<radius+(e.r||10)){const hd=dmg*(1-d/(radius+(e.r||10))*0.5);if(e.id==='boss')reportHit('boss',hd,element);else if(e.isTurret)reportHit('turret',hd,element,e.id);else reportHit(e.id,hd,element);}}send({t:'explosion',x,y,r:radius,dmg,color,element,elementTier:weaponUpgradeLevel});}
 
+// 레이저 경고 시작 (보스 위치 저장, 서버에서 frozen 플래그 함께 옴)
 function startLaserWarning(bx,by){
-  laserWarning={bx,by,startTime:performance.now(),duration:2000};
-  showPop('⚠ 마그마 레이저!',1800);
+  laserWarning={bx,by,startTime:performance.now(),duration:3000};
+  showPop('⚠ 레이저 경보! 비켜!',2800);
 }
 function fireLaser(bx,by){
   laserWarning=null;
   laserFire={bx,by,startTime:performance.now(),duration:600};
 }
+
 function drawLasers(){
   const t=performance.now();
   const LASER_LEN=4000;
   const dirs8=[0,Math.PI/4,Math.PI/2,Math.PI*3/4,Math.PI,Math.PI*5/4,Math.PI*3/2,Math.PI*7/4];
+
   if(laserWarning){
     const elapsed=t-laserWarning.startTime;
-    if(elapsed>laserWarning.duration){laserWarning=null;return;}
-    const prog=elapsed/laserWarning.duration;
-    const pulse=Math.sin(t*0.015)*0.4+0.6;
-    ctx.save();
-    for(const a of dirs8){
-      const ex=laserWarning.bx+Math.cos(a)*LASER_LEN;
-      const ey=laserWarning.by+Math.sin(a)*LASER_LEN;
-      const grad=ctx.createLinearGradient(laserWarning.bx,laserWarning.by,ex,ey);
-      grad.addColorStop(0,'rgba(255,80,0,'+(pulse*0.9)+')');
-      grad.addColorStop(0.3,'rgba(255,40,0,'+(pulse*0.5)+')');
-      grad.addColorStop(1,'rgba(255,0,0,0)');
-      ctx.strokeStyle=grad;
-      ctx.lineWidth=6+pulse*4;
-      ctx.shadowColor='#ff4400';
-      ctx.shadowBlur=20;
-      ctx.setLineDash([20+prog*30,12]);
-      ctx.lineDashOffset=-(t*0.1)%32;
+    if(elapsed>laserWarning.duration){laserWarning=null;}
+    else{
+      const prog=elapsed/laserWarning.duration; // 0→1
+      const pulse=Math.sin(t*0.015)*0.3+0.7;
+      ctx.save();
+      // 8방향 path 하나로 합쳐서 stroke 1회 → 렉 감소
       ctx.beginPath();
-      ctx.moveTo(laserWarning.bx,laserWarning.by);
-      ctx.lineTo(ex,ey);
+      for(const a of dirs8){
+        ctx.moveTo(laserWarning.bx,laserWarning.by);
+        ctx.lineTo(laserWarning.bx+Math.cos(a)*LASER_LEN,laserWarning.by+Math.sin(a)*LASER_LEN);
+      }
+      // 경고 색: 시간 지날수록 점점 밝아짐
+      const r=Math.floor(200+55*prog),alpha=0.35+prog*0.5;
+      ctx.strokeStyle='rgba('+r+',60,0,'+alpha+')';
+      ctx.lineWidth=5+pulse*3;
       ctx.stroke();
+      // 중심 펄스
+      ctx.globalAlpha=pulse*0.5;
+      ctx.fillStyle='#ff4400';
+      ctx.beginPath();
+      ctx.arc(laserWarning.bx,laserWarning.by,18+pulse*6,0,Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha=1;
+      // 카운트다운 표시
+      const remain=Math.ceil((laserWarning.duration-elapsed)/1000);
+      ctx.fillStyle='#ffcc00';
+      ctx.font='bold 18px monospace';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText(remain>0?remain+'':'!!',laserWarning.bx,laserWarning.by-30);
+      ctx.restore();
     }
-    ctx.setLineDash([]);
-    ctx.shadowBlur=0;
-    ctx.globalAlpha=pulse*0.6;
-    ctx.fillStyle='#ff4400';
-    ctx.beginPath();
-    ctx.arc(laserWarning.bx,laserWarning.by,20+pulse*8,0,Math.PI*2);
-    ctx.fill();
-    ctx.globalAlpha=1;
-    ctx.restore();
   }
+
   if(laserFire){
     const elapsed=t-laserFire.startTime;
-    if(elapsed>laserFire.duration){laserFire=null;return;}
-    const fade=1-elapsed/laserFire.duration;
-    ctx.save();
-    for(const a of dirs8){
-      const ex=laserFire.bx+Math.cos(a)*LASER_LEN;
-      const ey=laserFire.by+Math.sin(a)*LASER_LEN;
-      ctx.strokeStyle='rgba(255,120,0,'+fade*0.4+')';
-      ctx.lineWidth=40*fade;
-      ctx.shadowColor='#ff6600';
-      ctx.shadowBlur=30;
+    if(elapsed>laserFire.duration){laserFire=null;}
+    else{
+      const fade=1-elapsed/laserFire.duration;
+      ctx.save();
+      // 두께감 있는 레이저: 굵은→얇은 2번만 stroke
       ctx.beginPath();
-      ctx.moveTo(laserFire.bx,laserFire.by);
-      ctx.lineTo(ex,ey);
+      for(const a of dirs8){
+        ctx.moveTo(laserFire.bx,laserFire.by);
+        ctx.lineTo(laserFire.bx+Math.cos(a)*LASER_LEN,laserFire.by+Math.sin(a)*LASER_LEN);
+      }
+      ctx.strokeStyle='rgba(255,100,0,'+(fade*0.5)+')';
+      ctx.lineWidth=36*fade;
       ctx.stroke();
-      ctx.strokeStyle='rgba(255,60,0,'+fade*0.8+')';
-      ctx.lineWidth=14*fade;
-      ctx.shadowBlur=20;
-      ctx.beginPath();
-      ctx.moveTo(laserFire.bx,laserFire.by);
-      ctx.lineTo(ex,ey);
+      ctx.strokeStyle='rgba(255,240,180,'+fade+')';
+      ctx.lineWidth=5*fade;
       ctx.stroke();
-      ctx.strokeStyle='rgba(255,240,200,'+fade+')';
-      ctx.lineWidth=4*fade;
-      ctx.shadowColor='#ffffff';
-      ctx.shadowBlur=10;
-      ctx.beginPath();
-      ctx.moveTo(laserFire.bx,laserFire.by);
-      ctx.lineTo(ex,ey);
-      ctx.stroke();
+      ctx.restore();
     }
-    ctx.setLineDash([]);
-    ctx.shadowBlur=0;
-    ctx.globalAlpha=1;
-    ctx.restore();
   }
 }
+
 
 // ── [BUG FIX] doBossPat: 중첩 함수 선언 제거, 블록 구조 정상화 ──
 function doBossPat(msg){
