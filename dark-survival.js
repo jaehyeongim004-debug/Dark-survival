@@ -1248,7 +1248,12 @@ function drawFlameDemon(ctx,b,t){
   for(let r=0;r<3;r++){
     const rr=44-r*8,sp=t*0.0015*(r%2===0?1:-1);
     ctx.globalAlpha=0.18+r*0.06;
-    ctx.strokeStyle=phase2?`hsl(${280+r*20},100%,65%)`:`hsl(${20-r*5},100%,${50+r*8}%)`;
+    ctx.globalAlpha=0.18+r*0.06;
+    if(phase2){
+      ctx.strokeStyle='hsl('+(280+r*20)+',100%,65%)';
+    }else{
+      ctx.strokeStyle='hsl('+(20-r*5)+',100%,'+(50+r*8)+'%)';
+    }
     ctx.lineWidth=2+r;
     ctx.beginPath();
     for(let i=0;i<8;i++){const a=sp+(i/8)*Math.PI*2;const rx=Math.cos(a)*rr,ry=Math.sin(a)*rr*0.45+bobY;i===0?ctx.moveTo(rx,ry):ctx.lineTo(rx,ry);}
@@ -1300,7 +1305,11 @@ function drawFlameDemon(ctx,b,t){
   for(let ri=0;ri<3;ri++){
     const rrr=8+ri*6,rsp=t*0.002*(ri%2===0?1:-1);
     ctx.globalAlpha=0.4+ri*0.1;
-    ctx.strokeStyle=phase2?`rgba(255,${100+ri*50},255,0.8)`:`rgba(255,${150-ri*40},0,0.8)`;
+    if(phase2){
+      ctx.strokeStyle='rgba(255,'+(100+ri*50)+',255,0.8)';
+    }else{
+      ctx.strokeStyle='rgba(255,'+(150-ri*40)+',0,0.8)';
+    }
     ctx.lineWidth=1.5;
     ctx.beginPath();ctx.arc(0,bobY,rrr,rsp,rsp+Math.PI*1.6);ctx.stroke();
   }
