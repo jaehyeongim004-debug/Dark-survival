@@ -743,11 +743,9 @@ function drawLasers(){
 }
 function doBossPat(msg){
   const{i,bx,by,ang,phase,etype,isFinal}=msg;const bRange=isFinal?600:1200;
-  function doBossPat(msg){
-  const{i,bx,by,ang,phase,etype,isFinal}=msg;const bRange=isFinal?600:1200;
   if(i===-3){startLaserWarning(bx,by);return;}
   if(i===-4){fireLaser(bx,by);return;}
-  if(i===-1){
+  if(i===-1){if(etype==='ranged')mkBB(bx,by,Math.cos(ang)*4.5,Math.sin(ang)*4.5,12,'#ffaa44',5,bRange);else if(etype==='mage'){for(let j=-1;j<=1;j++){const a=ang+j*0.4;mkBB(bx,by,Math.cos(a)*3.2,Math.sin(a)*3.2,15,'#dd44ff',6,bRange);}}}return;}
   if(i===-2){mkBB(bx,by,Math.cos(ang)*2.8,Math.sin(ang)*2.8,35,'#ff2200',18,bRange);return;}
   [bossSpiral,bossBlast,bossCross,bossRapid,bossRing][Math.min(i,4)](bx,by,ang,phase,bRange);
 }
