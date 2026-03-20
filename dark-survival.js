@@ -1234,101 +1234,292 @@ function drawEnemies(){
     ctx.restore();
   }
 }
+function drawFlameDemon(ctx,b,t){
+  // ── 중간 보스: FLAME DEMON (Canvas로 직접 그림) ──
+  const phase2=b.phase===2;
+  const bobY=Math.sin(t*0.002)*4;
+  const spin=t*0.003;
+  const col1=phase2?'#ff44ff':'#ff3300';
+  const col2=phase2?'#aa00ff':'#ff8800';
+  const glow=phase2?'#ff44ff':'#ff4422';
+
+  // 외부 에너지 링
+  ctx.save();
+  for(let r=0;r<3;r++){
+    const rr=44-r*8,sp=t*0.0015*(r%2===0?1:-1);
+    ctx.globalAlpha=0.18+r*0.06;
+    ctx.strokeStyle=phase2?`hsl(${280+r*20},100%,65%)`:`hsl(${20-r*5},100%,${50+r*8}%)`;
+    ctx.lineWidth=2+r;
+    ctx.beginPath();
+    for(let i=0;i<8;i++){const a=sp+(i/8)*Math.PI*2;const rx=Math.cos(a)*rr,ry=Math.sin(a)*rr*0.45+bobY;i===0?ctx.moveTo(rx,ry):ctx.lineTo(rx,ry);}
+    ctx.closePath();ctx.stroke();
+  }
+  ctx.globalAlpha=1;ctx.restore();
+
+  // 화염 파티클 궤도
+  ctx.save();
+  for(let i=0;i<8;i++){
+    const pa=(spin+i*0.785)%(Math.PI*2);
+    const pr=32+Math.sin(t*0.006+i)*7;
+    const py=bobY+Math.sin(t*0.003+i*0.7)*5;
+    const ps=2+Math.sin(t*0.01+i)*1.5;
+    ctx.globalAlpha=0.5+Math.sin(t*0.008+i)*0.25;
+    ctx.shadowColor=col1;ctx.shadowBlur=8;
+    ctx.fillStyle=i%2===0?col1:col2;
+    ctx.beginPath();ctx.arc(Math.cos(pa)*pr*0.7,py+Math.sin(pa)*pr*0.4,ps,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.restore();
+
+  // 몸통 (기계 악마 몸)
+  ctx.save();
+  ctx.shadowColor=glow;ctx.shadowBlur=phase2?30:20;
+
+  // 외각 장갑판 (4개 대칭)
+  const armorAng=spin*0.4;
+  for(let i=0;i<4;i++){
+    const a=armorAng+(i/4)*Math.PI*2;
+    ctx.save();ctx.translate(Math.cos(a)*24,bobY+Math.sin(a)*12);ctx.rotate(a+Math.PI/2);
+    ctx.fillStyle=phase2?'#330044':'#221100';
+    ctx.fillRect(-6,-12,12,10);
+    ctx.strokeStyle=phase2?'#aa44ff':'#ff6600';ctx.lineWidth=1.5;
+    ctx.strokeRect(-6,-12,12,10);
+    ctx.fillStyle=phase2?'#6600aa':'#cc3300';
+    ctx.fillRect(-3,-10,6,6);
+    ctx.restore();
+  }
+
+  // 중앙 코어 구체
+  const coreGrad=ctx.createRadialGradient(-6,-8+bobY,4,0,bobY,26);
+  coreGrad.addColorStop(0,phase2?'#ff88ff':'#ffcc44');
+  coreGrad.addColorStop(0.4,phase2?'#aa00ff':'#ff3300');
+  coreGrad.addColorStop(1,phase2?'#220033':'#1a0000');
+  ctx.fillStyle=coreGrad;
+  ctx.beginPath();ctx.arc(0,bobY,28,0,Math.PI*2);ctx.fill();
+
+  // 코어 내부 문양 (3개 동심 링)
+  for(let ri=0;ri<3;ri++){
+    const rrr=8+ri*6,rsp=t*0.002*(ri%2===0?1:-1);
+    ctx.globalAlpha=0.4+ri*0.1;
+    ctx.strokeStyle=phase2?`rgba(255,${100+ri*50},255,0.8)`:`rgba(255,${150-ri*40},0,0.8)`;
+    ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(0,bobY,rrr,rsp,rsp+Math.PI*1.6);ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  // 코어 하이라이트
+  ctx.fillStyle='rgba(255,255,255,0.25)';
+  ctx.beginPath();ctx.ellipse(-8,-4+bobY,8,5,Math.PI/6,0,Math.PI*2);ctx.fill();
+
+  // 눈 (2개)
+  const blinkY=Math.sin(t*0.003)>0.95;
+  if(!blinkY){
+    ctx.shadowColor=phase2?'#ff88ff':'#ffcc00';ctx.shadowBlur=10;
+    ctx.fillStyle=phase2?'#ee88ff':'#ffdd44';
+    ctx.beginPath();ctx.ellipse(-9,-2+bobY,5,4,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(9,-2+bobY,5,4,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.8)';
+    ctx.beginPath();ctx.ellipse(-9,-2+bobY,2.5,3,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(9,-2+bobY,2.5,3,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.9)';
+    ctx.beginPath();ctx.arc(-7,-4+bobY,1.2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(11,-4+bobY,1.2,0,Math.PI*2);ctx.fill();
+  }else{
+    ctx.strokeStyle=phase2?'#ee88ff':'#ffdd44';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(-14,-2+bobY);ctx.lineTo(-4,-2+bobY);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(4,-2+bobY);ctx.lineTo(14,-2+bobY);ctx.stroke();
+  }
+  ctx.shadowBlur=0;
+
+  // 하단 추진기 이펙트
+  for(let i=-1;i<=1;i+=2){
+    const px=i*14,py=bobY+24;
+    const thrGrad=ctx.createRadialGradient(px,py,0,px,py,10);
+    thrGrad.addColorStop(0,phase2?'rgba(255,100,255,0.9)':'rgba(255,160,0,0.9)');
+    thrGrad.addColorStop(1,'rgba(255,50,0,0)');
+    ctx.globalAlpha=0.7+Math.sin(t*0.02+i)*0.3;
+    ctx.fillStyle=thrGrad;
+    ctx.beginPath();ctx.ellipse(px,py+4,5,8+Math.sin(t*0.02)*3,0,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+
+  // HP바 및 이름
+  const hpPct=b.hp/b.maxHp;
+  ctx.fillStyle='#1a0000';ctx.fillRect(-46,-62,92,8);
+  ctx.fillStyle=hpPct>0.5?'#ff4466':phase2?'#ff44ff':'#cc2244';ctx.fillRect(-46,-62,92*hpPct,8);
+  ctx.strokeStyle='#660022';ctx.lineWidth=1;ctx.strokeRect(-46,-62,92,8);
+  ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
+  ctx.fillText(phase2?'🔥 INFERNO DEMON':'🔥 FLAME DEMON',0,-66);
+  if(phase2){ctx.fillStyle='#ff88ff';ctx.font='bold 7px monospace';ctx.fillText('PHASE 2',0,-56);}
+  if(b.iceEnd&&b.iceEnd>t){ctx.fillStyle='#44ddff';ctx.font='12px serif';ctx.fillText('❄',52,-60);}
+}
+
+function drawNecromancer(ctx,b,t){
+  // ── 최종 보스: NECROMANCER (Canvas로 직접 그림) ──
+  const phase2=b.phase===2;
+  const bobY=Math.sin(t*0.0015)*2;
+  const turretsAlive=turrets.filter(tt=>tt.hp>0).length;
+  const hasBarrier=turretsAlive>0;
+  const alpha=hasBarrier?0.55:1;
+
+  ctx.save();
+  ctx.globalAlpha=alpha;
+
+  // 로브 파티클 (망토 효과)
+  for(let i=0;i<10;i++){
+    const robeAng=t*0.002+i*0.628;
+    const rr=34+Math.sin(t*0.004+i*1.1)*10;
+    const rx=Math.cos(robeAng)*rr*0.6;
+    const ry=bobY+Math.sin(robeAng)*rr*0.35+12;
+    ctx.globalAlpha=alpha*(0.15+Math.sin(t*0.005+i)*0.1);
+    ctx.fillStyle=phase2?'#880022':'#330044';
+    ctx.beginPath();ctx.arc(rx,ry,3+Math.sin(t*0.008+i)*2,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=alpha;
+
+  // 외부 에너지 오라
+  const oraGrad=ctx.createRadialGradient(0,bobY,28,0,bobY,52);
+  oraGrad.addColorStop(0,'rgba(0,0,0,0)');
+  oraGrad.addColorStop(0.7,phase2?'rgba(180,0,40,0.2)':'rgba(80,0,80,0.18)');
+  oraGrad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=oraGrad;
+  ctx.beginPath();ctx.arc(0,bobY,52,0,Math.PI*2);ctx.fill();
+
+  // 해골 망토 (하반신)
+  ctx.shadowColor=phase2?'#ff0022':'#660044';
+  ctx.shadowBlur=phase2?25:15;
+  const capeGrad=ctx.createLinearGradient(0,-10+bobY,0,44+bobY);
+  capeGrad.addColorStop(0,phase2?'#440011':'#220033');
+  capeGrad.addColorStop(1,phase2?'#110008':'#0d0018');
+  ctx.fillStyle=capeGrad;
+  ctx.beginPath();
+  ctx.moveTo(-28,8+bobY);
+  ctx.bezierCurveTo(-34,20+bobY,-32,40+bobY,-22,46+bobY);
+  ctx.lineTo(22,46+bobY);
+  ctx.bezierCurveTo(32,40+bobY,34,20+bobY,28,8+bobY);
+  ctx.closePath();ctx.fill();
+
+  // 망토 테두리 디테일
+  ctx.strokeStyle=phase2?'rgba(220,0,50,0.5)':'rgba(120,0,150,0.4)';
+  ctx.lineWidth=1.5;
+  ctx.stroke();
+
+  // 갑옷 몸통
+  const bodyGrad=ctx.createRadialGradient(-8,-14+bobY,5,0,bobY,26);
+  bodyGrad.addColorStop(0,phase2?'#220011':'#1a0022');
+  bodyGrad.addColorStop(0.5,phase2?'#3a0015':'#250030');
+  bodyGrad.addColorStop(1,phase2?'#110008':'#100018');
+  ctx.fillStyle=bodyGrad;
+  ctx.beginPath();ctx.arc(0,bobY,26,0,Math.PI*2);ctx.fill();
+
+  // 갑옷 흉갑 리벳
+  for(let ri=0;ri<6;ri++){
+    const ra=(ri/6)*Math.PI*2+t*0.001;
+    const rrr=18;
+    ctx.fillStyle=phase2?'rgba(200,0,40,0.6)':'rgba(100,0,120,0.5)';
+    ctx.beginPath();ctx.arc(Math.cos(ra)*rrr,bobY+Math.sin(ra)*rrr,2,0,Math.PI*2);ctx.fill();
+  }
+
+  // 두개골 얼굴
+  // 해골 머리
+  ctx.shadowColor=phase2?'#ff2244':'#aa00cc';ctx.shadowBlur=12;
+  ctx.fillStyle=phase2?'#e8e0d0':'#d8d0c8';
+  ctx.beginPath();ctx.ellipse(0,-18+bobY,13,11,0,0,Math.PI*2);ctx.fill();
+  // 광대뼈
+  ctx.fillStyle=phase2?'#ccbfb0':'#bfb8b0';
+  ctx.beginPath();ctx.ellipse(-9,-14+bobY,5,4,0.3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(9,-14+bobY,5,4,-0.3,0,Math.PI*2);ctx.fill();
+  // 턱
+  ctx.fillStyle=phase2?'#e0d8c8':'#d0c8c0';
+  ctx.beginPath();ctx.ellipse(0,-9+bobY,10,6,0,0,Math.PI*2);ctx.fill();
+  // 눈 소켓
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(-5,-20+bobY,4,4,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(5,-20+bobY,4,4,0,0,Math.PI*2);ctx.fill();
+  // 눈 발광
+  const eyeGlow2=Math.sin(t*0.005)*0.4+0.6;
+  ctx.globalAlpha=alpha*eyeGlow2;
+  ctx.fillStyle=phase2?'#ff2244':'#cc00ff';
+  ctx.shadowColor=phase2?'#ff0022':'#aa00ff';ctx.shadowBlur=8;
+  ctx.beginPath();ctx.ellipse(-5,-20+bobY,2.5,3,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(5,-20+bobY,2.5,3,0,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=alpha;ctx.shadowBlur=0;
+  // 코 구멍
+  ctx.fillStyle='rgba(0,0,0,0.7)';
+  ctx.beginPath();ctx.ellipse(-2,-14+bobY,1.5,2,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(2,-14+bobY,1.5,2,0,0,Math.PI*2);ctx.fill();
+  // 치아
+  for(let ti=-2;ti<=2;ti++){
+    ctx.fillStyle=ti%2===0?'#e8e0d0':'#ccbfb0';
+    ctx.fillRect(ti*4-1.5,-10+bobY,3,4);
+  }
+
+  // 마법봉 (오른쪽)
+  ctx.save();
+  ctx.translate(28,bobY-8);ctx.rotate(Math.sin(t*0.003)*0.15);
+  ctx.strokeStyle=phase2?'#440011':'#330044';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,32);ctx.stroke();
+  ctx.strokeStyle=phase2?'#cc0033':'#7700cc';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,32);ctx.stroke();
+  // 오브
+  const orbGlow=Math.sin(t*0.007)*0.4+0.6;
+  ctx.globalAlpha=orbGlow;ctx.shadowColor=phase2?'#ff0044':'#9900ff';ctx.shadowBlur=12;
+  ctx.fillStyle=phase2?'#ff0044':'#9900ff';
+  ctx.beginPath();ctx.arc(0,0,7,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  ctx.beginPath();ctx.arc(-2,-2,3,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+
+  // 왼팔
+  ctx.save();
+  ctx.translate(-28,bobY-5);ctx.rotate(-Math.sin(t*0.003)*0.15-0.2);
+  ctx.strokeStyle=phase2?'#440011':'#330044';ctx.lineWidth=5;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,18);ctx.stroke();
+  ctx.strokeStyle=phase2?'#6600ff':'#660033';ctx.lineWidth=3;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.shadowBlur=0;
+  ctx.globalAlpha=1;
+  ctx.restore();
+
+  // 배리어
+  if(hasBarrier){
+    ctx.save();
+    const barrierAlpha=0.4+Math.sin(t*0.006)*0.2;
+    const barrierR=58+Math.sin(t*0.004)*4;
+    ctx.globalAlpha=barrierAlpha;ctx.strokeStyle='#ff2244';ctx.lineWidth=4;
+    ctx.shadowColor='#ff0022';ctx.shadowBlur=20;
+    ctx.beginPath();ctx.arc(0,bobY,barrierR,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=barrierAlpha*0.12;ctx.fillStyle='#ff0022';
+    ctx.beginPath();ctx.arc(0,bobY,barrierR,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;ctx.globalAlpha=1;
+    ctx.fillStyle='#ff4466';ctx.font='bold 9px monospace';ctx.textAlign='center';
+    ctx.fillText('🛡 포탑 '+turretsAlive+'개',0,bobY+barrierR+14);
+    ctx.restore();
+  }
+
+  // HP바 및 이름
+  const hpPct=b.hp/b.maxHp;
+  ctx.fillStyle='#1a0000';ctx.fillRect(-46,-68,92,8);
+  ctx.fillStyle=hpPct>0.5?'#aa0022':phase2?'#ff2244':'#880011';ctx.fillRect(-46,-68,92*hpPct,8);
+  ctx.strokeStyle='#440011';ctx.lineWidth=1;ctx.strokeRect(-46,-68,92,8);
+  ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
+  ctx.fillText('☠ NECROMANCER',0,-72);
+  if(phase2){ctx.fillStyle='#ff4466';ctx.font='bold 7px monospace';ctx.fillText('PHASE 2',0,-62);}
+  if(b.iceEnd&&b.iceEnd>t){ctx.fillStyle='#44ddff';ctx.font='12px serif';ctx.fillText('❄',52,-66);}
+}
+
 function drawBoss(){
   const b=bossData,isFinal=b.isFinal||false;
   const t=performance.now();
   ctx.save();
   ctx.translate(b.x,b.y);
   if(!isFinal){
-    const phase2=b.phase===2;
-    const bobY=Math.sin(t*0.002)*4;
-    ctx.save();
-    for(let i=0;i<6;i++){
-      const pa=(t*0.004+i*1.05)%(Math.PI*2);
-      const pr=30+Math.sin(t*0.006+i)*8;
-      const py=-20+Math.sin(t*0.003+i*0.7)*6;
-      ctx.globalAlpha=0.4+Math.sin(t*0.008+i)*0.2;
-      ctx.fillStyle=phase2?'#ff66ff':i%2===0?'#ff5544':'#ff8866';
-      ctx.beginPath();ctx.arc(Math.cos(pa)*pr*0.5,py+bobY+Math.sin(pa)*pr*0.3,3+Math.sin(t*0.01+i)*2,0,Math.PI*2);ctx.fill();
-    }
-    ctx.globalAlpha=1;ctx.restore();
-    const spr=SPRITES['midboss'];
-    ctx.save();ctx.imageSmoothingEnabled=false;
-    if(phase2){ctx.shadowColor='#ff44ff';ctx.shadowBlur=30;}else{ctx.shadowColor='#ff4466';ctx.shadowBlur=20;}
-    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.drawImage(spr,-42,-42+bobY,84,84);}
-    else{ctx.fillStyle=phase2?'#cc22cc':'#cc2244';ctx.beginPath();ctx.arc(0,bobY,38,0,Math.PI*2);ctx.fill();}
-    ctx.shadowBlur=0;ctx.restore();
-    ctx.save();
-    ctx.globalAlpha=0.3+Math.sin(t*0.004)*0.1;ctx.strokeStyle=phase2?'#ff66ff':'#ff4466';ctx.lineWidth=1.5;
-    const spin=t*0.002;
-    ctx.beginPath();
-    for(let i=0;i<8;i++){const a=spin+(i/8)*Math.PI*2;i===0?ctx.moveTo(Math.cos(a)*36,Math.sin(a)*14+38+bobY):ctx.lineTo(Math.cos(a)*36,Math.sin(a)*14+38+bobY);}
-    ctx.closePath();ctx.stroke();ctx.restore();
-    const hpPct=b.hp/b.maxHp;
-    ctx.fillStyle='#1a0000';ctx.fillRect(-44,-60,88,8);
-    ctx.fillStyle=hpPct>0.5?'#ff4466':phase2?'#ff44ff':'#cc2244';ctx.fillRect(-44,-60,88*hpPct,8);
-    ctx.strokeStyle='#660022';ctx.lineWidth=1;ctx.strokeRect(-44,-60,88,8);
-    ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
-    ctx.fillText(phase2?'🔥 INFERNO DEMON':'🔥 FLAME DEMON',0,-64);
-    if(phase2){ctx.fillStyle='#ff88ff';ctx.font='bold 7px monospace';ctx.fillText('PHASE 2',0,-54);}
-    if(b.iceEnd&&b.iceEnd>t){ctx.fillStyle='#44ddff';ctx.font='12px serif';ctx.fillText('❄',52,-58);}
-    ctx.lineWidth=1.5;
-    for(let r=0;r<3;r++){
-      const rr=20+r*10,spin=(t*0.001*(r%2===0?1:-1));
-      ctx.beginPath();
-      for(let i=0;i<8;i++){const a=spin+(i/8)*Math.PI*2;i===0?ctx.moveTo(Math.cos(a)*rr,Math.sin(a)*rr*0.35+38):ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr*0.35+38);}
-      ctx.closePath();ctx.stroke();
-    }
+    drawFlameDemon(ctx,b,t);
   }else{
-    const phase2=b.phase===2;
-    const bobY=Math.sin(t*0.0015)*2;
-    const turretsAlive=turrets.filter(tt=>tt.hp>0).length;
-    const hasBarrier=turretsAlive>0;
-    if(hasBarrier){
-      ctx.save();
-      const ang=b.ang||t*0.003;
-      for(let i=0;i<8;i++){
-        const a=ang+(i/8)*Math.PI*2;const cr=38+Math.sin(t*0.004+i)*5;
-        ctx.globalAlpha=0.5;ctx.fillStyle=phase2?'#ff4466':'#884422';
-        ctx.fillRect(Math.cos(a)*cr-2,Math.sin(a)*cr-2+bobY,4,4);
-      }
-      ctx.globalAlpha=1;ctx.restore();
-    }
-    const spr=SPRITES['necromancer'];
-    ctx.save();ctx.imageSmoothingEnabled=false;
-    if(phase2){ctx.shadowColor='#ff2244';ctx.shadowBlur=35;}
-    else{ctx.shadowColor=hasBarrier?'#660033':'#660022';ctx.shadowBlur=hasBarrier?12:22;}
-    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.globalAlpha=hasBarrier?0.5:1;ctx.drawImage(spr,-48,-48+bobY,96,96);}
-    else{ctx.globalAlpha=hasBarrier?0.5:1;ctx.fillStyle=phase2?'#550033':'#880000';ctx.beginPath();ctx.arc(0,bobY,42,0,Math.PI*2);ctx.fill();}
-    ctx.restore();ctx.shadowBlur=0;
-    if(hasBarrier){
-      ctx.save();
-      const barrierAlpha=0.4+Math.sin(t*0.006)*0.2;const barrierR=55+Math.sin(t*0.004)*4;
-      ctx.globalAlpha=barrierAlpha;ctx.strokeStyle='#ff2244';ctx.lineWidth=4;ctx.shadowColor='#ff0022';ctx.shadowBlur=20;
-      ctx.beginPath();ctx.arc(0,bobY,barrierR,0,Math.PI*2);ctx.stroke();
-      ctx.globalAlpha=barrierAlpha*0.15;ctx.fillStyle='#ff0022';
-      ctx.beginPath();ctx.arc(0,bobY,barrierR,0,Math.PI*2);ctx.fill();
-      ctx.shadowBlur=0;ctx.globalAlpha=1;
-      ctx.fillStyle='#ff4466';ctx.font='bold 9px monospace';ctx.textAlign='center';
-      ctx.fillText('🛡 포탑 '+turretsAlive+'개',0,bobY+barrierR+14);
-      ctx.restore();
-    }
-    if(!hasBarrier){
-      const eyeGlow=Math.sin(t*0.005)*0.4+0.6;
-      ctx.save();ctx.globalAlpha=eyeGlow*0.7;ctx.shadowColor=phase2?'#ff2244':'#cc0022';ctx.shadowBlur=10;
-      ctx.fillStyle=phase2?'#ff4466':'#cc1133';
-      ctx.beginPath();ctx.ellipse(-7,-18+bobY,3,3,0,0,Math.PI*2);ctx.fill();
-      ctx.beginPath();ctx.ellipse(7,-18+bobY,3,3,0,0,Math.PI*2);ctx.fill();
-      ctx.shadowBlur=0;ctx.globalAlpha=1;ctx.restore();
-    }
-    const hpPct=b.hp/b.maxHp;
-    ctx.fillStyle='#1a0000';ctx.fillRect(-44,-66,88,8);
-    ctx.fillStyle=hpPct>0.5?'#aa0022':phase2?'#ff2244':'#880011';ctx.fillRect(-44,-66,88*hpPct,8);
-    ctx.strokeStyle='#440011';ctx.lineWidth=1;ctx.strokeRect(-44,-66,88,8);
-    ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
-    ctx.fillText('☠ NECROMANCER',0,-70);
-    if(phase2){ctx.fillStyle='#ff4466';ctx.font='bold 7px monospace';ctx.fillText('PHASE 2',0,-60);}
-    if(b.iceEnd&&b.iceEnd>t){ctx.fillStyle='#44ddff';ctx.font='12px serif';ctx.fillText('❄',52,-64);}
+    drawNecromancer(ctx,b,t);
   }
   ctx.restore();
 }
@@ -1549,7 +1740,17 @@ wss.on('connection',ws=>{
       if(safeDmg<=0)return;
       if(msg.target==='boss'){
         if(room.boss&&!room.boss.dead){
-          const wt=msg.weaponType||'melee',ba=wt==='ranged'?0.2:wt==='magic'?(room.boss.isFinal?0.7:0.6):(room.boss.isFinal?0.7:0.65);
+          const wt=msg.weaponType||'melee';
+          // 직업별 피해 감소: 중간보스(검사/암살자 50%, 저격수/마법사 60%), 최종보스(검사/암살자 70%, 저격수/마법사 80%)
+          const sender=room.players.get(ws);const senderCls=sender?sender.cls:'warrior';
+          let ba;
+          if(room.boss.isFinal){
+            if(senderCls==='gunner'||senderCls==='mage') ba=0.80;
+            else ba=0.70;
+          }else{
+            if(senderCls==='gunner'||senderCls==='mage') ba=0.60;
+            else ba=0.50;
+          }
           if(msg.element==='ice'&&tier>=2)room.boss.iceEnd=Date.now()+3000;
           room.boss.hp-=safeDmg*(1-ba);
           if(room.boss.hp<=0){room.boss.dead=true;const isFinal=room.boss.isFinal;
