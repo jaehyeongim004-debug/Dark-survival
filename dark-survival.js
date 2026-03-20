@@ -1782,7 +1782,7 @@ wss.on('connection',ws=>{
       if(safeDmg<=0)return;
       if(msg.target==='boss'){
         if(room.boss&&!room.boss.dead){
-          const wt=msg.weaponType||'melee',ba=wt==='ranged'?0:wt==='magic'?(room.boss.isFinal?0.8:0.6):(room.boss.isFinal?0.7:0.5);
+          const wt=msg.weaponType||'melee',ba=wt==='ranged'?0.2:wt==='magic'?(room.boss.isFinal?0.7:0.6):(room.boss.isFinal?0.7:0.65);
           if(msg.element==='ice'&&tier>=2)room.boss.iceEnd=Date.now()+3000;
           room.boss.hp-=safeDmg*(1-ba);
           if(room.boss.hp<=0){room.boss.dead=true;const isFinal=room.boss.isFinal;
