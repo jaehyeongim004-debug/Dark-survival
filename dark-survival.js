@@ -765,7 +765,11 @@ function draw(){
   ctx.save();ctx.translate(ox,oy);
   drawGrid();drawFireZones();drawOrbs();drawParts();drawExplosions();
   if(bossWarning) drawBossSpawnMarker();
-  drawEnemies();if(bossData)drawBoss();drawTurrets();drawOthers();
+  drawEnemies();
+  ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.setLineDash([]);
+  if(bossData)drawBoss();
+  ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.setLineDash([]);
+  drawTurrets();drawOthers();
   if(myPlayer&&!myPlayer.dead)drawMe();
   drawProjs();
   ctx.restore();
@@ -1475,20 +1479,18 @@ function drawBoss(){
     const spr=SPRITES['necromancer'];
     ctx.save();
     ctx.imageSmoothingEnabled=false;
-    if(hasBarrier){
-      // 배리어 있을 때: 붉은 반투명 오버레이 대신 그냥 어둡게만
-      ctx.globalAlpha=0.5;
-    }
     if(phase2){ctx.shadowColor='#ff2244';ctx.shadowBlur=35;}
     else{ctx.shadowColor=hasBarrier?'#660033':'#660022';ctx.shadowBlur=hasBarrier?12:22;}
     if(spr&&spr.complete&&spr.naturalWidth>0){
+      ctx.globalAlpha=hasBarrier?0.5:1;
       ctx.drawImage(spr,-48,-48+bobY,96,96);
     }else{
+      ctx.globalAlpha=hasBarrier?0.5:1;
       ctx.fillStyle=phase2?'#550033':'#880000';
       ctx.beginPath();ctx.arc(0,bobY,42,0,Math.PI*2);ctx.fill();
     }
-    ctx.shadowBlur=0;ctx.globalAlpha=1;
-    ctx.restore();
+    ctx.restore(); // restore가 globalAlpha도 원복함
+    ctx.shadowBlur=0;
 
     // 배리어 쉴드 링 (포탑 생존 중)
     if(hasBarrier){
