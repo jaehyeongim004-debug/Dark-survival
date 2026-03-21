@@ -376,6 +376,8 @@ let bossWarning=null;
 let kills=0,score=0,camX=0,camY=0;
 let myPlayer=null,allPlayers=[],enemies=[],bossData=null,turrets=[];
 let projs=[],parts=[],orbs=[],remoteEffects=[],explosions=[],fireZones=[];
+let pixelExplList=[];
+let megaBlastState=null;
 let lastTime=0,jsActive=false,jsX=0,jsY=0,attackPressed=false,lastShot=0;
 let invincible=false,invincibleEnd=0;
 const STAGE_BG=['#080810','#100808','#080e0a'];
