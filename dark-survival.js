@@ -1545,6 +1545,14 @@ function drawExplosions(){for(const ex of explosions){const a=ex.life/ex.maxLife
 function drawFireZones(){for(const fz of fireZones){const a=fz.life/fz.maxLife;ctx.save();ctx.globalAlpha=a*0.4;ctx.fillStyle='#ff4400';ctx.beginPath();ctx.arc(fz.x,fz.y,30,0,Math.PI*2);ctx.fill();ctx.globalAlpha=a*0.6;ctx.strokeStyle='#ff6600';ctx.lineWidth=2;ctx.beginPath();ctx.arc(fz.x,fz.y,30,0,Math.PI*2);ctx.stroke();ctx.restore();}}
 function drawOrbs(){const t=performance.now()*0.004;for(const o of orbs){if(o.col)continue;ctx.save();ctx.shadowColor='#44aaff';ctx.shadowBlur=8;ctx.fillStyle='#2266cc';ctx.beginPath();ctx.arc(o.x,o.y+Math.sin(t+o.x)*2,5,0,Math.PI*2);ctx.fill();ctx.restore();}}
 function spawnParts(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=1+Math.random()*2.5;parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:350,maxLife:350,r:3,color});}}
+function spawnPixelExplosion(x,y,type){
+  if(type==='mega'){
+    for(let i=0;i<40;i++){const a=Math.random()*Math.PI*2,s=3+Math.random()*8;const col=Math.random()<0.5?'#ff2200':'#ff8800';const sz=4+Math.floor(Math.random()*8);pixelExplList.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:600+Math.random()*400,maxLife:1000,w:sz,h:sz,color:col,rot:Math.random()*Math.PI*2,rotV:(Math.random()-0.5)*0.2});}
+    for(let i=0;i<20;i++){const a=Math.random()*Math.PI*2,s=1+Math.random()*4;pixelExplList.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:400+Math.random()*300,maxLife:700,w:6,h:6,color:'#ffcc44',rot:0,rotV:0});}
+  }else{
+    for(let i=0;i<16;i++){const a=Math.random()*Math.PI*2,s=1.5+Math.random()*4;const col=Math.random()<0.5?'#ff8844':'#ffcc44';const sz=2+Math.floor(Math.random()*4);pixelExplList.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:250+Math.random()*200,maxLife:450,w:sz,h:sz,color:col,rot:0,rotV:(Math.random()-0.5)*0.15});}
+  }
+}
 let msgTimer=0;
 function showPop(txt,dur){const el=document.getElementById('msgPop');el.textContent=txt;el.style.display='block';msgTimer=dur||1400;}
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
