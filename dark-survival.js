@@ -170,6 +170,9 @@ const SPRITES={};
   }
 })();
 SPRITES['warrior'].src='/warrior-sprite.png';
+SPRITES['mage'].src='/mage-sprite.png';
+SPRITES['gunner'].src='/gunner-sprite.png';
+SPRITES['assassin'].src='/assassin-sprite.png';
 
 // ── 던전 타일 ────────────────────────────────────────────────
 const DUNGEON_TILES=[];
@@ -383,6 +386,7 @@ let megaBlastState=null;
 const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.volume=0.5;
 function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
+const NECRO_IMG=new Image();NECRO_IMG.src='/necromancer-sprite.png';
 const MB_FW=200,MB_FH=200; // 프레임 크기: 이미지 실측 후 조정
 let mbRow=0,mbFrame=0,mbFrameT=0,mbLocked=false,mbPrevT=0;
 let lastTime=0,jsActive=false,jsX=0,jsY=0,attackPressed=false,lastShot=0;
@@ -1229,6 +1233,7 @@ function drawFlameDemon(ctx,b,t){
 
 function drawNecromancer(ctx,b,t){
   // ── 최종 보스: NECROMANCER (Canvas로 직접 그림) ──
+  if(NECRO_IMG.complete&&NECRO_IMG.naturalWidth>0){ctx.drawImage(NECRO_IMG,-50,-50,100,100);return;}
   const phase2=b.phase===2;
   const bobY=Math.sin(t*0.0015)*2;
   const turretsAlive=turrets.filter(tt=>tt.hp>0).length;
