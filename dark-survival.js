@@ -1669,6 +1669,23 @@ function tickRoom(code){
   if(room.fireZones&&room.fireZones.length>0){room.fireZones=room.fireZones.filter(fz=>fz.life>0);for(const fz of room.fireZones){fz.life-=dt*1000;for(const e of room.enemies){const dx=e.x-fz.x,dy=e.y-fz.y;if(Math.sqrt(dx*dx+dy*dy)<30+e.r){e.hp-=fz.dmg*dt*2;if(e.hp<=0)e.dead=true;}}}}
   if(room.boss&&!room.boss.dead){
     const b=room.boss;b.ang+=dt*1.5;if(b.hp<b.maxHp/2&&b.phase===1){b.phase=2;bcastAll(room,{t:'phase2'});}
+    if(!b.isFinal&&b.phase===2&&!b.megaBlasting&&b.hp<b.maxHp*0.2){
+      b.megaBlasting=true;b.frozen=true;b.invincible=true;
+      const safeZones=[];const alive2=arr.filter(p=>!p.dead&&!p.groggy);
+      for(let si=0;si<Math.max(1,alive2.length);si++){const sa=(si/Math.max(1,alive2.length))*Math.PI*2+(Math.random()-0.5)*0.5;const sd=200+Math.random()*100;safeZones.push({x:b.x+Math.cos(sa)*sd,y:b.y+Math.sin(sa)*sd,r:55});}
+      bcastAll(room,{t:'megaBlastWarn',bx:b.x,by:b.y,safeZones});
+      setTimeout(()=>{
+        if(!room.boss||room.boss.dead)return;
+        bcastAll(room,{t:'megaBlast',bx:b.x,by:b.y});
+        room.players.forEach(p=>{
+          if(p.dead||p.groggy)return;
+          const isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>Date.now());if(isInv)return;
+          const inSafe=safeZones.some(z=>{const dx=p.x-z.x,dy=p.y-z.y;return Math.sqrt(dx*dx+dy*dy)<z.r;});
+          if(!inSafe){p.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(ac>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}
+        });
+        setTimeout(()=>{if(!room.boss||room.boss.dead)return;room.boss.frozen=false;room.boss.invincible=false;bcastAll(room,{t:'megaBlastEnd'});},1000);
+      },5000);
+    }
     if(b.isFinal){const hp=Math.floor((b.hp/b.maxHp)*100),thr=Math.floor(hp/10)*10;if(thr<b.lastHpThreshold){b.lastHpThreshold=thr;}}
     if(b.isFinal&&room.turrets&&room.turrets.some(t=>!t.dead&&t.hp>0))b.hp=Math.min(b.hp+b.maxHp*0.05*dt,b.maxHp);
     const isIced=b.iceEnd&&b.iceEnd>now,bs=(b.isFinal?2.0:1.6)*(isIced?0.85:1),bd=isIced?0.85:1;
