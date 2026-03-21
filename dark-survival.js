@@ -386,6 +386,7 @@ let megaBlastState=null;
 const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.volume=0.5;
 function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
+const MB_CHARGE_IMG=new Image();MB_CHARGE_IMG.src='/boss-charge-sprite.png';
 const NECRO_IMG=new Image();NECRO_IMG.src='/necromancer-sprite.png';
 const MB_FW=200,MB_FH=200; // 프레임 크기: 이미지 실측 후 조정
 let mbRow=0,mbFrame=0,mbFrameT=0,mbLocked=false,mbPrevT=0;
@@ -1212,7 +1213,17 @@ function drawFlameDemon(ctx,b,t){
   const sz=100;
   // 스프라이트 드로잉
   ctx.save();
-  if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
+  if(megaBlastState&&megaBlastState.phase==='warn'&&MB_CHARGE_IMG.complete&&MB_CHARGE_IMG.naturalWidth>0){
+    // 대폭발 준비 자세
+    const elapsed=t-megaBlastState.startTime;
+    const pulse=1+Math.sin(elapsed*0.008)*0.07;
+    const shakeX=(elapsed>3000?(Math.random()-0.5)*4:(Math.random()-0.5)*1);
+    ctx.translate(shakeX,bobY);
+    ctx.scale(pulse,pulse);
+    ctx.shadowColor='#ff4400';
+    ctx.shadowBlur=20+Math.sin(elapsed*0.01)*10;
+    ctx.drawImage(MB_CHARGE_IMG,-sz/2,-sz/2,sz,sz);
+  }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
     ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-sz/2,-sz/2+bobY,sz,sz);
   }else{
     // 이미지 미로드 시 폴백 원
