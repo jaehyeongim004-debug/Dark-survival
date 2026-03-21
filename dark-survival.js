@@ -1241,32 +1241,64 @@ function drawFlameDemon(ctx,b,t){
   if(mbFrameT>=125){mbFrameT-=125;mbFrame=(mbFrame+1)%5;if(mbLocked&&mbFrame===0){mbLocked=false;mbRow=0;}}
   const bobY=Math.sin(t*0.002)*4;
   const sz=100;
-  // 스프라이트 드로잉
+  const phase2=b.phase===2;
+  const glowCol=phase2?'#ff44ff':'#ff4400';
+  const glowCol2=phase2?'#aa44ff':'#ffaa00';
+  const pulse=Math.sin(t*0.003)*0.5+0.5; // 0→1
+
+  // ── 이펙트1: 배경 발광 오라 (이미지 뒤) ──
+  ctx.save();
+  ctx.globalAlpha=0.35+pulse*0.25;
+  ctx.shadowColor=glowCol;ctx.shadowBlur=28+pulse*18;
+  ctx.fillStyle=glowCol;
+  ctx.beginPath();ctx.ellipse(0,bobY,34,26,0,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+
+  // ── 스프라이트 드로잉 + 이펙트2: 이미지 글로우 ──
   ctx.save();
   if(megaBlastState&&megaBlastState.phase==='warn'&&MB_CHARGE_IMG.complete&&MB_CHARGE_IMG.naturalWidth>0){
     // 대폭발 준비 자세
     const elapsed=t-megaBlastState.startTime;
-    const pulse=1+Math.sin(elapsed*0.008)*0.07;
+    const cp=1+Math.sin(elapsed*0.008)*0.07;
     const shakeX=(elapsed>3000?(Math.random()-0.5)*4:(Math.random()-0.5)*1);
-    ctx.translate(shakeX,bobY);
-    ctx.scale(pulse,pulse);
-    ctx.shadowColor='#ff4400';
-    ctx.shadowBlur=20+Math.sin(elapsed*0.01)*10;
+    ctx.translate(shakeX,bobY);ctx.scale(cp,cp);
+    ctx.shadowColor='#ff4400';ctx.shadowBlur=20+Math.sin(elapsed*0.01)*10;
     ctx.drawImage(MB_CHARGE_IMG,-sz/2,-sz/2,sz,sz);
   }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
-    // 이미지 가로가 2프레임 이상이면 스프라이트시트, 아니면 단일 이미지로 전체 표시
+    ctx.shadowColor=glowCol;ctx.shadowBlur=8+pulse*10;
     if(MB_IMG.naturalWidth>=MB_FW*2){
       ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-sz/2,-sz/2+bobY,sz,sz);
     }else{
       ctx.drawImage(MB_IMG,-sz/2,-sz/2+bobY,sz,sz);
     }
   }else{
-    // 이미지 미로드 시 폴백 원
+    ctx.shadowColor=glowCol;ctx.shadowBlur=14+pulse*10;
     ctx.fillStyle='#ff3300';ctx.beginPath();ctx.arc(0,bobY,28,0,Math.PI*2);ctx.fill();
   }
   ctx.restore();
+
+  // ── 이펙트3: 공전 불꽃 오브 4개 ──
+  ctx.save();
+  for(let i=0;i<4;i++){
+    const ang=t*0.002+(i/4)*Math.PI*2;
+    const or=40+Math.sin(t*0.003+i*1.2)*6;
+    const ox=Math.cos(ang)*or,oy=Math.sin(ang)*or*0.55+bobY;
+    const op=Math.sin(t*0.005+i*1.7)*0.3+0.7;
+    const or2=3.5+op*2;
+    ctx.globalAlpha=op*0.85;
+    ctx.shadowColor=i%2===0?glowCol:glowCol2;ctx.shadowBlur=10;
+    ctx.fillStyle=i%2===0?glowCol:glowCol2;
+    ctx.beginPath();ctx.arc(ox,oy,or2,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+
+  // ── 이펙트4: 엠버 파티클 spawn (세계 좌표) ──
+  if(Math.random()<0.3){
+    const ax=(Math.random()-0.5)*60,ay=(Math.random()-0.5)*40;
+    parts.push({x:b.x+ax,y:b.y+ay,vx:(Math.random()-0.5)*1.2,vy:-1-Math.random()*1.5,life:350,maxLife:350,r:1.5+Math.random()*2,color:phase2?'#ff88ff':(Math.random()<0.5?'#ff6600':'#ffaa00')});
+  }
+
   // HP바 및 이름
-  const phase2=b.phase===2;
   const hpPct=b.hp/b.maxHp;
   ctx.fillStyle='#1a0000';ctx.fillRect(-46,-62,92,8);
   ctx.fillStyle=hpPct>0.5?'#ff4466':phase2?'#ff44ff':'#cc2244';ctx.fillRect(-46,-62,92*hpPct,8);
