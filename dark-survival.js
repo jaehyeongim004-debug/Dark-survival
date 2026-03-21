@@ -1106,7 +1106,7 @@ function drawMe(){
   if(myPlayer.groggy){
     ctx.globalAlpha=0.5;
     const spr=SPRITES[myClass];
-    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.imageSmoothingEnabled=false;ctx.drawImage(spr,x-24,y-24,48,48);}
+    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.imageSmoothingEnabled=false;ctx.drawImage(spr,x-32,y-32,64,64);}
     else{ctx.fillStyle='#666';ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();}
     ctx.globalAlpha=1;
     const gt=myPlayer.groggyTimer||0;
@@ -1125,7 +1125,7 @@ function drawMe(){
   const bounce=isMoving?Math.sin(t*0.015)*2:0;
   if(spr&&spr.complete&&spr.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
-    ctx.drawImage(spr,x-24,y-24+bounce,48,48);ctx.shadowBlur=0;
+    ctx.drawImage(spr,x-32,y-32+bounce,64,64);ctx.shadowBlur=0;
   }else{
     ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
     ctx.fillStyle=cls.color;ctx.beginPath();ctx.arc(x,y+bounce,11,0,Math.PI*2);ctx.fill();
@@ -1146,7 +1146,7 @@ function drawOthers(){allPlayers.forEach((p,i)=>{
   if(p.groggy){
     ctx.globalAlpha=0.5;
     const spr=cls?SPRITES[p.cls]:null;
-    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.imageSmoothingEnabled=false;ctx.drawImage(spr,p.x-24,p.y-24,48,48);}
+    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.imageSmoothingEnabled=false;ctx.drawImage(spr,p.x-32,p.y-32,64,64);}
     else{ctx.fillStyle='#666';ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);ctx.fill();}
     ctx.globalAlpha=1;
     const bW=40,bH=5,bX=p.x-bW/2,bY=p.y-28;
@@ -1170,7 +1170,7 @@ function drawOthers(){allPlayers.forEach((p,i)=>{
   const pBounce=pMoving?Math.sin(t2*0.015)*2:0;
   if(spr&&spr.complete&&spr.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;ctx.shadowColor=c;ctx.shadowBlur=10;
-    ctx.drawImage(spr,p.x-24,p.y-24+pBounce,48,48);ctx.shadowBlur=0;
+    ctx.drawImage(spr,p.x-32,p.y-32+pBounce,64,64);ctx.shadowBlur=0;
   }else{
     ctx.shadowColor=c;ctx.shadowBlur=10;ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,p.y+pBounce,11,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
     if(cls){ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,p.x,p.y+pBounce);}
