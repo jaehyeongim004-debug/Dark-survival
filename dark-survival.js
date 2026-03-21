@@ -452,7 +452,7 @@ function handleMsg(msg){
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
   else if(msg.t==='pat'){doBossPat(msg);}
-  else if(msg.t==='eDead'){spawnParts(msg.x,msg.y,'#ff8844',8);kills++;score+=msg.sc||10;addKf('+'+(msg.sc||10));}
+  else if(msg.t==='eDead'){spawnPixelExplosion(msg.x,msg.y,'enemy');kills++;score+=msg.sc||10;if(msg.sc>0)addKf('+'+(msg.sc||10));}
   else if(msg.t==='playerLeft'){showPop('플레이어 퇴장',1200);}
   else if(msg.t==='stageClear'){showStageClear(msg.stage,msg.next);}
   else if(msg.t==='stageStart'){nextStage(msg.stage);}
