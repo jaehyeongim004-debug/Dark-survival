@@ -688,6 +688,38 @@ function drawLasers(){
       ctx.restore();
     }
   }
+  function drawMegaBlast(){
+  if(!megaBlastState)return;
+  const now=performance.now();
+  if(megaBlastState.phase==='warn'){
+    const elapsed=now-megaBlastState.startTime,total=5000;
+    if(elapsed>total)return;
+    const remaining=Math.max(0,total-elapsed),pulse=Math.sin(now*0.01)*0.3+0.7,countdown=Math.ceil(remaining/1000);
+    const ox=W/2-camX,oy=H/2-camY;
+    ctx.save();ctx.translate(-ox,-oy);
+    ctx.globalAlpha=0.35+pulse*0.2;
+    const vGrad=ctx.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,H*0.8);
+    vGrad.addColorStop(0,'rgba(0,0,0,0)');vGrad.addColorStop(1,'rgba(200,0,0,0.7)');
+    ctx.fillStyle=vGrad;ctx.fillRect(0,0,W,H);
+    ctx.translate(ox,oy);
+    const sz=megaBlastState.safeZones||[];
+    for(const z of sz){
+      ctx.globalAlpha=0.25+pulse*0.15;ctx.fillStyle='#00ff44';ctx.beginPath();ctx.arc(z.x,z.y,z.r,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=0.9;ctx.strokeStyle='#44ff88';ctx.lineWidth=3+pulse*2;ctx.beginPath();ctx.arc(z.x,z.y,z.r,0,Math.PI*2);ctx.stroke();
+      ctx.globalAlpha=0.9;ctx.fillStyle='#ccffcc';ctx.font='bold 12px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('SAFE',z.x,z.y);
+    }
+    ctx.translate(-ox,-oy);ctx.globalAlpha=1;
+    ctx.fillStyle='#ff4444';ctx.font='bold 36px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('💥 대폭발 '+countdown+'초!',W/2,H/2-80);
+    ctx.restore();
+  }
+  if(megaBlastState.phase==='blast'){
+    const elapsed=now-megaBlastState.startTime,total=800;
+    if(elapsed>total){megaBlastState=null;return;}
+    const fade=1-elapsed/total,ox=W/2-camX,oy=H/2-camY;
+    ctx.save();ctx.translate(-ox,-oy);ctx.globalAlpha=fade*0.85;ctx.fillStyle='rgba(255,140,0,'+fade+')';ctx.fillRect(0,0,W,H);ctx.restore();
+  }
+}
 
   if(laserFire){
     const elapsed=t-laserFire.startTime;
