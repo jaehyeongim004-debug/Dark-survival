@@ -169,6 +169,10 @@ const SPRITES={};
     SPRITES[name].src=src;
   }
 })();
+SPRITES['warrior'].src='/warrior-sprite.png';
+SPRITES['mage'].src='/mage-sprite.png';
+SPRITES['gunner'].src='/gunner-sprite.png';
+SPRITES['assassin'].src='/assassin-sprite.png';
 
 // ── 던전 타일 ────────────────────────────────────────────────
 const DUNGEON_TILES=[];
@@ -382,6 +386,7 @@ let megaBlastState=null;
 const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.volume=0.5;
 function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
+const NECRO_IMG=new Image();NECRO_IMG.src='/necromancer-sprite.png';
 const MB_FW=200,MB_FH=200; // 프레임 크기: 이미지 실측 후 조정
 let mbRow=0,mbFrame=0,mbFrameT=0,mbLocked=false,mbPrevT=0;
 let lastTime=0,jsActive=false,jsX=0,jsY=0,attackPressed=false,lastShot=0;
@@ -1019,76 +1024,6 @@ function drawClassAnim(ctx, cls, x, y, isMoving, t, scale=1){
     const flutter1 = windX + f1 * baseFlutter;
     const flutter2 = windY * 0.4 + f2 * baseFlutter * 0.7;
     const alpha = isMoving ? 0.88 : 0.65;
-    ctx.save();
-    ctx.globalAlpha = alpha * 0.9;
-    ctx.fillStyle = '#0e0e14';
-    ctx.beginPath();
-    ctx.moveTo(-5*s, -12*s);
-    ctx.bezierCurveTo((-9 + flutter1*0.3)*s, (-4)*s,(-16 + flutter1)*s,6*s,(-13 + flutter1*0.8)*s,18*s);
-    ctx.bezierCurveTo((-10 + flutter1*0.5)*s, 22*s,(-4)*s,20*s,(-3)*s,10*s);
-    ctx.bezierCurveTo((-4)*s, 2*s,(-5)*s, -6*s,(-5)*s, -12*s);
-    ctx.fill();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#18182a';
-    ctx.beginPath();
-    ctx.moveTo(-4*s, -11*s);
-    ctx.bezierCurveTo((-7 + flutter1*0.4)*s, -2*s,(-14 + flutter1*1.1)*s, 8*s,(-11 + flutter1*0.9)*s, 17*s);
-    ctx.bezierCurveTo((-8 + flutter1*0.5)*s, 21*s,(-3)*s,19*s,(-2)*s,9*s);
-    ctx.bezierCurveTo((-3)*s, 0*s,(-4)*s, -6*s,(-4)*s, -11*s);
-    ctx.fill();
-    ctx.globalAlpha = alpha * 0.7;
-    ctx.fillStyle = '#7a0a0a';
-    ctx.beginPath();
-    ctx.moveTo(-4*s, -9*s);
-    ctx.bezierCurveTo((-6 + flutter1*0.5)*s, 0*s,(-11 + flutter1*1.2)*s, 9*s,(-9 + flutter1)*s,16*s);
-    ctx.bezierCurveTo((-7 + flutter1*0.6)*s, 19*s,(-3)*s,17*s,(-2)*s,8*s);
-    ctx.fill();
-    ctx.globalAlpha = alpha * 0.3;
-    ctx.strokeStyle = '#0a0a12';
-    ctx.lineWidth = 0.8 * s;
-    for(let i=0; i<3; i++){
-      const offset = i * 3;
-      ctx.beginPath();
-      ctx.moveTo((-3-offset*0.3)*s, (-8+offset)*s);
-      ctx.quadraticCurveTo((-7 + flutter1*0.3 - offset*0.2)*s, (2+offset)*s,(-6 + flutter1*0.5 - offset*0.2)*s, (12+offset*0.5)*s);
-      ctx.stroke();
-    }
-    ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = alpha * 0.9;
-    ctx.fillStyle = '#0e0e14';
-    ctx.beginPath();
-    ctx.moveTo(5*s, -12*s);
-    ctx.bezierCurveTo((9 + flutter2*0.3)*s, (-4)*s,(16 + flutter2)*s,6*s,(13 + flutter2*0.8)*s,18*s);
-    ctx.bezierCurveTo((10 + flutter2*0.5)*s, 22*s,4*s,20*s,3*s,10*s);
-    ctx.bezierCurveTo(4*s, 2*s,5*s, -6*s,5*s, -12*s);
-    ctx.fill();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#18182a';
-    ctx.beginPath();
-    ctx.moveTo(4*s, -11*s);
-    ctx.bezierCurveTo((7 + flutter2*0.4)*s, -2*s,(14 + flutter2*1.1)*s, 8*s,(11 + flutter2*0.9)*s, 17*s);
-    ctx.bezierCurveTo((8 + flutter2*0.5)*s, 21*s,3*s,19*s,2*s,9*s);
-    ctx.bezierCurveTo(3*s, 0*s,4*s, -6*s,4*s, -11*s);
-    ctx.fill();
-    ctx.globalAlpha = alpha * 0.7;
-    ctx.fillStyle = '#7a0a0a';
-    ctx.beginPath();
-    ctx.moveTo(4*s, -9*s);
-    ctx.bezierCurveTo((6 + flutter2*0.5)*s, 0*s,(11 + flutter2*1.2)*s, 9*s,(9 + flutter2)*s,16*s);
-    ctx.bezierCurveTo((7 + flutter2*0.6)*s, 19*s,3*s,17*s,2*s,8*s);
-    ctx.fill();
-    ctx.globalAlpha = alpha * 0.3;
-    ctx.strokeStyle = '#0a0a12';
-    ctx.lineWidth = 0.8 * s;
-    for(let i=0; i<3; i++){
-      const offset = i * 3;
-      ctx.beginPath();
-      ctx.moveTo((3+offset*0.3)*s, (-8+offset)*s);
-      ctx.quadraticCurveTo((7 + flutter2*0.3 + offset*0.2)*s, (2+offset)*s,(6 + flutter2*0.5 + offset*0.2)*s, (12+offset*0.5)*s);
-      ctx.stroke();
-    }
-    ctx.restore();
     if(isMoving && (Math.abs(moveX)>0.3 || Math.abs(moveY)>0.3)){
       const speed = Math.sqrt(moveX*moveX + moveY*moveY);
       ctx.save();
@@ -1101,18 +1036,6 @@ function drawClassAnim(ctx, cls, x, y, isMoving, t, scale=1){
     }
   }
   else if(cls==='warrior'){
-    const swing=isMoving?Math.sin(t*0.014)*5:Math.sin(t*0.005)*1.5;
-    ctx.save();
-    ctx.globalAlpha=0.8;
-    ctx.fillStyle='#880a0a';
-    ctx.beginPath();
-    ctx.moveTo(-7*s,6*s);ctx.lineTo(7*s,6*s);ctx.lineTo((8+swing)*s,16*s);ctx.lineTo((0+swing*0.3)*s,18*s);ctx.lineTo((-8-swing)*s,16*s);
-    ctx.closePath();ctx.fill();
-    ctx.globalAlpha=0.4;ctx.fillStyle='#cc1111';
-    ctx.beginPath();
-    ctx.moveTo(-3*s,6*s);ctx.lineTo(3*s,6*s);ctx.lineTo((3+swing*0.5)*s,14*s);ctx.lineTo((-3-swing*0.5)*s,14*s);
-    ctx.closePath();ctx.fill();
-    ctx.restore();
     if(weaponUpgradeLevel>0){
       const glow=Math.sin(t*0.008)*0.3+0.5;
       ctx.globalAlpha=glow*0.4;ctx.fillStyle='#aaaaff';
@@ -1121,12 +1044,6 @@ function drawClassAnim(ctx, cls, x, y, isMoving, t, scale=1){
     }
   }
   else if(cls==='gunner'){
-    const coat=isMoving?Math.sin(t*0.016)*6:Math.sin(t*0.005)*1;
-    ctx.save();
-    ctx.globalAlpha=0.7;ctx.fillStyle='#18181e';
-    ctx.beginPath();ctx.moveTo(-6*s,4*s);ctx.lineTo(-10*s,4*s);ctx.lineTo((-12+coat)*s,18*s);ctx.lineTo(-6*s,16*s);ctx.closePath();ctx.fill();
-    ctx.beginPath();ctx.moveTo(6*s,4*s);ctx.lineTo(10*s,4*s);ctx.lineTo((12-coat)*s,18*s);ctx.lineTo(6*s,16*s);ctx.closePath();ctx.fill();
-    ctx.restore();
     const scarf=isMoving?Math.sin(t*0.02)*3:0;
     ctx.save();ctx.globalAlpha=0.85;ctx.fillStyle='#cc2222';
     ctx.beginPath();ctx.moveTo(-6*s,-4*s);ctx.lineTo(6*s,-4*s);ctx.lineTo((8+scarf)*s,2*s);ctx.lineTo((-8-scarf)*s,2*s);ctx.closePath();ctx.fill();
@@ -1146,13 +1063,6 @@ function drawClassAnim(ctx, cls, x, y, isMoving, t, scale=1){
       ctx.save();ctx.globalAlpha=orbAlpha;ctx.shadowColor='#ff3300';ctx.shadowBlur=6;
       ctx.fillStyle=i===0?'#ff2200':i===1?'#ff6600':'#cc0000';
       ctx.beginPath();ctx.arc(ox,oy,2.5*s,0,Math.PI*2);ctx.fill();ctx.restore();
-    }
-    if(isMoving){
-      const robeFlap=Math.sin(t*0.018)*4;
-      ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='#0d0a12';
-      ctx.beginPath();ctx.moveTo(-7*s,8*s);ctx.lineTo((-10+robeFlap)*s,18*s);ctx.lineTo(-4*s,16*s);ctx.closePath();ctx.fill();
-      ctx.beginPath();ctx.moveTo(7*s,8*s);ctx.lineTo((10-robeFlap)*s,18*s);ctx.lineTo(4*s,16*s);ctx.closePath();ctx.fill();
-      ctx.restore();
     }
   }
   ctx.restore();
@@ -1323,6 +1233,7 @@ function drawFlameDemon(ctx,b,t){
 
 function drawNecromancer(ctx,b,t){
   // ── 최종 보스: NECROMANCER (Canvas로 직접 그림) ──
+  if(NECRO_IMG.complete&&NECRO_IMG.naturalWidth>0){ctx.drawImage(NECRO_IMG,-50,-50,100,100);return;}
   const phase2=b.phase===2;
   const bobY=Math.sin(t*0.0015)*2;
   const turretsAlive=turrets.filter(tt=>tt.hp>0).length;
@@ -1351,25 +1262,6 @@ function drawNecromancer(ctx,b,t){
   oraGrad.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=oraGrad;
   ctx.beginPath();ctx.arc(0,bobY,52,0,Math.PI*2);ctx.fill();
-
-  // 해골 망토 (하반신)
-  ctx.shadowColor=phase2?'#ff0022':'#660044';
-  ctx.shadowBlur=phase2?25:15;
-  const capeGrad=ctx.createLinearGradient(0,-10+bobY,0,44+bobY);
-  capeGrad.addColorStop(0,phase2?'#440011':'#220033');
-  capeGrad.addColorStop(1,phase2?'#110008':'#0d0018');
-  ctx.fillStyle=capeGrad;
-  ctx.beginPath();
-  ctx.moveTo(-28,8+bobY);
-  ctx.bezierCurveTo(-34,20+bobY,-32,40+bobY,-22,46+bobY);
-  ctx.lineTo(22,46+bobY);
-  ctx.bezierCurveTo(32,40+bobY,34,20+bobY,28,8+bobY);
-  ctx.closePath();ctx.fill();
-
-  // 망토 테두리 디테일
-  ctx.strokeStyle=phase2?'rgba(220,0,50,0.5)':'rgba(120,0,150,0.4)';
-  ctx.lineWidth=1.5;
-  ctx.stroke();
 
   // 갑옷 몸통
   const bodyGrad=ctx.createRadialGradient(-8,-14+bobY,5,0,bobY,26);
