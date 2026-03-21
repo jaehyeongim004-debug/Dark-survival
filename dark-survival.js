@@ -475,7 +475,7 @@ function initGameState(){
   myStats._lastDmgBonus=1;myStats._lastCdMult=1;
   myWeapon={...cls.weapon};myTraits=[];weaponUpgradeLevel=0;weaponElement=null;
   running=true;stageTime=600;currentStage=1;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;
-  kills=0;score=0;projs=[];parts=[];orbs=[];remoteEffects=[];explosions=[];fireZones=[];turrets=[];
+  kills=0;score=0;projs=[];parts=[];orbs=[];remoteEffects=[];explosions=[];fireZones=[];turrets=[];pixelExplList=[];megaBlastState=null;
   myPlayer={x:0,y:0,hp:myStats.hp,maxHp:myStats.maxHp,lv:1,exp:0,expNext:50,dead:false};
   invincible=false;invincibleEnd=0;localLvUpQueue=0;bossWarning=null;
   _traitSelectOpen=false;if(_traitAutoTimeout){clearTimeout(_traitAutoTimeout);_traitAutoTimeout=null;}
