@@ -121,7 +121,7 @@ input.inp:focus{border-color:#ffcc00;}
   </div>
   <div id="killFeed"></div><div id="msgPop"></div><div id="traitList"></div><div id="classTag"></div><div id="weaponElement"></div>
   <div id="statsPanel"></div>
-  <div id="autoAimBtn" class="on"><span class="aaIcon">🎯</span><span class="aaLabel">AUTO</span></div>
+  <div id="autoAimBtn"><span class="aaIcon">🎯</span><span class="aaLabel">AUTO</span></div>
   <div id="minimap"><canvas id="minimapCanvas" width="120" height="120"></canvas></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="js2Wrap"><div id="js2Base"><span class="js2Icon">⚔</span><div id="js2Knob"></div></div></div>
