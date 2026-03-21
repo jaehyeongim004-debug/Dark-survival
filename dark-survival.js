@@ -197,6 +197,7 @@ const WS_URL=(location.protocol==='https:'?'wss://':'ws://')+location.host;
 let ws=null,myId=null,isHost=false,myClass=null;
 let _wsHeartbeat=null;
 function connect(cb){
+  if(ws&&ws.readyState<2)ws.close();
   ws=new WebSocket(WS_URL);
   ws.onopen=()=>{
     if(_wsHeartbeat)clearInterval(_wsHeartbeat);
@@ -1825,6 +1826,7 @@ wss.on('connection',ws=>{
       const code=(msg.code||'').toUpperCase(),room=rooms.get(code);
       if(!room){ws.send(JSON.stringify({t:'err',msg:'방을 찾을 수 없어요'}));return;}
       if(room.started){ws.send(JSON.stringify({t:'err',msg:'이미 시작된 방이에요'}));return;}
+      if(room.players.size>=4){ws.send(JSON.stringify({t:'err',msg:'방이 가득 찼어요 (최대 4인)'}));return;}
       ws.roomCode=code;const idx=room.players.size;const sp=[{x:0,y:0},{x:60,y:-40},{x:-60,y:40},{x:40,y:60}][idx%4];
       room.players.set(ws,newPlayer(msg.name||('P'+(idx+1)),sp.x,sp.y));
       ws.send(JSON.stringify({t:'joined',code,id:ws.pid}));
