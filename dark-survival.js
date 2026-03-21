@@ -859,7 +859,7 @@ function draw(){
   ctx.globalCompositeOperation='source-over';
   const ox=W/2-camX,oy=H/2-camY;
   ctx.save();ctx.translate(ox,oy);
-  drawGrid();drawFireZones();drawOrbs();drawParts();drawExplosions();
+  drawGrid();drawFireZones();drawOrbs();drawParts();drawPixelExplosions();drawExplosions();
   if(bossWarning) drawBossSpawnMarker();
   drawLasers();
   drawEnemies();
@@ -868,7 +868,7 @@ function draw(){
   ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.setLineDash([]);
   drawTurrets();drawOthers();
   if(myPlayer&&!myPlayer.dead)drawMe();
-  drawProjs();
+  drawProjs();drawMegaBlast();
   ctx.restore();
   if(bossAlive||bossWarning) drawArenaBorder(ox,oy);
   ctx.setLineDash([]);
@@ -1573,6 +1573,12 @@ function drawBoss(){
 function drawTurrets(){for(const t of turrets){ctx.save();ctx.fillStyle='#333344';ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#6666ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#8888ff';ctx.beginPath();ctx.arc(t.x,t.y,t.r*0.6,0,Math.PI*2);ctx.fill();ctx.fillStyle='#220022';ctx.fillRect(t.x-t.r,t.y-t.r-10,t.r*2,4);ctx.fillStyle='#8888ff';ctx.fillRect(t.x-t.r,t.y-t.r-10,t.r*2*(t.hp/t.maxHp),4);ctx.fillStyle='#fff';ctx.font='bold 8px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText('⚡',t.x,t.y-t.r-12);ctx.restore();}}
 function drawProjs(){for(const p of projs){ctx.save();let col=p.color;if(p.element&&weaponUpgradeLevel>=2)col=ELEMENT_COLORS[p.element];ctx.shadowColor=col;ctx.shadowBlur=p.visual?4:p.isMagic?12:8;ctx.globalAlpha=p.visual?0.6:1;ctx.fillStyle=col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();if(!p.visual&&!p.enemy&&weaponUpgradeLevel>=3&&p.isMagic){ctx.strokeStyle=col+'44';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,p.r+3,0,Math.PI*2);ctx.stroke();}ctx.restore();}}
 function drawParts(){for(const p of parts){const a=p.life/p.maxLife;ctx.save();ctx.globalAlpha=a;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r*a,0,Math.PI*2);ctx.fill();ctx.restore();}}
+function drawPixelExplosions(){
+  for(const px of pixelExplList){
+    const a=px.life/px.maxLife;
+    ctx.save();ctx.globalAlpha=a;ctx.translate(px.x,px.y);ctx.rotate(px.rot);ctx.fillStyle=px.color;ctx.fillRect(-px.w/2,-px.h/2,px.w,px.h);ctx.restore();
+  }
+}
 function drawExplosions(){for(const ex of explosions){const a=ex.life/ex.maxLife,cr=ex.r*(1-a*0.3);ctx.save();ctx.globalAlpha=a*0.7;ctx.shadowColor=ex.color;ctx.shadowBlur=20;ctx.strokeStyle=ex.color;ctx.lineWidth=4;ctx.beginPath();ctx.arc(ex.x,ex.y,cr,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=a*0.4;ctx.fillStyle=ex.color;ctx.beginPath();ctx.arc(ex.x,ex.y,cr*0.6,0,Math.PI*2);ctx.fill();ctx.restore();}}
 function drawFireZones(){for(const fz of fireZones){const a=fz.life/fz.maxLife;ctx.save();ctx.globalAlpha=a*0.4;ctx.fillStyle='#ff4400';ctx.beginPath();ctx.arc(fz.x,fz.y,30,0,Math.PI*2);ctx.fill();ctx.globalAlpha=a*0.6;ctx.strokeStyle='#ff6600';ctx.lineWidth=2;ctx.beginPath();ctx.arc(fz.x,fz.y,30,0,Math.PI*2);ctx.stroke();ctx.restore();}}
 function drawOrbs(){const t=performance.now()*0.004;for(const o of orbs){if(o.col)continue;ctx.save();ctx.shadowColor='#44aaff';ctx.shadowBlur=8;ctx.fillStyle='#2266cc';ctx.beginPath();ctx.arc(o.x,o.y+Math.sin(t+o.x)*2,5,0,Math.PI*2);ctx.fill();ctx.restore();}}
