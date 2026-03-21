@@ -1536,7 +1536,7 @@ window.addEventListener('resize',()=>{W=G.clientWidth;H=G.clientHeight;canvas.wi
 
 // ── SERVER ─────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
-  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/.test(req.url)){const fp=require('path').join(__dirname,req.url.split('?')[0]);try{const d=require('fs').readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0];res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'})[ext]||'application/octet-stream'});res.end(d);return;}catch(e){}}
+  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/.test(req.url)){const fp=require('path').join(__dirname,'assets',req.url.split('?')[0]);try{const d=require('fs').readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0];res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'})[ext]||'application/octet-stream'});res.end(d);return;}catch(e){}}
   res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
   res.end(HTML);
 });
