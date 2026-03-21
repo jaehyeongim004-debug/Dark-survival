@@ -466,6 +466,9 @@ function handleMsg(msg){
   else if(msg.t==='turrets'){turrets=msg.turrets||[];}
   else if(msg.t==='turretHp'){const t=turrets.find(tt=>tt.id===msg.id);if(t)t.hp=msg.hp;}
   else if(msg.t==='weaponUpgrade'){showPop(msg.msg,3000);}
+else if(msg.t==='megaBlastWarn'){megaBlastState={phase:'warn',safeZones:msg.safeZones||[],startTime:performance.now(),bx:msg.bx,by:msg.by};showPop('💥 대폭발! 초록 안전지대로!',5000);}
+else if(msg.t==='megaBlast'){megaBlastState={phase:'blast',startTime:performance.now()};spawnPixelExplosion(msg.bx,msg.by,'mega');showPop('💥 대폭발!!!',800);}
+else if(msg.t==='megaBlastEnd'){megaBlastState=null;}
 }
 function showClassScreen(){document.getElementById('lobbyScreen').style.display='none';document.getElementById('classScreen').style.display='flex';}
 function hideClassScreen(){document.getElementById('classScreen').style.display='none';}
