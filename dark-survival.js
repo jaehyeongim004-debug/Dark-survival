@@ -1585,6 +1585,11 @@ const SPAWN_WEIGHTS=[[0.55,0.2,0.1,0.1,0.05],[0.35,0.2,0.15,0.15,0.15],[0.2,0.2,
 function pickEtype(stage){const w=SPAWN_WEIGHTS[Math.min(stage-1,2)];const r=Math.random();let cum=0;for(let i=0;i<w.length;i++){cum+=w[i];if(r<cum)return ETYPES[i];}return ETYPES[0];}
 function spawnEnemies(room){if(room.midBossAlive||room.finalBossAlive)return;const gp=(600-room.stageTime)/600,pc=room.players.size,sm=room.currentStage;const cnt=Math.max(1,Math.floor((1+gp*1.5+(pc-1)*0.4)*sm*1.8));const arr=[...room.players.values()].filter(p=>!p.dead);if(!arr.length)return;const ref=arr[Math.floor(Math.random()*arr.length)];for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,r=350+Math.random()*80,et=pickEtype(room.currentStage);const bh=(20+Math.random()*15*(1+gp*2))*sm*(1+(pc-1)*0.3);room.enemies.push({id:room.eid++,x:ref.x+Math.cos(a)*r,y:ref.y+Math.sin(a)*r,hp:bh*et.hpMult,maxHp:bh*et.hpMult,spd:et.spd*(1+(room.currentStage-1)*0.3+gp*0.4),type:et.type,r:et.r,dead:false,lastShot:0,shieldHp:et.shieldHp?Math.floor(bh*0.5):0,dmgMult:et.dmgMult*(1+gp*0.3),poison:0,ice:false,atkSlow:false});}if(room.enemies.length>150)room.enemies=room.enemies.filter(e=>!e.dead).slice(-150);}
 function spawnBossMobs(room){const pc=room.players.size,cnt=3+pc*2;const arr=[...room.players.values()].filter(p=>!p.dead);if(!arr.length)return;const br=room.boss||{x:0,y:0};for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,r=200+Math.random()*150;const et=Math.random()<0.8?ETYPES[1]:ETYPES[2];const bh=(30+Math.random()*20)*(1+(pc-1)*0.3);room.enemies.push({id:room.eid++,x:br.x+Math.cos(a)*r,y:br.y+Math.sin(a)*r,hp:bh*et.hpMult,maxHp:bh*et.hpMult,spd:et.spd*1.2,type:et.type,r:et.r,dead:false,lastShot:0,shieldHp:et.shieldHp?Math.floor(bh*0.5):0,dmgMult:et.dmgMult*1.3,poison:0,ice:false,atkSlow:false});}}
+function spawnMiniMidBoss(room){
+  const br=room.boss||{x:0,y:0};
+  const a=Math.random()*Math.PI*2,r=220+Math.random()*100;
+  room.enemies.push({id:room.eid++,x:br.x+Math.cos(a)*r,y:br.y+Math.sin(a)*r,hp:2000,maxHp:2000,spd:1.1,type:'basic',r:18,dead:false,lastShot:0,shieldHp:0,dmgMult:1.4,poison:0,ice:false,atkSlow:false,isMiniMid:true});
+}
 function spawnBoss(room,isFinal){
   const pc=room.players.size;
   const ARENA=800;
@@ -1686,7 +1691,7 @@ function tickRoom(code){
         setTimeout(()=>{if(!room.boss||room.boss.dead)return;room.boss.frozen=false;room.boss.invincible=false;bcastAll(room,{t:'megaBlastEnd'});},1000);
       },5000);
     }
-    if(b.isFinal){const hp=Math.floor((b.hp/b.maxHp)*100),thr=Math.floor(hp/10)*10;if(thr<b.lastHpThreshold){b.lastHpThreshold=thr;}}
+    if(b.isFinal){const hp=Math.floor((b.hp/b.maxHp)*100),thr=Math.floor(hp/10)*10;if(thr<b.lastHpThreshold){b.lastHpThreshold=thr;}b.miniMidTimer=(b.miniMidTimer||0)+dt;if(b.miniMidTimer>=30){b.miniMidTimer=0;spawnMiniMidBoss(room);}}
     if(b.isFinal&&room.turrets&&room.turrets.some(t=>!t.dead&&t.hp>0))b.hp=Math.min(b.hp+b.maxHp*0.05*dt,b.maxHp);
     const isIced=b.iceEnd&&b.iceEnd>now,bs=(b.isFinal?2.0:1.6)*(isIced?0.85:1),bd=isIced?0.85:1;
     let near=null,md=Infinity;for(const p of alivePlayers){const dx=p.x-b.x,dy=p.y-b.y,d=dx*dx+dy*dy;if(d<md){md=d;near=p;}}
