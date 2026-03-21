@@ -453,7 +453,7 @@ function handleMsg(msg){
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
   else if(msg.t==='pat'){doBossPat(msg);}
-  else if(msg.t==='eDead'){spawnPixelExplosion(msg.x,msg.y,'enemy');kills++;score+=msg.sc||10;if(msg.sc>0)addKf('+'+(msg.sc||10));}
+  else if(msg.t==='eDead'){kills++;score+=msg.sc||10;if(msg.sc>0)addKf('+'+(msg.sc||10));}
   else if(msg.t==='playerLeft'){showPop('플레이어 퇴장',1200);}
   else if(msg.t==='stageClear'){showStageClear(msg.stage,msg.next);}
   else if(msg.t==='stageStart'){nextStage(msg.stage);}
@@ -461,6 +461,7 @@ function handleMsg(msg){
   else if(msg.t==='statSync'){if(myStats){if(msg.armor!==undefined)myStats.armor=msg.armor;if(msg.regen!==undefined)myStats.regen=msg.regen;updateStatsPanel();}}
   else if(msg.t==='revived'){showPop('💚 부활했습니다!',2000);if(myPlayer){myPlayer.groggy=false;myPlayer.dead=false;}}
   else if(msg.t==='groggyDead'){if(myPlayer&&myPlayer.groggy){running=false;_loopRunning=false;endGame(false);}}
+  else if(msg.t==='enemyBuff'){showPop(msg.msg,3000);}
   else if(msg.t==='fx'){remoteEffects.push(msg);}
   else if(msg.t==='explosion'){explosions.push({x:msg.x,y:msg.y,r:msg.r,dmg:msg.dmg,life:300,maxLife:300,color:msg.color||'#cc88ff'});}
   else if(msg.t==='fireZone'){fireZones.push({x:msg.x,y:msg.y,dmg:msg.dmg,life:2000,maxLife:2000});}
@@ -1636,7 +1637,7 @@ function bcastAll(room,msg){bcast(room,msg,null);}
 const ETYPES=[{type:'basic',spd:1.0,hpMult:1.0,r:12,dmgMult:1.0},{type:'ranged',spd:0.65,hpMult:0.75,r:11,dmgMult:0.8},{type:'shield',spd:0.55,hpMult:2.8,r:14,dmgMult:1.2,shieldHp:true},{type:'fast',spd:2.2,hpMult:0.55,r:10,dmgMult:0.9},{type:'mage',spd:0.7,hpMult:0.85,r:11,dmgMult:1.1}];
 const SPAWN_WEIGHTS=[[0.55,0.2,0.1,0.1,0.05],[0.35,0.2,0.15,0.15,0.15],[0.2,0.2,0.15,0.2,0.25]];
 function pickEtype(stage){const w=SPAWN_WEIGHTS[Math.min(stage-1,2)];const r=Math.random();let cum=0;for(let i=0;i<w.length;i++){cum+=w[i];if(r<cum)return ETYPES[i];}return ETYPES[0];}
-function spawnEnemies(room){if(room.midBossAlive||room.finalBossAlive)return;const gp=(600-room.stageTime)/600,pc=room.players.size,sm=room.currentStage;const cnt=Math.max(1,Math.floor((1+gp*1.5+(pc-1)*0.4)*sm*1.8));const arr=[...room.players.values()].filter(p=>!p.dead);if(!arr.length)return;const ref=arr[Math.floor(Math.random()*arr.length)];for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,r=350+Math.random()*80,et=pickEtype(room.currentStage);const bh=(20+Math.random()*15*(1+gp*2))*sm*(1+(pc-1)*0.3);room.enemies.push({id:room.eid++,x:ref.x+Math.cos(a)*r,y:ref.y+Math.sin(a)*r,hp:bh*et.hpMult,maxHp:bh*et.hpMult,spd:et.spd*(1+(room.currentStage-1)*0.3+gp*0.4),type:et.type,r:et.r,dead:false,lastShot:0,shieldHp:et.shieldHp?Math.floor(bh*0.5):0,dmgMult:et.dmgMult*(1+gp*0.3),poison:0,ice:false,atkSlow:false});}if(room.enemies.length>150)room.enemies=room.enemies.filter(e=>!e.dead).slice(-150);}
+function spawnEnemies(room){if(room.midBossAlive||room.finalBossAlive)return;const gp=(600-room.stageTime)/600,pc=room.players.size,sm=room.currentStage;const cnt=Math.max(1,Math.floor((1+gp*1.5+(pc-1)*0.4)*sm*1.8));const arr=[...room.players.values()].filter(p=>!p.dead);if(!arr.length)return;const ref=arr[Math.floor(Math.random()*arr.length)];for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,r=350+Math.random()*80,et=pickEtype(room.currentStage);const bh=(20+Math.random()*15*(1+gp*2))*sm*(1+(pc-1)*0.3);const ehm=room.enemyHpMult||1,edm=room.enemyDmgMult||1;room.enemies.push({id:room.eid++,x:ref.x+Math.cos(a)*r,y:ref.y+Math.sin(a)*r,hp:bh*et.hpMult*ehm,maxHp:bh*et.hpMult*ehm,spd:et.spd*(1+(room.currentStage-1)*0.3+gp*0.4),type:et.type,r:et.r,dead:false,lastShot:0,shieldHp:et.shieldHp?Math.floor(bh*0.5*ehm):0,dmgMult:et.dmgMult*(1+gp*0.3)*edm,poison:0,ice:false,atkSlow:false});}if(room.enemies.length>150)room.enemies=room.enemies.filter(e=>!e.dead).slice(-150);}
 function spawnBossMobs(room){const pc=room.players.size,cnt=3+pc*2;const arr=[...room.players.values()].filter(p=>!p.dead);if(!arr.length)return;const br=room.boss||{x:0,y:0};for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,r=200+Math.random()*150;const et=Math.random()<0.8?ETYPES[1]:ETYPES[2];const bh=(30+Math.random()*20)*(1+(pc-1)*0.3);room.enemies.push({id:room.eid++,x:br.x+Math.cos(a)*r,y:br.y+Math.sin(a)*r,hp:bh*et.hpMult,maxHp:bh*et.hpMult,spd:et.spd*1.2,type:et.type,r:et.r,dead:false,lastShot:0,shieldHp:et.shieldHp?Math.floor(bh*0.5):0,dmgMult:et.dmgMult*1.3,poison:0,ice:false,atkSlow:false});}}
 function spawnMiniMidBoss(room){
   const br=room.boss||{x:0,y:0};
@@ -1817,7 +1818,7 @@ wss.on('connection',ws=>{
     const newPlayer=(name,x=0,y=0)=>({id:ws.pid,x,y,hp:100,maxHp:100,lv:1,exp:0,expNext:50,dead:false,groggy:false,groggyTimer:0,reviveProgress:0,name,lvUp:false,cls:null,regen:0,armor:0,expMult:1,critRate:0,dmgBonus:1,invincible:false,invincibleEnd:0,lvUpQueue:0});
     if(msg.t==='create'){
       const code=genCode();
-      rooms.set(code,{players:new Map(),enemies:[],boss:null,turrets:[],fireZones:[],stageTime:600,currentStage:1,started:false,midBossSpawned:false,finalBossSpawned:false,midBossAlive:false,finalBossAlive:false,eid:0,lastTick:Date.now(),readyCount:0});
+      rooms.set(code,{players:new Map(),enemies:[],boss:null,turrets:[],fireZones:[],stageTime:600,currentStage:1,started:false,midBossSpawned:false,finalBossSpawned:false,midBossAlive:false,finalBossAlive:false,eid:0,lastTick:Date.now(),readyCount:0,enemyHpMult:1,enemyDmgMult:1});
       ws.roomCode=code;rooms.get(code).players.set(ws,newPlayer(msg.name||'Player'));
       ws.send(JSON.stringify({t:'created',code,id:ws.pid}));
       bcastAll(rooms.get(code),{t:'lobby',players:[...rooms.get(code).players.values()].map(p=>({id:p.id,name:p.name}))});
@@ -1901,6 +1902,7 @@ wss.on('connection',ws=>{
               bcastAll(room,{t:'bossHp',hp:0});
               room.players.forEach(p=>{if(!p.dmgBonus)p.dmgBonus=1;p.dmgBonus*=1.15;});
               bcastAll(room,{t:'weaponUpgrade',msg:'중간 보스 처치! (+15% 데미지)'});
+              if(room.currentStage===1){room.enemyHpMult=2;room.enemyDmgMult=1.5;bcastAll(room,{t:'enemyBuff',msg:'⚠ 잡몹 강화! (HP×2, 공격력×1.5)'});}
             }
           }else bcastAll(room,{t:'bossHp',hp:room.boss.hp});
         }
