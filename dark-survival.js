@@ -1808,6 +1808,7 @@ wss.on('connection',ws=>{
       if(safeDmg<=0)return;
       if(msg.target==='boss'){
         if(room.boss&&!room.boss.dead){
+          if(room.boss.invincible)return;
           const wt=msg.weaponType||'melee';
           // 직업별 피해 감소: 중간보스(검사/암살자 50%, 저격수/마법사 60%), 최종보스(검사/암살자 70%, 저격수/마법사 80%)
           const sender=room.players.get(ws);const senderCls=sender?sender.cls:'warrior';
@@ -1850,7 +1851,7 @@ wss.on('connection',ws=>{
           }else bcastAll(room,{t:'bossHp',hp:room.boss.hp});
         }
       }else if(msg.target==='turret'){
-        const t=room.turrets?room.turrets.find(tt=>tt.id===msg.tid):null;if(t&&t.hp>0){t.hp-=safeDmg;if(t.hp<=0){t.hp=0;t.dead=true;if(room.boss&&room.boss.isFinal)spawnBossMobs(room);}bcastAll(room,{t:'turretHp',id:t.id,hp:t.hp});}
+        const t=room.turrets?room.turrets.find(tt=>tt.id===msg.tid):null;if(t&&t.hp>0){t.hp-=safeDmg;if(t.hp<=0){t.hp=0;t.dead=true;spawnBossMobs(room);}bcastAll(room,{t:'turretHp',id:t.id,hp:t.hp});}
       }else{
         const e=room.enemies.find(e=>e.id===msg.eid&&!e.dead);
         if(e){let dmg=safeDmg;if(e.shieldHp>0){const ab=Math.min(e.shieldHp,dmg);e.shieldHp-=ab;dmg-=ab;}if(el==='poison'&&tier>=2)e.poison=Math.min(e.poison+1,5);else if(el==='ice'&&tier>=2){e.iceEnd=Date.now()+3000;e.iceSlow=0.15;}e.hp-=dmg;
