@@ -375,7 +375,7 @@ function updateStatsPanel(){
 }
 function getW(){const w=myWeapon,s=myStats;const critHit=s.critRate>0&&Math.random()<(s.critRate/100);return{...w,dmg:w.baseDmg*s.dmgMult*(critHit?2:1),cd:w.baseCd*s.cdMult,range:w.baseRange*s.rangeMult,count:1+s.multishot,crit:critHit};}
 
-let laserWarning=null,laserFire=null;
+let laserWarning=null,laserFire=null,slashWarn=null;
 let running=false,stageTime=600,currentStage=1,midBossSpawned=false,finalBossSpawned=false,bossAlive=false;
 let bossWarning=null;
 let kills=0,score=0,camX=0,camY=0;
@@ -386,6 +386,7 @@ let megaBlastState=null;
 const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.volume=0.5;
 function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
+const MB_CHARGE_IMG=new Image();MB_CHARGE_IMG.src='/boss-charge-sprite.png';
 const NECRO_IMG=new Image();NECRO_IMG.src='/necromancer-sprite.png';
 const MB_FW=200,MB_FH=200; // 프레임 크기: 이미지 실측 후 조정
 let mbRow=0,mbFrame=0,mbFrameT=0,mbLocked=false,mbPrevT=0;
@@ -652,8 +653,8 @@ function createExplosion(x,y,radius,dmg,color,element){explosions.push({x,y,r:ra
 
 // 레이저 경고 시작 (보스 위치 저장, 서버에서 frozen 플래그 함께 옴)
 function startLaserWarning(bx,by){
-  laserWarning={bx,by,startTime:performance.now(),duration:3000};
-  showPop('⚠ 레이저 경보! 비켜!',2800);
+  laserWarning={bx,by,startTime:performance.now(),duration:2000};
+  showPop('⚠ 레이저 경보! 비켜!',1800);
 }
 function fireLaser(bx,by){
   laserWarning=null;
@@ -722,6 +723,32 @@ function drawLasers(){
     }
   }
 }
+function drawSlashWarn(){
+  if(!slashWarn)return;
+  const elapsed=performance.now()-slashWarn.startTime;
+  if(elapsed>500){slashWarn=null;return;}
+  const prog=elapsed/500,fade=1-prog,pulse=Math.sin(performance.now()*0.03)*0.3+0.7;
+  const SLASH_LEN=260,HALF=Math.PI/9;
+  ctx.save();
+  // 콘 채우기
+  ctx.globalAlpha=(0.25+prog*0.2)*fade;
+  ctx.fillStyle='#ffcc44';
+  ctx.beginPath();
+  ctx.moveTo(slashWarn.bx,slashWarn.by);
+  ctx.arc(slashWarn.bx,slashWarn.by,SLASH_LEN,slashWarn.ang-HALF,slashWarn.ang+HALF);
+  ctx.closePath();
+  ctx.fill();
+  // 중심선
+  ctx.globalAlpha=(0.9+pulse*0.1)*fade;
+  ctx.strokeStyle='rgba(255,220,80,'+fade+')';
+  ctx.lineWidth=3+pulse*2;
+  ctx.shadowColor='#ffcc00';ctx.shadowBlur=10;
+  ctx.beginPath();
+  ctx.moveTo(slashWarn.bx,slashWarn.by);
+  ctx.lineTo(slashWarn.bx+Math.cos(slashWarn.ang)*SLASH_LEN,slashWarn.by+Math.sin(slashWarn.ang)*SLASH_LEN);
+  ctx.stroke();
+  ctx.restore();
+}
 
 
 function drawMegaBlast(){
@@ -764,10 +791,14 @@ function doBossPat(msg){
   if(i===-3){startLaserWarning(bx,by);return;}
   if(i===-4){fireLaser(bx,by);return;}
   if(i===-2){mkBB(bx,by,Math.cos(ang)*2.8,Math.sin(ang)*2.8,35,'#ff2200',18,bRange);return;}
+  // i=7: 근접 칼 공격 예고 (0.5초 레이저 방향 표시)
+  if(i===7&&!isFinal){slashWarn={bx,by,ang,startTime:performance.now()};showPop('⚠ 근접 참격!',400);return;}
   // i=5: 근접 칼 공격 (중간보스)
   if(i===5&&!isFinal){
+    slashWarn=null;
     mbRow=1;mbFrame=0;mbFrameT=0;mbLocked=true;
-    for(let k=0;k<14;k++){const a=ang-0.7+(k/14)*1.4;parts.push({x:bx+Math.cos(a)*55,y:by+Math.sin(a)*55,vx:Math.cos(a)*4,vy:Math.sin(a)*4,life:320,maxLife:320,r:6,color:'#ffaa44'});}
+    const HALF=Math.PI/9;
+    for(let k=0;k<18;k++){const a=ang-HALF+(k/17)*HALF*2;parts.push({x:bx+Math.cos(a)*80,y:by+Math.sin(a)*80,vx:Math.cos(a)*6,vy:Math.sin(a)*6,life:400,maxLife:400,r:7,color:'#ffaa44'});}
     return;
   }
   // i=6: 강력한 화염구 발사 (중간보스)
@@ -887,7 +918,7 @@ function draw(){
   ctx.save();ctx.translate(ox,oy);
   drawGrid();drawFireZones();drawOrbs();drawParts();drawPixelExplosions();drawExplosions();
   if(bossWarning) drawBossSpawnMarker();
-  drawLasers();
+  drawLasers();drawSlashWarn();
   drawEnemies();
   ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.setLineDash([]);
   if(bossData)drawBoss();
@@ -1212,8 +1243,23 @@ function drawFlameDemon(ctx,b,t){
   const sz=100;
   // 스프라이트 드로잉
   ctx.save();
-  if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
-    ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-sz/2,-sz/2+bobY,sz,sz);
+  if(megaBlastState&&megaBlastState.phase==='warn'&&MB_CHARGE_IMG.complete&&MB_CHARGE_IMG.naturalWidth>0){
+    // 대폭발 준비 자세
+    const elapsed=t-megaBlastState.startTime;
+    const pulse=1+Math.sin(elapsed*0.008)*0.07;
+    const shakeX=(elapsed>3000?(Math.random()-0.5)*4:(Math.random()-0.5)*1);
+    ctx.translate(shakeX,bobY);
+    ctx.scale(pulse,pulse);
+    ctx.shadowColor='#ff4400';
+    ctx.shadowBlur=20+Math.sin(elapsed*0.01)*10;
+    ctx.drawImage(MB_CHARGE_IMG,-sz/2,-sz/2,sz,sz);
+  }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
+    // 이미지 가로가 2프레임 이상이면 스프라이트시트, 아니면 단일 이미지로 전체 표시
+    if(MB_IMG.naturalWidth>=MB_FW*2){
+      ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-sz/2,-sz/2+bobY,sz,sz);
+    }else{
+      ctx.drawImage(MB_IMG,-sz/2,-sz/2+bobY,sz,sz);
+    }
   }else{
     // 이미지 미로드 시 폴백 원
     ctx.fillStyle='#ff3300';ctx.beginPath();ctx.arc(0,bobY,28,0,Math.PI*2);ctx.fill();
@@ -1472,7 +1518,7 @@ function spawnBoss(room,isFinal){
   setTimeout(()=>{
     const bh=isFinal?(4500+room.currentStage*800):(2200+room.currentStage*400);
     const hp=bh*(1+(pc-1)*0.5);
-    room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:42,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5,frozen:false,invincible:false,megaBlasting:false,miniMidTimer:0,lastSlash:0,lastBigFireball:0};
+    room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:42,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5,frozen:false,invincible:false,megaBlasting:false,miniMidTimer:0,lastSlash:0,lastBigFireball:0,slashCharging:false,slashChargeTimer:0,slashWarnAng:0};
     room.enemies=[];
     if(isFinal){
       room.finalBossAlive=true;
@@ -1562,18 +1608,36 @@ function tickRoom(code){
     if(near){md=Math.sqrt(md)||1;const dx=near.x-b.x,dy=near.y-b.y;if(!b.frozen){b.x+=dx/md*bs*dt*60;b.y+=dy/md*bs*dt*60;}if(md<b.r+14){const isInv=near.invincible||(near.invincibleEnd>0&&near.invincibleEnd>now);if(!isInv){const cd=b.isFinal?(b.phase===1?0.4:0.6):(b.phase===1?0.3:0.45);near.hp-=cd*bd*dt*60*(1-(near.armor||0));if(near.hp<=0){near.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==near).length;if(ac>0){near.groggy=true;near.groggyTimer=30;near.reviveProgress=0;}else near.dead=true;}}}b.lastHeavy=(b.lastHeavy||0)+dt;if(b.lastHeavy>(isIced?4.7:4)){b.lastHeavy=0;bcastAll(room,{t:'pat',i:-2,bx:b.x,by:b.y,ang:Math.atan2(dy,dx),phase:b.phase,isFinal:b.isFinal});}}
     // ── 근접 칼 공격 (5초, 중간보스 전용, frozen/megaBlasting 제외) ──
     if(!b.isFinal&&!b.megaBlasting&&!b.frozen){
-      b.lastSlash+=dt;
-      if(b.lastSlash>=5){
-        b.lastSlash=0;
-        const slashAng=near?Math.atan2(near.y-b.y,near.x-b.x):0;
-        alivePlayers.forEach(p=>{
-          const dx=p.x-b.x,dy=p.y-b.y;
-          if(Math.sqrt(dx*dx+dy*dy)<100){
-            const isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>now);
-            if(!isInv){p.hp-=20*(1-(p.armor||0));if(p.hp<=0){p.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(ac>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}}
-          }
-        });
-        bcastAll(room,{t:'pat',i:5,bx:b.x,by:b.y,ang:slashAng,phase:b.phase,isFinal:false});
+      if(!b.slashCharging){
+        b.lastSlash+=dt;
+        if(b.lastSlash>=5){
+          b.lastSlash=0;
+          // 가장 가까운 플레이어 방향 기준 180° 내 랜덤 방향 선택
+          const baseAng=near?Math.atan2(near.y-b.y,near.x-b.x):0;
+          const randOff=(Math.random()-0.5)*Math.PI; // ±90°
+          b.slashWarnAng=baseAng+randOff;
+          b.slashCharging=true;
+          b.slashChargeTimer=0;
+          bcastAll(room,{t:'pat',i:7,bx:b.x,by:b.y,ang:b.slashWarnAng,phase:b.phase,isFinal:false});
+        }
+      }else{
+        b.slashChargeTimer+=dt;
+        if(b.slashChargeTimer>=0.5){
+          b.slashCharging=false;
+          const SLASH_RANGE=250,SLASH_HALF=Math.PI/9; // 사거리 250, 콘 ±20°
+          alivePlayers.forEach(p=>{
+            const dx=p.x-b.x,dy=p.y-b.y;
+            if(Math.sqrt(dx*dx+dy*dy)<SLASH_RANGE){
+              let da=Math.atan2(dy,dx)-b.slashWarnAng;
+              while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
+              if(Math.abs(da)<=SLASH_HALF){
+                const isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>now);
+                if(!isInv){p.hp-=70*(1-(p.armor||0));if(p.hp<=0){p.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(ac>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}}
+              }
+            }
+          });
+          bcastAll(room,{t:'pat',i:5,bx:b.x,by:b.y,ang:b.slashWarnAng,phase:b.phase,isFinal:false});
+        }
       }
       // ── 강력한 화염구 (10초, 가장 먼 플레이어 방향) ──
       b.lastBigFireball+=dt;
@@ -1618,7 +1682,7 @@ setTimeout(()=>{
   setTimeout(()=>{
     if(room.boss&&!room.boss.dead)room.boss.frozen=false;
   },600);
-},3000); // 경고 3초 후 발사
+},2000); // 경고 2초 후 발사
 setTimeout(()=>{if(!room.boss||room.boss.dead)return;room.players.forEach((p)=>{if(p.dead||p.groggy)return;const ang8=[0,Math.PI/4,Math.PI/2,Math.PI*3/4,Math.PI,Math.PI*5/4,Math.PI*3/2,Math.PI*7/4];let hit=false;for(const a of ang8){const dx=Math.cos(a),dy=Math.sin(a);const t2=((p.x-b.x)*dx+(p.y-b.y)*dy);if(t2<0)continue;const px=p.x-(b.x+dx*t2),py=p.y-(b.y+dy*t2);const dist=Math.sqrt(px*px+py*py);if(dist<28){hit=true;break;}}if(hit){const isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>Date.now());if(!isInv){p.hp-=p.maxHp*0.5+20;if(p.hp<=0){p.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(ac>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}}}});bcastAll(room,{t:'pat',i:-4,bx:b.x,by:b.y,ang:b.ang,phase:b.phase,isFinal:false});},2000);}else{bcastAll(room,{t:'pat',i:patI%patCycle,bx:b.x,by:b.y,ang:b.ang,phase:b.phase,isFinal:b.isFinal});}room.patI=patI+1;}
   }
   }
