@@ -410,7 +410,7 @@ function handleMsg(msg){
   }
   else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);}
   else if(msg.t==='midBossDead'){
-    bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);
+    bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);megaBlastState=null;
     myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);
     if(weaponUpgradeLevel<3){
       invincible=true;invincibleEnd=Infinity;
