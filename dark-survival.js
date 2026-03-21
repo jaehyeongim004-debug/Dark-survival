@@ -379,6 +379,8 @@ let myPlayer=null,allPlayers=[],enemies=[],bossData=null,turrets=[];
 let projs=[],parts=[],orbs=[],remoteEffects=[],explosions=[],fireZones=[];
 let pixelExplList=[];
 let megaBlastState=null;
+const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.volume=0.5;
+function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
 const MB_FW=200,MB_FH=200; // 프레임 크기: 이미지 실측 후 조정
 let mbRow=0,mbFrame=0,mbFrameT=0,mbLocked=false,mbPrevT=0;
@@ -412,9 +414,9 @@ function handleMsg(msg){
       else{clearInterval(window._bossWarningIv);window._bossWarningIv=null;}
     },1000);
   }
-  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);}
+  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);midBossBGM.currentTime=0;midBossBGM.play().catch(()=>{});}
   else if(msg.t==='midBossDead'){
-    bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);megaBlastState=null;
+    bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);megaBlastState=null;stopMidBossBGM();
     myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);
     if(weaponUpgradeLevel<3){
       invincible=true;invincibleEnd=Infinity;
@@ -451,7 +453,7 @@ function handleMsg(msg){
       },1000);
     }
   }
-  else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);}
+  else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);stopMidBossBGM();}
   else if(msg.t==='finalBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('최종 보스 처치!',3000);myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);}
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
@@ -460,7 +462,7 @@ function handleMsg(msg){
   else if(msg.t==='playerLeft'){showPop('플레이어 퇴장',1200);}
   else if(msg.t==='stageClear'){showStageClear(msg.stage,msg.next);}
   else if(msg.t==='stageStart'){nextStage(msg.stage);}
-  else if(msg.t==='over'){_loopRunning=false;endGame(msg.win);}
+  else if(msg.t==='over'){_loopRunning=false;stopMidBossBGM();endGame(msg.win);}
   else if(msg.t==='statSync'){if(myStats){if(msg.armor!==undefined)myStats.armor=msg.armor;if(msg.regen!==undefined)myStats.regen=msg.regen;updateStatsPanel();}}
   else if(msg.t==='revived'){showPop('💚 부활했습니다!',2000);if(myPlayer){myPlayer.groggy=false;myPlayer.dead=false;}}
   else if(msg.t==='groggyDead'){if(myPlayer&&myPlayer.groggy){running=false;_loopRunning=false;endGame(false);}}
@@ -1534,7 +1536,7 @@ window.addEventListener('resize',()=>{W=G.clientWidth;H=G.clientHeight;canvas.wi
 
 // ── SERVER ─────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
-  if(req.url&&/\.(png|jpg|gif)$/.test(req.url)){const fp=require('path').join(__dirname,req.url.split('?')[0]);try{const d=require('fs').readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0];res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif'})[ext]||'image/png'});res.end(d);return;}catch(e){}}
+  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/.test(req.url)){const fp=require('path').join(__dirname,req.url.split('?')[0]);try{const d=require('fs').readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0];res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'})[ext]||'application/octet-stream'});res.end(d);return;}catch(e){}}
   res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
   res.end(HTML);
 });
