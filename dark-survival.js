@@ -545,7 +545,7 @@ function applyState(msg){
 
 let _stageClearIv=null;
 function showStageClear(stage,next){running=false;if(_stageClearIv){clearInterval(_stageClearIv);_stageClearIv=null;}const el=document.getElementById('stageClearScreen');document.getElementById('stageClearTitle').textContent='STAGE '+stage+' CLEAR!';document.getElementById('stageClearSub').textContent=next<=3?'다음: '+STAGE_NAMES[next-1]:'모든 스테이지 클리어!';el.style.display='flex';let t=5;document.getElementById('stageClearTimer').textContent=t;_stageClearIv=setInterval(()=>{t--;document.getElementById('stageClearTimer').textContent=t;if(t<=0){clearInterval(_stageClearIv);_stageClearIv=null;el.style.display='none';}},1000);}
-enemies=[];projs=[];parts=[];orbs=[];explosions=[];fireZones=[];turrets=[];pixelExplList=[];megaBlastState=null;invincible=false;invincibleEnd=0;document.getElementById('bossBar').style.display='none';G.style.background=STAGE_BG[Math.min(stage-1,2)];running=true;showPop('STAGE '+stage+' START!',2500);}
+function nextStage(stage){currentStage=stage;stageTime=600;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;bossData=null;enemies=[];projs=[];parts=[];orbs=[];explosions=[];fireZones=[];turrets=[];pixelExplList=[];megaBlastState=null;invincible=false;invincibleEnd=0;document.getElementById('bossBar').style.display='none';G.style.background=STAGE_BG[Math.min(stage-1,2)];running=true;showPop('STAGE '+stage+' START!',2500);}
 
 const jsBase=document.getElementById('jsBase'),jsKnob=document.getElementById('jsKnob');
 let jsCX=0,jsCY=0,jsTouchId=null,js1MouseDown=false;
@@ -688,7 +688,31 @@ function drawLasers(){
       ctx.restore();
     }
   }
-  function drawMegaBlast(){
+  if(laserFire){
+    const elapsed=t-laserFire.startTime;
+    if(elapsed>laserFire.duration){laserFire=null;}
+    else{
+      const fade=1-elapsed/laserFire.duration;
+      ctx.save();
+      // 두께감 있는 레이저: 굵은→얇은 2번만 stroke
+      ctx.beginPath();
+      for(const a of dirs8){
+        ctx.moveTo(laserFire.bx,laserFire.by);
+        ctx.lineTo(laserFire.bx+Math.cos(a)*LASER_LEN,laserFire.by+Math.sin(a)*LASER_LEN);
+      }
+      ctx.strokeStyle='rgba(255,100,0,'+(fade*0.5)+')';
+      ctx.lineWidth=36*fade;
+      ctx.stroke();
+      ctx.strokeStyle='rgba(255,240,180,'+fade+')';
+      ctx.lineWidth=5*fade;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+
+function drawMegaBlast(){
   if(!megaBlastState)return;
   const now=performance.now();
   if(megaBlastState.phase==='warn'){
@@ -720,30 +744,6 @@ function drawLasers(){
     ctx.save();ctx.translate(-ox,-oy);ctx.globalAlpha=fade*0.85;ctx.fillStyle='rgba(255,140,0,'+fade+')';ctx.fillRect(0,0,W,H);ctx.restore();
   }
 }
-
-  if(laserFire){
-    const elapsed=t-laserFire.startTime;
-    if(elapsed>laserFire.duration){laserFire=null;}
-    else{
-      const fade=1-elapsed/laserFire.duration;
-      ctx.save();
-      // 두께감 있는 레이저: 굵은→얇은 2번만 stroke
-      ctx.beginPath();
-      for(const a of dirs8){
-        ctx.moveTo(laserFire.bx,laserFire.by);
-        ctx.lineTo(laserFire.bx+Math.cos(a)*LASER_LEN,laserFire.by+Math.sin(a)*LASER_LEN);
-      }
-      ctx.strokeStyle='rgba(255,100,0,'+(fade*0.5)+')';
-      ctx.lineWidth=36*fade;
-      ctx.stroke();
-      ctx.strokeStyle='rgba(255,240,180,'+fade+')';
-      ctx.lineWidth=5*fade;
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-}
-
 
 // ── [BUG FIX] doBossPat: 중첩 함수 선언 제거, 블록 구조 정상화 ──
 function doBossPat(msg){
