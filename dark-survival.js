@@ -803,7 +803,8 @@ function update(dt){
     for(const p of parts){p.x+=p.vx*spF;p.y+=p.vy*spF;p.life-=dt;}
     parts=parts.filter(p=>p.life>0);
     for(const ex of explosions)ex.life-=dt;explosions=explosions.filter(ex=>ex.life>0);
-    for(const fz of fireZones)fz.life-=dt;fireZones=fireZones.filter(fz=>fz.life>0);
+  for(const fz of fireZones)fz.life-=dt;fireZones=fireZones.filter(fz=>fz.life>0);
+  for(const px of pixelExplList){px.x+=px.vx*spF;px.y+=px.vy*spF;px.vy+=0.1*spF;px.rot+=px.rotV;px.life-=dt;}pixelExplList=pixelExplList.filter(px=>px.life>0);
     projs=projs.filter(p=>!p.gone&&!p.enemy);
     document.getElementById('hpFill').style.width='0%';
     document.getElementById('hpTxt').textContent='그로기';
