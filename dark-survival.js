@@ -1603,7 +1603,7 @@ function spawnBoss(room,isFinal){
   setTimeout(()=>{
     const bh=isFinal?(4500+room.currentStage*800):(2200+room.currentStage*400);
     const hp=bh*(1+(pc-1)*0.5);
-    room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:42,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5};
+    room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:42,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5,frozen:false,invincible:false,megaBlasting:false,miniMidTimer:0};
     room.enemies=[];
     if(isFinal){
       room.turrets=[];
