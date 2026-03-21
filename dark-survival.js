@@ -1606,6 +1606,7 @@ function spawnBoss(room,isFinal){
     room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:42,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5,frozen:false,invincible:false,megaBlasting:false,miniMidTimer:0};
     room.enemies=[];
     if(isFinal){
+      room.finalBossAlive=true;
       room.turrets=[];
       for(let i=0;i<5+pc;i++){const angle=(i/(5+pc))*Math.PI*2,dist=250+Math.random()*100;room.turrets.push({id:'turret_'+i,x:Math.cos(angle)*dist,y:Math.sin(angle)*dist,hp:1000,maxHp:1000,r:25,isTurret:true,dead:false});}
       bcastAll(room,{t:'finalBoss',boss:room.boss});
