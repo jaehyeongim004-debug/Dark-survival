@@ -1474,7 +1474,7 @@ window.addEventListener('resize',()=>{W=G.clientWidth;H=G.clientHeight;canvas.wi
 
 // ── SERVER ─────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
-  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/i.test(req.url)){const fp=require('path').join(__dirname,'assets',req.url.split('?')[0]);try{const d=require('fs').readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0].toLowerCase();res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'})[ext]||'application/octet-stream'});res.end(d);return;}catch(e){}}
+  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/i.test(req.url)){const path=require('path'),fs=require('fs');const fp=path.join(__dirname,'assets',req.url.split('?')[0]);const ext=req.url.split('.').pop().split('?')[0].toLowerCase();const ct={png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'};let d;try{d=fs.readFileSync(fp);}catch(e){try{const dir=path.dirname(fp),base=path.basename(fp).toLowerCase();const match=fs.readdirSync(dir).find(f=>f.toLowerCase()===base);if(match)d=fs.readFileSync(path.join(dir,match));}catch(e2){}}if(d){res.writeHead(200,{'Content-Type':ct[ext]||'application/octet-stream'});res.end(d);return;}}
   res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
   res.end(HTML);
 });
