@@ -390,6 +390,9 @@ const MB_CHARGE_IMG=new Image();MB_CHARGE_IMG.src='/boss-charge-sprite.png';
 const NECRO_IMG=new Image();NECRO_IMG.src='/necromancer-sprite.png';
 const MB_FW=200,MB_FH=200; // 프레임 크기: 이미지 실측 후 조정
 let mbRow=0,mbFrame=0,mbFrameT=0,mbLocked=false,mbPrevT=0;
+const SPR_FW=32,SPR_FH=32; // 직업군 스프라이트 프레임 크기 (시트: 128×64, 4열×2행)
+let selfSprFrame=0,selfSprRow=0,selfSprFrameT=0,selfSprPrevT=0;
+const otherSprState={};
 let lastTime=0,jsActive=false,jsX=0,jsY=0,attackPressed=false,lastShot=0;
 let invincible=false,invincibleEnd=0;
 const STAGE_BG=['#080810','#100808','#080e0a'];
@@ -605,6 +608,7 @@ canvas.addEventListener('mouseup',()=>mouseDown=false);
 function tryShoot(){
   if(!myPlayer||myPlayer.dead||myPlayer.groggy||!myStats||!myWeapon)return;
   const now=performance.now(),w=getW();if(now-lastShot<w.cd)return;lastShot=now;
+  selfSprRow=1;selfSprFrame=0;selfSprFrameT=0; // 공격 애니메이션 트리거
   let target=null,minD=Infinity;
   const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38}]:enemies;
   if(autoAim){for(const e of allE){const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);if(d<minD){minD=d;target=e;}}}
@@ -1106,11 +1110,11 @@ function drawMe(){
   if(myPlayer.groggy){
     ctx.globalAlpha=0.5;
     const spr=SPRITES[myClass];
-    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.imageSmoothingEnabled=false;ctx.drawImage(spr,x-16,y-16,32,32);}
+    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.imageSmoothingEnabled=false;if(spr.naturalWidth>=SPR_FW*2){ctx.drawImage(spr,0,0,SPR_FW,SPR_FH,x-24,y-24,48,48);}else{ctx.drawImage(spr,x-24,y-24,48,48);}}
     else{ctx.fillStyle='#666';ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();}
     ctx.globalAlpha=1;
     const gt=myPlayer.groggyTimer||0;
-    const bW=40,bH=5,bX=x-bW/2,bY=y-28;
+    const bW=40,bH=5,bX=x-bW/2,bY=y-38;
     ctx.fillStyle='#330000';ctx.fillRect(bX,bY,bW,bH);
     ctx.fillStyle='#ff4444';ctx.fillRect(bX,bY,bW*(gt/30),bH);
     ctx.strokeStyle='#880000';ctx.lineWidth=1;ctx.strokeRect(bX,bY,bW,bH);
@@ -1123,16 +1127,23 @@ function drawMe(){
   const t=performance.now();
   const isMoving=(jsX!==0||jsY!==0||keys['w']||keys['s']||keys['a']||keys['d']||keys['arrowup']||keys['arrowdown']||keys['arrowleft']||keys['arrowright']);
   const bounce=isMoving?Math.sin(t*0.015)*2:0;
+  // 스프라이트 애니메이션 업데이트
+  const dtSpr=t-(selfSprPrevT||t);selfSprPrevT=t;selfSprFrameT+=dtSpr;
+  const sprFPS=selfSprRow===1?80:120;
+  if(selfSprFrameT>=sprFPS){selfSprFrameT-=sprFPS;selfSprFrame=(selfSprFrame+1)%4;if(selfSprRow===1&&selfSprFrame===0)selfSprRow=0;}
+  if(selfSprRow===0&&!isMoving)selfSprFrame=0;
   if(spr&&spr.complete&&spr.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
-    ctx.drawImage(spr,x-16,y-16+bounce,32,32);ctx.shadowBlur=0;
+    if(spr.naturalWidth>=SPR_FW*2){ctx.drawImage(spr,selfSprFrame*SPR_FW,selfSprRow*SPR_FH,SPR_FW,SPR_FH,x-24,y-24+bounce,48,48);}
+    else{ctx.drawImage(spr,x-24,y-24+bounce,48,48);}
+    ctx.shadowBlur=0;
   }else{
     ctx.shadowColor=cls.color;ctx.shadowBlur=14+weaponUpgradeLevel*4;
     ctx.fillStyle=cls.color;ctx.beginPath();ctx.arc(x,y+bounce,11,0,Math.PI*2);ctx.fill();
     ctx.shadowBlur=0;ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,x,y+bounce);
   }
   drawClassAnim(ctx,myClass,x,y+bounce,isMoving,t);
-  const hpPct=Math.max(0,myPlayer.hp/myPlayer.maxHp),bW=30,bH=4,bX=x-bW/2,bY=y-22;
+  const hpPct=Math.max(0,myPlayer.hp/myPlayer.maxHp),bW=30,bH=4,bX=x-bW/2,bY=y-32;
   ctx.fillStyle='#1a0000';ctx.fillRect(bX,bY,bW,bH);
   ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';ctx.fillRect(bX,bY,bW*hpPct,bH);
   ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.strokeRect(bX,bY,bW,bH);
@@ -1146,10 +1157,10 @@ function drawOthers(){allPlayers.forEach((p,i)=>{
   if(p.groggy){
     ctx.globalAlpha=0.5;
     const spr=cls?SPRITES[p.cls]:null;
-    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.imageSmoothingEnabled=false;ctx.drawImage(spr,p.x-16,p.y-16,32,32);}
+    if(spr&&spr.complete&&spr.naturalWidth>0){ctx.imageSmoothingEnabled=false;if(spr.naturalWidth>=SPR_FW*2){ctx.drawImage(spr,0,0,SPR_FW,SPR_FH,p.x-24,p.y-24,48,48);}else{ctx.drawImage(spr,p.x-24,p.y-24,48,48);}}
     else{ctx.fillStyle='#666';ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);ctx.fill();}
     ctx.globalAlpha=1;
-    const bW=40,bH=5,bX=p.x-bW/2,bY=p.y-28;
+    const bW=40,bH=5,bX=p.x-bW/2,bY=p.y-38;
     if(p.reviveProgress>0){
       ctx.fillStyle='#003300';ctx.fillRect(bX,bY,bW,bH);
       ctx.fillStyle='#44ff44';ctx.fillRect(bX,bY,bW*p.reviveProgress,bH);
@@ -1168,17 +1179,27 @@ function drawOthers(){allPlayers.forEach((p,i)=>{
   const pMoving=p._lastX!==undefined&&(Math.abs(p.x-p._lastX)>0.5||Math.abs(p.y-p._lastY)>0.5);
   p._lastX=p.x;p._lastY=p.y;
   const pBounce=pMoving?Math.sin(t2*0.015)*2:0;
+  // 다른 플레이어 스프라이트 애니메이션
+  const sid=p.id||i;
+  if(!otherSprState[sid])otherSprState[sid]={frame:0,row:0,frameT:0,prevT:0};
+  const os=otherSprState[sid];
+  const dtOs=t2-(os.prevT||t2);os.prevT=t2;os.frameT+=dtOs;
+  const oFPS=os.row===1?80:120;
+  if(os.frameT>=oFPS){os.frameT-=oFPS;os.frame=(os.frame+1)%4;if(os.row===1&&os.frame===0)os.row=0;}
+  if(os.row===0&&!pMoving)os.frame=0;
   if(spr&&spr.complete&&spr.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;ctx.shadowColor=c;ctx.shadowBlur=10;
-    ctx.drawImage(spr,p.x-16,p.y-16+pBounce,32,32);ctx.shadowBlur=0;
+    if(spr.naturalWidth>=SPR_FW*2){ctx.drawImage(spr,os.frame*SPR_FW,os.row*SPR_FH,SPR_FW,SPR_FH,p.x-24,p.y-24+pBounce,48,48);}
+    else{ctx.drawImage(spr,p.x-24,p.y-24+pBounce,48,48);}
+    ctx.shadowBlur=0;
   }else{
     ctx.shadowColor=c;ctx.shadowBlur=10;ctx.fillStyle=c;ctx.beginPath();ctx.arc(p.x,p.y+pBounce,11,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
     if(cls){ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cls.icon,p.x,p.y+pBounce);}
   }
   if(p.cls)drawClassAnim(ctx,p.cls,p.x,p.y+pBounce,pMoving,t2);
   ctx.fillStyle='#ffffffcc';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-  ctx.fillText(p.name||'?',p.x,p.y-20);
-  const hpPct=Math.max(0,p.hp/(p.maxHp||100)),bW=30,bH=4,bX=p.x-bW/2,bY=p.y-22;
+  ctx.fillText(p.name||'?',p.x,p.y-32);
+  const hpPct=Math.max(0,p.hp/(p.maxHp||100)),bW=30,bH=4,bX=p.x-bW/2,bY=p.y-32;
   ctx.fillStyle='#1a0000';ctx.fillRect(bX,bY,bW,bH);
   ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';ctx.fillRect(bX,bY,bW*hpPct,bH);
   ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.strokeRect(bX,bY,bW,bH);
