@@ -1280,7 +1280,7 @@ function drawFlameDemon(ctx,b,t){
   const bobSpeed=bMoving?0.009:0.003;
   const bobAmp=bMoving?6:2;
   const bobY=Math.sin(t*bobSpeed)*bobAmp;
-  const sz=100;
+  const sz=150;
   const phase2=b.phase===2;
   // ── 회전 구체 3개 (스프라이트 뒤에 그림) ──
   const orbR=62;
