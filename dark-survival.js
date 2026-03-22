@@ -1281,7 +1281,7 @@ function drawFlameDemon(ctx,b,t){
   const bobSpeed=bMoving?0.009:0.003;
   const bobAmp=bMoving?6:2;
   const bobY=Math.sin(t*bobSpeed)*bobAmp;
-  const sz=150;
+  const szW=192,szH=303;
   const phase2=b.phase===2;
   // ── 회전 구체 3개 (스프라이트 뒤에 그림) ──
   const orbR=62;
@@ -1339,18 +1339,18 @@ function drawFlameDemon(ctx,b,t){
     const shakeX=elapsed>3000?(Math.random()-0.5)*4:(Math.random()-0.5)*1;
     ctx.translate(shakeX,0);ctx.scale(pulse,pulse);
     ctx.shadowColor='#ff4400';ctx.shadowBlur=20+Math.sin(elapsed*0.01)*10;
-    ctx.drawImage(MB_CHARGE_IMG,-sz/2,-sz/2,sz,sz);
+    ctx.drawImage(MB_CHARGE_IMG,-szW/2,-szH/2,szW,szH);
   }else if(mbRow===0&&MB_WALK_IMG.complete&&MB_WALK_IMG.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
     const walkFW=MB_WALK_IMG.naturalWidth/MB_WALK_FRAMES;
     const walkFH=MB_WALK_IMG.naturalHeight;
-    ctx.drawImage(MB_WALK_IMG,mbFrame*walkFW,0,walkFW,walkFH,-sz/2,-sz/2,sz,sz);
+    ctx.drawImage(MB_WALK_IMG,mbFrame*walkFW,0,walkFW,walkFH,-szW/2,-szH/2,szW,szH);
   }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
     if(MB_IMG.naturalWidth>=MB_FW*2){
-      ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-sz/2,-sz/2,sz,sz);
+      ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-szW/2,-szH/2,szW,szH);
     }else{
-      ctx.drawImage(MB_IMG,-sz/2,-sz/2,sz,sz);
+      ctx.drawImage(MB_IMG,-szW/2,-szH/2,szW,szH);
     }
   }else{
     ctx.fillStyle='#ff3300';ctx.beginPath();ctx.arc(0,0,28,0,Math.PI*2);ctx.fill();
