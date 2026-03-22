@@ -1256,38 +1256,94 @@ function drawEnemies(){
   }
 }
 function drawFlameDemon(ctx,b,t){
-  // 애니메이션 프레임 업데이트
+  // ── 애니메이션 프레임 업데이트 ──
   const dtA=t-(mbPrevT||t);mbPrevT=t;
   mbFrameT+=dtA;
-  if(mbFrameT>=125){mbFrameT-=125;mbFrame=(mbFrame+1)%5;if(mbLocked&&mbFrame===0){mbLocked=false;mbRow=0;}}
-  const bobY=Math.sin(t*0.002)*4;
+  // 이동 추적
+  const dx=(b._lastX!==undefined)?(b.x-b._lastX):0;
+  const dy=(b._lastY!==undefined)?(b.y-b._lastY):0;
+  b._lastX=b.x;b._lastY=b.y;
+  const bMoving=Math.abs(dx)>0.3||Math.abs(dy)>0.3;
+  if(Math.abs(dx)>0.5)b._facingRight=(dx>0);
+  if(b._facingRight===undefined)b._facingRight=true;
+  // 이동 중 80ms, 공격 중 110ms, 정지 120ms
+  const frameMs=mbLocked?110:(bMoving?80:120);
+  if(mbFrameT>=frameMs){mbFrameT-=frameMs;mbFrame=(mbFrame+1)%5;if(mbLocked&&mbFrame===0){mbLocked=false;mbRow=0;}}
+  // 봅 — 이동 중 더 빠르고 크게
+  const bobSpeed=bMoving?0.009:0.003;
+  const bobAmp=bMoving?6:2;
+  const bobY=Math.sin(t*bobSpeed)*bobAmp;
   const sz=100;
-  // 스프라이트 드로잉
+  const phase2=b.phase===2;
+  // ── 회전 구체 3개 (스프라이트 뒤에 그림) ──
+  const orbR=62;
+  const orbSpeed=phase2?0.0025:0.0015;
+  for(let i=0;i<3;i++){
+    const ang=t*orbSpeed+(i/3)*Math.PI*2;
+    const ox=Math.cos(ang)*orbR;
+    const oy=Math.sin(ang)*orbR*0.45;
+    const orbSize=8+Math.sin(t*0.004+i)*2;
+    const pulse=Math.sin(t*0.006+i*1.2)*0.4+0.8;
+    ctx.save();
+    ctx.globalAlpha=0.85*pulse;
+    ctx.shadowColor=phase2?'#ff44ff':'#ff4400';
+    ctx.shadowBlur=14;
+    const grd=ctx.createRadialGradient(ox-orbSize*0.3,oy-orbSize*0.3,1,ox,oy,orbSize);
+    grd.addColorStop(0,phase2?'#ffaaff':'#ffdd88');
+    grd.addColorStop(0.4,phase2?'#ff44ff':'#ff6600');
+    grd.addColorStop(1,phase2?'#aa00cc':'#cc1100');
+    ctx.fillStyle=grd;
+    ctx.beginPath();ctx.arc(ox,oy,orbSize,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=0.3*pulse;
+    ctx.fillStyle=phase2?'#ff88ff':'#ff8800';
+    ctx.beginPath();ctx.arc(ox-Math.cos(ang)*8,oy-Math.sin(ang)*8*0.45,orbSize*0.6,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+  // ── 불꽃 베리어 링 ──
+  const barrierR=52;
+  const barrierAlpha=0.18+Math.sin(t*0.004)*0.07;
   ctx.save();
+  ctx.globalAlpha=barrierAlpha;
+  for(let s=0;s<32;s++){
+    const a1=(s/32)*Math.PI*2;
+    const a2=((s+0.7)/32)*Math.PI*2;
+    ctx.strokeStyle=phase2?'#ff44ff':'#ff5500';
+    ctx.lineWidth=2+Math.sin(t*0.008+s)*1;
+    ctx.shadowColor=phase2?'#ff00ff':'#ff3300';
+    ctx.shadowBlur=8;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a1)*barrierR,Math.sin(a1)*barrierR*0.4);
+    ctx.lineTo(Math.cos(a2)*barrierR,Math.sin(a2)*barrierR*0.4);
+    ctx.stroke();
+  }
+  ctx.globalAlpha=0.06+Math.sin(t*0.003)*0.03;
+  ctx.fillStyle=phase2?'#ff00ff':'#ff3300';
+  ctx.beginPath();ctx.ellipse(0,0,barrierR,barrierR*0.4,0,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // ── 스프라이트 드로잉 (방향 반전 + 이동 기울기) ──
+  ctx.save();
+  ctx.translate(0,bobY);
+  if(!b._facingRight)ctx.scale(-1,1);
+  if(bMoving&&!mbLocked){const lean=Math.max(-0.08,Math.min(0.08,dx*0.03));ctx.rotate(lean);}
   if(megaBlastState&&megaBlastState.phase==='warn'&&MB_CHARGE_IMG.complete&&MB_CHARGE_IMG.naturalWidth>0){
-    // 대폭발 준비 자세
     const elapsed=t-megaBlastState.startTime;
     const pulse=1+Math.sin(elapsed*0.008)*0.07;
-    const shakeX=(elapsed>3000?(Math.random()-0.5)*4:(Math.random()-0.5)*1);
-    ctx.translate(shakeX,bobY);
-    ctx.scale(pulse,pulse);
-    ctx.shadowColor='#ff4400';
-    ctx.shadowBlur=20+Math.sin(elapsed*0.01)*10;
+    const shakeX=elapsed>3000?(Math.random()-0.5)*4:(Math.random()-0.5)*1;
+    ctx.translate(shakeX,0);ctx.scale(pulse,pulse);
+    ctx.shadowColor='#ff4400';ctx.shadowBlur=20+Math.sin(elapsed*0.01)*10;
     ctx.drawImage(MB_CHARGE_IMG,-sz/2,-sz/2,sz,sz);
   }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
-    // 이미지 가로가 2프레임 이상이면 스프라이트시트, 아니면 단일 이미지로 전체 표시
+    ctx.imageSmoothingEnabled=false;
     if(MB_IMG.naturalWidth>=MB_FW*2){
-      ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-sz/2,-sz/2+bobY,sz,sz);
+      ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-sz/2,-sz/2,sz,sz);
     }else{
-      ctx.drawImage(MB_IMG,-sz/2,-sz/2+bobY,sz,sz);
+      ctx.drawImage(MB_IMG,-sz/2,-sz/2,sz,sz);
     }
   }else{
-    // 이미지 미로드 시 폴백 원
-    ctx.fillStyle='#ff3300';ctx.beginPath();ctx.arc(0,bobY,28,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ff3300';ctx.beginPath();ctx.arc(0,0,28,0,Math.PI*2);ctx.fill();
   }
   ctx.restore();
-  // HP바 및 이름
-  const phase2=b.phase===2;
+  // ── HP바 및 이름 ──
   const hpPct=b.hp/b.maxHp;
   ctx.fillStyle='#1a0000';ctx.fillRect(-46,-62,92,8);
   ctx.fillStyle=hpPct>0.5?'#ff4466':phase2?'#ff44ff':'#cc2244';ctx.fillRect(-46,-62,92*hpPct,8);
