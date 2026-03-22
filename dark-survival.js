@@ -389,9 +389,11 @@ function stopGameBGM(){gameBGM.pause();gameBGM.currentTime=0;}
 const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.volume=0.5;
 function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
+const MB_WALK_IMG=new Image();MB_WALK_IMG.src='/boss-walk-sprite.png';
 const MB_CHARGE_IMG=new Image();MB_CHARGE_IMG.src='/boss-charge-sprite.png';
 const NECRO_IMG=new Image();NECRO_IMG.src='/necromancer-sprite.png';
-const MB_FW=200,MB_FH=200; // 프레임 크기: 이미지 실측 후 조정
+const MB_FW=200,MB_FH=200; // 공격 애니메이션 프레임 크기
+const MB_WALK_FRAMES=8; // 걷기 애니메이션 프레임 수
 let mbRow=0,mbFrame=0,mbFrameT=0,mbLocked=false,mbPrevT=0;
 const SPR_FW=32,SPR_FH=32; // 직업군 스프라이트 프레임 크기 (시트: 128×64, 4열×2행)
 let selfSprFrame=0,selfSprRow=0,selfSprFrameT=0,selfSprPrevT=0;
@@ -1272,7 +1274,8 @@ function drawFlameDemon(ctx,b,t){
   if(b._facingRight===undefined)b._facingRight=true;
   // 이동 중 80ms, 공격 중 110ms, 정지 120ms
   const frameMs=mbLocked?110:(bMoving?80:120);
-  if(mbFrameT>=frameMs){mbFrameT-=frameMs;mbFrame=(mbFrame+1)%5;if(mbLocked&&mbFrame===0){mbLocked=false;mbRow=0;}}
+  const mbMaxFrames=mbRow===0?MB_WALK_FRAMES:5;
+  if(mbFrameT>=frameMs){mbFrameT-=frameMs;mbFrame=(mbFrame+1)%mbMaxFrames;if(mbLocked&&mbFrame===0){mbLocked=false;mbRow=0;}}
   // 봅 — 이동 중 더 빠르고 크게
   const bobSpeed=bMoving?0.009:0.003;
   const bobAmp=bMoving?6:2;
@@ -1336,6 +1339,11 @@ function drawFlameDemon(ctx,b,t){
     ctx.translate(shakeX,0);ctx.scale(pulse,pulse);
     ctx.shadowColor='#ff4400';ctx.shadowBlur=20+Math.sin(elapsed*0.01)*10;
     ctx.drawImage(MB_CHARGE_IMG,-sz/2,-sz/2,sz,sz);
+  }else if(mbRow===0&&MB_WALK_IMG.complete&&MB_WALK_IMG.naturalWidth>0){
+    ctx.imageSmoothingEnabled=false;
+    const walkFW=MB_WALK_IMG.naturalWidth/MB_WALK_FRAMES;
+    const walkFH=MB_WALK_IMG.naturalHeight;
+    ctx.drawImage(MB_WALK_IMG,mbFrame*walkFW,0,walkFW,walkFH,-sz/2,-sz/2,sz,sz);
   }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
     if(MB_IMG.naturalWidth>=MB_FW*2){
