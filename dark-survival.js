@@ -1328,6 +1328,22 @@ function drawFlameDemon(ctx,b,t){
   ctx.fillStyle=phase2?'#ff00ff':'#ff3300';
   ctx.beginPath();ctx.ellipse(0,0,barrierR,barrierR*0.4,0,0,Math.PI*2);ctx.fill();
   ctx.restore();
+  // ── 오라 (보스 스프라이트 뒤 글로우) ──
+  {
+    const auraPulse=Math.sin(t*0.003)*0.3+0.7;
+    const auraSize=szW*0.65;
+    ctx.save();
+    ctx.globalAlpha=0.18*auraPulse;
+    ctx.shadowColor=phase2?'#ff44ff':'#ff4400';
+    ctx.shadowBlur=40;
+    const auraGrd=ctx.createRadialGradient(0,0,auraSize*0.1,0,0,auraSize);
+    auraGrd.addColorStop(0,  phase2?'rgba(255,100,255,0.7)':'rgba(255,120,0,0.7)');
+    auraGrd.addColorStop(0.5,phase2?'rgba(180,0,220,0.3)':'rgba(220,60,0,0.3)');
+    auraGrd.addColorStop(1,  'rgba(0,0,0,0)');
+    ctx.fillStyle=auraGrd;
+    ctx.beginPath();ctx.ellipse(0,szH*0.05,auraSize,auraSize*1.1,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
   // ── 스프라이트 드로잉 (방향 반전 + 이동 기울기) ──
   ctx.save();
   ctx.translate(0,bobY);
