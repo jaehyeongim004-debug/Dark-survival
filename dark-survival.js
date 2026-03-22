@@ -388,6 +388,7 @@ function playGameBGM(){gameBGM.currentTime=0;gameBGM.play().catch(()=>{});}
 function stopGameBGM(){gameBGM.pause();gameBGM.currentTime=0;}
 const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.volume=0.5;
 function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
+function playMidBossBGM(){midBossBGM.load();midBossBGM.play().catch(()=>{});}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
 const MB_WALK_IMG=new Image();MB_WALK_IMG.src='/boss-walk-sprite.png';
 const MB_CHARGE_IMG=new Image();MB_CHARGE_IMG.src='/boss-charge-sprite.png';
@@ -428,7 +429,7 @@ function handleMsg(msg){
       else{clearInterval(window._bossWarningIv);window._bossWarningIv=null;}
     },1000);
   }
-  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);stopGameBGM();midBossBGM.currentTime=0;midBossBGM.play().catch(()=>{});}
+  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);stopGameBGM();playMidBossBGM();}
   else if(msg.t==='midBossDead'){
     bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);megaBlastState=null;stopMidBossBGM();playGameBGM();
     myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);
@@ -1280,7 +1281,7 @@ function drawFlameDemon(ctx,b,t){
   const bobSpeed=bMoving?0.009:0.003;
   const bobAmp=bMoving?6:2;
   const bobY=Math.sin(t*bobSpeed)*bobAmp;
-  const sz=100;
+  const sz=150;
   const phase2=b.phase===2;
   // ── 회전 구체 3개 (스프라이트 뒤에 그림) ──
   const orbR=62;
