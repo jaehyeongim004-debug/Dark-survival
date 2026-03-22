@@ -383,6 +383,9 @@ let myPlayer=null,allPlayers=[],enemies=[],bossData=null,turrets=[];
 let projs=[],parts=[],orbs=[],remoteEffects=[],explosions=[],fireZones=[];
 let pixelExplList=[];
 let megaBlastState=null;
+const gameBGM=new Audio('/game-bgm.mp3');gameBGM.loop=true;gameBGM.volume=0.5;
+function playGameBGM(){gameBGM.currentTime=0;gameBGM.play().catch(()=>{});}
+function stopGameBGM(){gameBGM.pause();gameBGM.currentTime=0;}
 const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.volume=0.5;
 function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
@@ -423,9 +426,9 @@ function handleMsg(msg){
       else{clearInterval(window._bossWarningIv);window._bossWarningIv=null;}
     },1000);
   }
-  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);midBossBGM.currentTime=0;midBossBGM.play().catch(()=>{});}
+  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);stopGameBGM();midBossBGM.currentTime=0;midBossBGM.play().catch(()=>{});}
   else if(msg.t==='midBossDead'){
-    bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);megaBlastState=null;stopMidBossBGM();
+    bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);megaBlastState=null;stopMidBossBGM();playGameBGM();
     myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);
     if(weaponUpgradeLevel<3){
       invincible=true;invincibleEnd=Infinity;
@@ -462,7 +465,7 @@ function handleMsg(msg){
       },1000);
     }
   }
-  else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);stopMidBossBGM();}
+  else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);stopGameBGM();stopMidBossBGM();}
   else if(msg.t==='finalBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('최종 보스 처치!',3000);myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);}
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
@@ -471,7 +474,7 @@ function handleMsg(msg){
   else if(msg.t==='playerLeft'){showPop('플레이어 퇴장',1200);}
   else if(msg.t==='stageClear'){showStageClear(msg.stage,msg.next);}
   else if(msg.t==='stageStart'){nextStage(msg.stage);}
-  else if(msg.t==='over'){_loopRunning=false;stopMidBossBGM();endGame(msg.win);}
+  else if(msg.t==='over'){_loopRunning=false;stopGameBGM();stopMidBossBGM();endGame(msg.win);}
   else if(msg.t==='statSync'){if(myStats){if(msg.armor!==undefined)myStats.armor=msg.armor;if(msg.regen!==undefined)myStats.regen=msg.regen;updateStatsPanel();}}
   else if(msg.t==='revived'){showPop('💚 부활했습니다!',2000);if(myPlayer){myPlayer.groggy=false;myPlayer.dead=false;}}
   else if(msg.t==='groggyDead'){if(myPlayer&&myPlayer.groggy){running=false;_loopRunning=false;endGame(false);}}
@@ -505,6 +508,7 @@ function initGameState(){
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
   updateTraitList();updateStatsPanel();updateElementDisplay();
+  playGameBGM();
   lastTime=performance.now();_loopRunning=true;requestAnimationFrame(loop);
 }
 
@@ -561,7 +565,7 @@ function applyState(msg){
 
 let _stageClearIv=null;
 function showStageClear(stage,next){running=false;if(_stageClearIv){clearInterval(_stageClearIv);_stageClearIv=null;}const el=document.getElementById('stageClearScreen');document.getElementById('stageClearTitle').textContent='STAGE '+stage+' CLEAR!';document.getElementById('stageClearSub').textContent=next<=3?'다음: '+STAGE_NAMES[next-1]:'모든 스테이지 클리어!';el.style.display='flex';let t=5;document.getElementById('stageClearTimer').textContent=t;_stageClearIv=setInterval(()=>{t--;document.getElementById('stageClearTimer').textContent=t;if(t<=0){clearInterval(_stageClearIv);_stageClearIv=null;el.style.display='none';}},1000);}
-function nextStage(stage){currentStage=stage;stageTime=600;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;bossData=null;enemies=[];projs=[];parts=[];orbs=[];explosions=[];fireZones=[];turrets=[];pixelExplList=[];megaBlastState=null;invincible=false;invincibleEnd=0;document.getElementById('bossBar').style.display='none';G.style.background=STAGE_BG[Math.min(stage-1,2)];running=true;showPop('STAGE '+stage+' START!',2500);}
+function nextStage(stage){currentStage=stage;stageTime=600;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;bossData=null;enemies=[];projs=[];parts=[];orbs=[];explosions=[];fireZones=[];turrets=[];pixelExplList=[];megaBlastState=null;invincible=false;invincibleEnd=0;document.getElementById('bossBar').style.display='none';G.style.background=STAGE_BG[Math.min(stage-1,2)];running=true;showPop('STAGE '+stage+' START!',2500);playGameBGM();}
 
 const jsBase=document.getElementById('jsBase'),jsKnob=document.getElementById('jsKnob');
 let jsCX=0,jsCY=0,jsTouchId=null,js1MouseDown=false;
