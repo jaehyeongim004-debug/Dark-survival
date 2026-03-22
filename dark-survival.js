@@ -240,7 +240,7 @@ function doStart(){send({t:'start'});}
 
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:2.0,multishot:0,magnetRange:1,armor:0.15,crit:false,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:15,baseCd:1000,baseRange:140,color:'#66ccff'}},
-  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1,rangeMult:1.5,regen:0.5,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'저격총',type:'bullet',baseDmg:50,baseCd:1500,baseRange:500,color:'#ffee44',spd:20}},
+  gunner:{name:'저격수',icon:'🔫',color:'#ffee44',stats:{hp:80,maxHp:80,spd:3.0,dmgMult:1.3,cdMult:1,rangeMult:1.5,regen:0.5,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'저격총',type:'bullet',baseDmg:50,baseCd:3000,baseRange:500,color:'#ffee44',spd:20}},
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.7,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'마법',type:'magic',baseDmg:50,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}},
   assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:40,expMult:1},weapon:{name:'단검',type:'dagger',baseDmg:28,baseCd:280,baseRange:90,color:'#ff88aa',spd:12}}
 };
@@ -808,7 +808,7 @@ function doBossPat(msg){
   // i=6: 강력한 화염구 발사 (중간보스)
   if(i===6&&!isFinal){
     mbRow=4;mbFrame=0;mbFrameT=0;mbLocked=true;
-    projs.push({x:bx,y:by,vx:Math.cos(ang)*5.5,vy:Math.sin(ang)*5.5,dmg:40,range:2500,traveled:0,gone:false,color:'#ff4400',r:22,enemy:true,isBigFireball:true});
+    projs.push({x:bx,y:by,vx:Math.cos(ang)*5.5,vy:Math.sin(ang)*5.5,dmg:50,range:2500,traveled:0,gone:false,color:'#ff4400',r:22,enemy:true,isBigFireball:true});
     return;
   }
   // [BUG FIX] i===-1 : 잡몹 탄환 처리
@@ -1709,7 +1709,7 @@ function tickRoom(code){
               while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
               if(Math.abs(da)<=SLASH_HALF){
                 const isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>now);
-                if(!isInv){p.hp-=70*(1-(p.armor||0));if(p.hp<=0){p.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(ac>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}}
+                if(!isInv){p.hp-=80*(1-(p.armor||0));if(p.hp<=0){p.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(ac>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}}
               }
             }
           });
@@ -1744,7 +1744,7 @@ setTimeout(()=>{
     if(hit){
       const isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>Date.now());
       if(!isInv){
-        p.hp-=p.maxHp*0.5+20;
+        p.hp-=p.maxHp*0.5+30;
         if(p.hp<=0){
           p.hp=0;
           const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;
@@ -1760,7 +1760,7 @@ setTimeout(()=>{
     if(room.boss&&!room.boss.dead)room.boss.frozen=false;
   },600);
 },2000); // 경고 2초 후 발사
-setTimeout(()=>{if(!room.boss||room.boss.dead)return;room.players.forEach((p)=>{if(p.dead||p.groggy)return;const ang8=[0,Math.PI/4,Math.PI/2,Math.PI*3/4,Math.PI,Math.PI*5/4,Math.PI*3/2,Math.PI*7/4];let hit=false;for(const a of ang8){const dx=Math.cos(a),dy=Math.sin(a);const t2=((p.x-b.x)*dx+(p.y-b.y)*dy);if(t2<0)continue;const px=p.x-(b.x+dx*t2),py=p.y-(b.y+dy*t2);const dist=Math.sqrt(px*px+py*py);if(dist<28){hit=true;break;}}if(hit){const isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>Date.now());if(!isInv){p.hp-=p.maxHp*0.5+20;if(p.hp<=0){p.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(ac>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}}}});bcastAll(room,{t:'pat',i:-4,bx:b.x,by:b.y,ang:b.ang,phase:b.phase,isFinal:false});},2000);}else{bcastAll(room,{t:'pat',i:patI%patCycle,bx:b.x,by:b.y,ang:b.ang,phase:b.phase,isFinal:b.isFinal});}room.patI=patI+1;}
+setTimeout(()=>{if(!room.boss||room.boss.dead)return;room.players.forEach((p)=>{if(p.dead||p.groggy)return;const ang8=[0,Math.PI/4,Math.PI/2,Math.PI*3/4,Math.PI,Math.PI*5/4,Math.PI*3/2,Math.PI*7/4];let hit=false;for(const a of ang8){const dx=Math.cos(a),dy=Math.sin(a);const t2=((p.x-b.x)*dx+(p.y-b.y)*dy);if(t2<0)continue;const px=p.x-(b.x+dx*t2),py=p.y-(b.y+dy*t2);const dist=Math.sqrt(px*px+py*py);if(dist<28){hit=true;break;}}if(hit){const isInv=p.invincible||(p.invincibleEnd>0&&p.invincibleEnd>Date.now());if(!isInv){p.hp-=p.maxHp*0.5+30;if(p.hp<=0){p.hp=0;const ac=[...room.players.values()].filter(q=>!q.dead&&!q.groggy&&q!==p).length;if(ac>0){p.groggy=true;p.groggyTimer=30;p.reviveProgress=0;}else p.dead=true;}}}});bcastAll(room,{t:'pat',i:-4,bx:b.x,by:b.y,ang:b.ang,phase:b.phase,isFinal:false});},2000);}else{bcastAll(room,{t:'pat',i:patI%patCycle,bx:b.x,by:b.y,ang:b.ang,phase:b.phase,isFinal:b.isFinal});}room.patI=patI+1;}
   }
   }
   room.syncT=(room.syncT||0)+dt;
