@@ -513,14 +513,17 @@ async function doGuest(){
 async function tryAutoLogin(){
   const token=localStorage.getItem('ds_token');
   if(!token){showAuthScreen();return;}
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),5000);
   try{
-    const res=await fetch('/auth/me?token='+encodeURIComponent(token));
+    const res=await fetch('/auth/me?token='+encodeURIComponent(token),{signal:ctrl.signal});
+    clearTimeout(timer);
     const data=await res.json();
     if(data.err){localStorage.removeItem('ds_token');showAuthScreen();return;}
     authToken=token;authUsername=data.username;
     myInventory=data.inventory||[];myEquipped=data.equipped||[null,null];
     enterLobby(true);
-  }catch(e){showAuthScreen();}
+  }catch(e){clearTimeout(timer);localStorage.removeItem('ds_token');showAuthScreen();}
 }
 function showAuthScreen(){document.getElementById('authScreen').style.display='flex';document.getElementById('lobbyScreen').style.display='none';}
 function enterLobby(loggedIn){
@@ -1969,6 +1972,10 @@ function spawnPixelExplosion(x,y,type){
 let msgTimer=0;
 function showPop(txt,dur){const el=document.getElementById('msgPop');el.textContent=txt;el.style.display='block';msgTimer=dur||1400;}
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
+function saveGameStats(win,level){
+  if(!authToken||!ws||ws.readyState!==1)return;
+  try{ws.send(JSON.stringify({t:'saveStats',token:authToken,win:!!win,kills:kills||0,level:level||1}));}catch(e){}
+}
 function endGame(win){running=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;const myLv=myPlayer?myPlayer.lv:1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+myLv+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');_myKills=kills;saveGameStats(win,myLv);const rb=document.getElementById('trinketRewardBox');if(rb)rb.style.display='none';}
 let _loopRunning=false;
 function loop(ts){
@@ -2307,50 +2314,19 @@ wss.on('connection',ws=>{
   ws.isAlive=true;
   ws.on('pong',()=>{ws.isAlive=true;});
   ws.on('message',raw=>{
+    try{
     let msg;try{msg=JSON.parse(raw);}catch{return;}
     if(msg.t==='ping'){ws.isAlive=true;if(ws.readyState===1)ws.send(JSON.stringify({t:'pong'}));return;}
-    if(msg.t==='register'){
-      const uname=(msg.username||'').trim();const pwd=msg.password||'';
-      if(uname.length<4||uname.length>16){ws.send(JSON.stringify({t:'authErr',msg:'아이디는 4~16자여야 해요'}));return;}
-      if(!/^[a-zA-Z0-9_]+$/.test(uname)){ws.send(JSON.stringify({t:'authErr',msg:'아이디는 영문/숫자/_만 사용 가능해요'}));return;}
-      if(pwd.length<4){ws.send(JSON.stringify({t:'authErr',msg:'비밀번호는 4자 이상이어야 해요'}));return;}
-      const users=loadUsers();
-      if(users[uname]){ws.send(JSON.stringify({t:'authErr',msg:'이미 사용중인 아이디에요'}));return;}
-      const salt=crypto.randomBytes(16).toString('hex');
-      users[uname]={passwordHash:hashPassword(pwd,salt),salt,createdAt:new Date().toISOString(),stats:{gamesPlayed:0,wins:0,totalKills:0,bestLevel:1}};
-      saveUsers(users);
-      const token=genToken();sessions.set(token,{username:uname,createdAt:Date.now()});
-      ws.username=uname;
-      ws.send(JSON.stringify({t:'authOk',token,username:uname,stats:users[uname].stats}));
-      return;
-    }
-    if(msg.t==='login'){
-      const uname=(msg.username||'').trim();const pwd=msg.password||'';
-      const users=loadUsers();const u=users[uname];
-      if(!u||hashPassword(pwd,u.salt)!==u.passwordHash){ws.send(JSON.stringify({t:'authErr',msg:'아이디 또는 비밀번호가 틀렸어요'}));return;}
-      const token=genToken();sessions.set(token,{username:uname,createdAt:Date.now()});
-      ws.username=uname;
-      ws.send(JSON.stringify({t:'authOk',token,username:uname,stats:u.stats}));
-      return;
-    }
-    if(msg.t==='authCheck'){
-      const session=sessions.get(msg.token||'');
-      if(!session){ws.send(JSON.stringify({t:'authFail'}));return;}
-      const users=loadUsers();const u=users[session.username];
-      if(!u){sessions.delete(msg.token);ws.send(JSON.stringify({t:'authFail'}));return;}
-      ws.username=session.username;
-      ws.send(JSON.stringify({t:'authOk',token:msg.token,username:session.username,stats:u.stats}));
-      return;
-    }
     if(msg.t==='saveStats'){
       if(!ws.username)return;
-      const users=loadUsers();if(!users[ws.username])return;
-      const s=users[ws.username].stats;
-      s.gamesPlayed=(s.gamesPlayed||0)+1;
-      if(msg.win)s.wins=(s.wins||0)+1;
-      if(msg.kills)s.totalKills=(s.totalKills||0)+msg.kills;
-      if(msg.level&&msg.level>(s.bestLevel||1))s.bestLevel=msg.level;
-      saveUsers(users);
+      const db=loadAccounts();if(!db.users[ws.username])return;
+      const u=db.users[ws.username];
+      if(!u.stats)u.stats={gamesPlayed:0,wins:0,totalKills:0,bestLevel:1};
+      u.stats.gamesPlayed=(u.stats.gamesPlayed||0)+1;
+      if(msg.win)u.stats.wins=(u.stats.wins||0)+1;
+      if(msg.kills)u.stats.totalKills=(u.stats.totalKills||0)+msg.kills;
+      if(msg.level&&msg.level>(u.stats.bestLevel||1))u.stats.bestLevel=msg.level;
+      saveAccounts(db);
       return;
     }
     const newPlayer=(name,x=0,y=0)=>({id:ws.pid,x,y,hp:100,maxHp:100,lv:1,exp:0,expNext:50,dead:false,groggy:false,groggyTimer:0,reviveProgress:0,name,lvUp:false,cls:null,regen:0,armor:0,expMult:1,critRate:0,dmgBonus:1,invincible:false,invincibleEnd:0,lvUpQueue:0});
@@ -2474,6 +2450,7 @@ wss.on('connection',ws=>{
     else if(msg.t==='invincible'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;if(msg.start){p.invincible=true;p.invincibleEnd=Infinity;}else if(msg.duration)p.invincibleEnd=Date.now()+msg.duration;}
     else if(msg.t==='traitPicked'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;p.invincible=false;p.invincibleEnd=Date.now()+2000;}
     else if(msg.t==='lvUpReady'){const room=rooms.get(ws.roomCode);if(!room)return;const p=room.players.get(ws);if(!p)return;if(p.lvUpQueue>0){p.lvUpQueue--;if(ws.readyState===1)ws.send(JSON.stringify({t:'lvUp'}));}}
+    }catch(e){console.error('[WS 메시지 에러]',e);}
   });
   ws.on('close',()=>{
     const room=rooms.get(ws.roomCode);
