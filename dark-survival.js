@@ -17,8 +17,9 @@ function saveAccounts(data) {
 }
 let accountsDb = loadAccounts();
 const sessions = new Map(); // token → username
-function hashPw(pw) { return crypto.createHash('sha256').update('ds_salt_'+pw).digest('hex'); }
-function genToken() { return crypto.randomBytes(24).toString('hex'); }
+function genSalt() { return crypto.randomBytes(16).toString('hex'); }
+function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 64).toString('hex'); }
+function genToken() { return crypto.randomBytes(32).toString('hex'); }
 
 // ── 장신구 효과 (서버 적용용) ───────────────────────────────────
 const TRINKET_EFFECTS = {
@@ -194,6 +195,26 @@ input.inp:focus{border-color:#ffcc00;}
 </head>
 <body>
 <div id="G">
+  <div id="authScreen">
+    <h1 class="title">DARK SURVIVAL</h1>
+    <p class="sub">계정으로 전적을 저장하세요</p>
+    <div class="authTabs">
+      <button class="authTab active" id="tabLogin" onclick="switchTab('login')">로그인</button>
+      <button class="authTab" id="tabRegister" onclick="switchTab('register')">회원가입</button>
+    </div>
+    <div class="authForm" id="formLogin">
+      <input class="inp" id="loginUser" placeholder="아이디" maxlength="16" autocomplete="username"/>
+      <input class="inp" id="loginPass" type="password" placeholder="비밀번호" maxlength="32" autocomplete="current-password"/>
+      <button class="btn" onclick="doLogin()">로그인</button>
+    </div>
+    <div class="authForm hidden" id="formRegister">
+      <input class="inp" id="regUser" placeholder="아이디 (4~16자)" maxlength="16" autocomplete="username"/>
+      <input class="inp" id="regPass" type="password" placeholder="비밀번호 (4자 이상)" maxlength="32" autocomplete="new-password"/>
+      <input class="inp" id="regPass2" type="password" placeholder="비밀번호 확인" maxlength="32" autocomplete="new-password"/>
+      <button class="btn" onclick="doRegister()">가입하기</button>
+    </div>
+    <div id="authErr"></div>
+  </div>
   <canvas id="c"></canvas>
   <div id="hud">
     <div id="topRow">
@@ -443,7 +464,6 @@ function doLogout(){
 
 // ── 장신구 UI ──────────────────────────────────────────────────
 function renderTrinketPanel(){
-  // 슬롯 렌더
   for(let i=0;i<2;i++){
     const slot=document.getElementById('slot'+i);
     const tid=myEquipped[i];
@@ -456,7 +476,6 @@ function renderTrinketPanel(){
       slot.innerHTML='<span class="slotIcon" style="color:#333">○</span><span class="slotLbl">슬롯 '+(i+1)+'</span>';
     }
   }
-  // 인벤토리 렌더
   const inv=document.getElementById('trinketInv');
   const empty=document.getElementById('invEmpty');
   inv.innerHTML='';
@@ -485,9 +504,7 @@ function showTrinketTooltip(e,t){
 function hideTrinketTooltip(){document.getElementById('trinketTooltip').style.display='none';}
 async function equipTrinket(tid){
   if(!authToken)return;
-  // 이미 장착 중이면 해제
   if(myEquipped.includes(tid)){await unequipTrinketById(tid);return;}
-  // 빈 슬롯 찾기
   const slot=myEquipped.indexOf(null);
   if(slot===-1){showErr('슬롯이 가득 찼습니다. 먼저 장신구를 해제하세요.');return;}
   try{
@@ -689,6 +706,9 @@ function showGameUI(){canvas.style.pointerEvents='all';document.getElementById('
 function hideGameUI(){canvas.style.pointerEvents='none';document.getElementById('jsWrap').style.pointerEvents='none';document.getElementById('js2Wrap').style.pointerEvents='none';document.getElementById('statsPanel').style.display='none';document.getElementById('autoAimBtn').style.display='none';}
 
 function handleMsg(msg){
+  if(msg.t==='authOk'){onAuthOk(msg);return;}
+  else if(msg.t==='authErr'){showAuthErr(msg.msg);return;}
+  else if(msg.t==='authFail'){doLogout();return;}
   if(msg.t==='created'){myId=msg.id;isHost=true;document.getElementById('codeDisplay').textContent=msg.code;document.getElementById('joinRow').style.display='none';document.getElementById('waitRoom').style.display='flex';}
   else if(msg.t==='joined'){myId=msg.id;document.getElementById('codeDisplay').textContent=msg.code;document.getElementById('joinRow').style.display='none';document.getElementById('startBtn').style.display='none';document.getElementById('waitRoom').style.display='flex';}
   else if(msg.t==='lobby'){document.getElementById('playerListEl').innerHTML='참가자: '+msg.players.map(p=>'<b>'+p.name+'</b>').join(', ');}
@@ -1837,7 +1857,7 @@ function spawnPixelExplosion(x,y,type){
 let msgTimer=0;
 function showPop(txt,dur){const el=document.getElementById('msgPop');el.textContent=txt;el.style.display='block';msgTimer=dur||1400;}
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
-function endGame(win){running=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+(myPlayer?myPlayer.lv:1)+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');}
+function endGame(win){running=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;const myLv=myPlayer?myPlayer.lv:1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+myLv+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');_myKills=kills;saveGameStats(win,myLv);}
 let _loopRunning=false;
 function loop(ts){
   const dt=Math.min(ts-lastTime,50);lastTime=ts;
@@ -1874,8 +1894,8 @@ const server = http.createServer(async (req, res) => {
     if(!/^[a-zA-Z0-9가-힣_]{3,16}$/.test(id))return sendJson(res,400,{err:'아이디는 영문/숫자/한글/밑줄만 사용 가능합니다'});
     accountsDb=loadAccounts();
     if(accountsDb.users[id])return sendJson(res,400,{err:'이미 사용 중인 아이디입니다'});
-    const token=genToken();
-    accountsDb.users[id]={passwordHash:hashPw(pw),trinkets:[],equippedTrinkets:[null,null],createdAt:Date.now()};
+    const salt=genSalt();const token=genToken();
+    accountsDb.users[id]={passwordHash:hashPw(pw,salt),salt,trinkets:[],equippedTrinkets:[null,null],createdAt:Date.now()};
     saveAccounts(accountsDb);
     sessions.set(token,id);
     return sendJson(res,200,{token,username:id,inventory:[],equipped:[null,null]});
@@ -1886,7 +1906,7 @@ const server = http.createServer(async (req, res) => {
     const id=(body.id||'').trim();const pw=body.pw||'';
     accountsDb=loadAccounts();
     const user=accountsDb.users[id];
-    if(!user||user.passwordHash!==hashPw(pw))return sendJson(res,400,{err:'아이디 또는 비밀번호가 틀렸습니다'});
+    if(!user||user.passwordHash!==hashPw(pw,user.salt||''))return sendJson(res,400,{err:'아이디 또는 비밀번호가 틀렸습니다'});
     const token=genToken();
     sessions.set(token,id);
     return sendJson(res,200,{token,username:id,inventory:user.trinkets||[],equipped:user.equippedTrinkets||[null,null]});
@@ -2171,6 +2191,50 @@ wss.on('connection',ws=>{
   ws.on('message',raw=>{
     let msg;try{msg=JSON.parse(raw);}catch{return;}
     if(msg.t==='ping'){ws.isAlive=true;if(ws.readyState===1)ws.send(JSON.stringify({t:'pong'}));return;}
+    if(msg.t==='register'){
+      const uname=(msg.username||'').trim();const pwd=msg.password||'';
+      if(uname.length<4||uname.length>16){ws.send(JSON.stringify({t:'authErr',msg:'아이디는 4~16자여야 해요'}));return;}
+      if(!/^[a-zA-Z0-9_]+$/.test(uname)){ws.send(JSON.stringify({t:'authErr',msg:'아이디는 영문/숫자/_만 사용 가능해요'}));return;}
+      if(pwd.length<4){ws.send(JSON.stringify({t:'authErr',msg:'비밀번호는 4자 이상이어야 해요'}));return;}
+      const users=loadUsers();
+      if(users[uname]){ws.send(JSON.stringify({t:'authErr',msg:'이미 사용중인 아이디에요'}));return;}
+      const salt=crypto.randomBytes(16).toString('hex');
+      users[uname]={passwordHash:hashPassword(pwd,salt),salt,createdAt:new Date().toISOString(),stats:{gamesPlayed:0,wins:0,totalKills:0,bestLevel:1}};
+      saveUsers(users);
+      const token=genToken();sessions.set(token,{username:uname,createdAt:Date.now()});
+      ws.username=uname;
+      ws.send(JSON.stringify({t:'authOk',token,username:uname,stats:users[uname].stats}));
+      return;
+    }
+    if(msg.t==='login'){
+      const uname=(msg.username||'').trim();const pwd=msg.password||'';
+      const users=loadUsers();const u=users[uname];
+      if(!u||hashPassword(pwd,u.salt)!==u.passwordHash){ws.send(JSON.stringify({t:'authErr',msg:'아이디 또는 비밀번호가 틀렸어요'}));return;}
+      const token=genToken();sessions.set(token,{username:uname,createdAt:Date.now()});
+      ws.username=uname;
+      ws.send(JSON.stringify({t:'authOk',token,username:uname,stats:u.stats}));
+      return;
+    }
+    if(msg.t==='authCheck'){
+      const session=sessions.get(msg.token||'');
+      if(!session){ws.send(JSON.stringify({t:'authFail'}));return;}
+      const users=loadUsers();const u=users[session.username];
+      if(!u){sessions.delete(msg.token);ws.send(JSON.stringify({t:'authFail'}));return;}
+      ws.username=session.username;
+      ws.send(JSON.stringify({t:'authOk',token:msg.token,username:session.username,stats:u.stats}));
+      return;
+    }
+    if(msg.t==='saveStats'){
+      if(!ws.username)return;
+      const users=loadUsers();if(!users[ws.username])return;
+      const s=users[ws.username].stats;
+      s.gamesPlayed=(s.gamesPlayed||0)+1;
+      if(msg.win)s.wins=(s.wins||0)+1;
+      if(msg.kills)s.totalKills=(s.totalKills||0)+msg.kills;
+      if(msg.level&&msg.level>(s.bestLevel||1))s.bestLevel=msg.level;
+      saveUsers(users);
+      return;
+    }
     const newPlayer=(name,x=0,y=0)=>({id:ws.pid,x,y,hp:100,maxHp:100,lv:1,exp:0,expNext:50,dead:false,groggy:false,groggyTimer:0,reviveProgress:0,name,lvUp:false,cls:null,regen:0,armor:0,expMult:1,critRate:0,dmgBonus:1,invincible:false,invincibleEnd:0,lvUpQueue:0});
     if(msg.t==='create'){
       // 토큰으로 장신구 조회
