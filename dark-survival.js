@@ -468,6 +468,7 @@ let myInventory=[]; // 보유 장신구 ID 배열
 
 // ── 인증 화면 ───────────────────────────────────────────────────
 let _authMode='login';
+let _authInProgress=false;
 function switchAuthTab(mode){
   _authMode=mode;
   document.querySelectorAll('.authTab').forEach((t,i)=>t.classList.toggle('active',(i===0&&mode==='login')||(i===1&&mode==='register')));
@@ -475,6 +476,7 @@ function switchAuthTab(mode){
   document.getElementById('authErr').textContent='';
 }
 async function doAuthSubmit(){
+  if(_authInProgress)return;
   const id=document.getElementById('authId').value.trim();
   const pw=document.getElementById('authPw').value;
   const errEl=document.getElementById('authErr');
@@ -483,30 +485,36 @@ async function doAuthSubmit(){
   if(!id||!pw){errEl.textContent='아이디와 비밀번호를 입력하세요';return;}
   if(id.length<3){errEl.textContent='아이디는 3자 이상이어야 합니다';return;}
   if(pw.length<4){errEl.textContent='비밀번호는 4자 이상이어야 합니다';return;}
+  _authInProgress=true;
   btn.textContent='처리 중...';errEl.textContent='';
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),10000);
+  let successData=null;
   try{
     const res=await fetch('/auth/'+_authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,pw}),signal:ctrl.signal});
     const data=await res.json();
     clearTimeout(timer);
-    if(data.err){errEl.style.color='';errEl.textContent=data.err;btn.textContent=_authMode==='login'?'로그인':'회원가입';return;}
-    authToken=data.token;authUsername=data.username;
-    myInventory=data.inventory||[];myEquipped=data.equipped||[null,null];
-    localStorage.setItem('ds_token',authToken);
-    if(_authMode==='register'){
-      errEl.style.color='#44ff88';
-      errEl.textContent='✓ 회원가입 완료! '+id+'님 환영합니다 :)';
-      btn.textContent='완료 ✓';
-      setTimeout(()=>{errEl.style.color='';enterLobby(true);},1500);
-    } else {
-      enterLobby(true);
-    }
+    if(data.err){errEl.style.color='';errEl.textContent=data.err;btn.textContent=_authMode==='login'?'로그인':'회원가입';_authInProgress=false;return;}
+    successData=data;
   }catch(e){
     clearTimeout(timer);
     const msg=e.name==='AbortError'?'요청 시간이 초과됐습니다 (서버 확인 필요)':'서버 오류: '+e.message;
     errEl.style.color='';errEl.textContent=msg;
     btn.textContent=_authMode==='login'?'로그인':'회원가입';
+    _authInProgress=false;
+    return;
+  }
+  authToken=successData.token;authUsername=successData.username;
+  myInventory=successData.inventory||[];myEquipped=successData.equipped||[null,null];
+  localStorage.setItem('ds_token',authToken);
+  _authInProgress=false;
+  if(_authMode==='register'){
+    errEl.style.color='#44ff88';
+    errEl.textContent='✓ 회원가입 완료! '+successData.username+'님 환영합니다 :)';
+    btn.textContent='완료 ✓';
+    setTimeout(()=>{errEl.style.color='';enterLobby(true);},1500);
+  } else {
+    enterLobby(true);
   }
 }
 async function doGuest(){
