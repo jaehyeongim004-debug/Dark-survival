@@ -1660,7 +1660,7 @@ function tickRoom(code){
       if(Math.sqrt(dx*dx+dy*dy)<60)nearReviver=true;
     });
     if(nearReviver){
-      gp.reviveProgress=(gp.reviveProgress||0)+dt/5;
+      gp.reviveProgress=(gp.reviveProgress||0)+dt/3;
       if(gp.reviveProgress>=1){gp.groggy=false;gp.dead=false;gp.hp=gp.maxHp*0.3;gp.reviveProgress=0;bcastAll(room,{t:'revived',id:gp.id});}
     }else{
       gp.reviveProgress=Math.max(0,(gp.reviveProgress||0)-dt/3);
