@@ -8,12 +8,14 @@ const PORT = process.env.PORT || 8080;
 
 // ── MongoDB 연결 ─────────────────────────────────────────────────
 const { MongoClient } = require('mongodb');
-const mongoClient = new MongoClient(process.env.MONGODB_URI, {
+const mongoClient = new MongoClient(process.env.MONGODB_URI||'', {
   serverSelectionTimeoutMS: 5000,
   connectTimeoutMS: 5000,
+  socketTimeoutMS: 8000,
 });
 let db;
 async function connectDB() {
+  if(!process.env.MONGODB_URI){console.error('[MongoDB] MONGODB_URI 환경변수 미설정');return;}
   await mongoClient.connect();
   db = mongoClient.db('dark-survival');
   console.log('MongoDB 연결 성공!');
@@ -2016,11 +2018,13 @@ const server = http.createServer(async (req, res) => {
     if(!id||id.length<3)return sendJson(res,400,{err:'아이디는 3자 이상이어야 합니다'});
     if(!pw||pw.length<4)return sendJson(res,400,{err:'비밀번호는 4자 이상이어야 합니다'});
     if(!/^[a-zA-Z0-9가-힣_]{3,16}$/.test(id))return sendJson(res,400,{err:'아이디는 영문/숫자/한글/밑줄만 사용 가능합니다'});
-    const existing=await db.collection('users').findOne({_id:id});
+    console.log('[register] 요청:', id);
+    const existing=await db.collection('users').findOne({_id:id},{maxTimeMS:7000});
     if(existing)return sendJson(res,400,{err:'이미 사용 중인 아이디입니다'});
     const salt=genSalt();const token=genToken();
-    await db.collection('users').insertOne({_id:id,passwordHash:hashPw(pw,salt),salt,trinkets:[],equippedTrinkets:[null,null],createdAt:Date.now()});
+    await db.collection('users').insertOne({_id:id,passwordHash:hashPw(pw,salt),salt,trinkets:[],equippedTrinkets:[null,null],createdAt:Date.now()},{maxTimeMS:7000});
     sessions.set(token,id);
+    console.log('[register] 완료:', id);
     return sendJson(res,200,{token,username:id,inventory:[],equipped:[null,null]});
   }
 
@@ -2028,10 +2032,13 @@ const server = http.createServer(async (req, res) => {
     if(!db)return sendJson(res,503,{err:'서버가 아직 준비 중입니다. 잠시 후 다시 시도해주세요.'});
     const body=await readBody(req);
     const id=(body.id||'').trim();const pw=body.pw||'';
-    const user=await db.collection('users').findOne({_id:id});
+    console.log('[login] 요청:', id);
+    const user=await db.collection('users').findOne({_id:id},{maxTimeMS:7000});
+    console.log('[login] DB 결과:', user?'유저 있음':'유저 없음');
     if(!user||user.passwordHash!==hashPw(pw,user.salt||''))return sendJson(res,400,{err:'아이디 또는 비밀번호가 틀렸습니다'});
     const token=genToken();
     sessions.set(token,id);
+    console.log('[login] 완료:', id);
     return sendJson(res,200,{token,username:id,inventory:user.trinkets||[],equipped:user.equippedTrinkets||[null,null]});
   }
 
@@ -2040,7 +2047,7 @@ const server = http.createServer(async (req, res) => {
     const token=new URL(req.url,'http://x').searchParams.get('token')||'';
     const username=sessions.get(token);
     if(!username)return sendJson(res,401,{err:'세션이 만료되었습니다'});
-    const user=await db.collection('users').findOne({_id:username});
+    const user=await db.collection('users').findOne({_id:username},{maxTimeMS:7000});
     if(!user)return sendJson(res,401,{err:'계정을 찾을 수 없습니다'});
     return sendJson(res,200,{username,inventory:user.trinkets||[],equipped:user.equippedTrinkets||[null,null]});
   }
@@ -2051,7 +2058,7 @@ const server = http.createServer(async (req, res) => {
     const token=body.token||'';const trinketId=body.trinketId||'';const action=body.action||'equip';
     const username=sessions.get(token);
     if(!username)return sendJson(res,401,{err:'로그인이 필요합니다'});
-    const user=await db.collection('users').findOne({_id:username});
+    const user=await db.collection('users').findOne({_id:username},{maxTimeMS:7000});
     if(!user)return sendJson(res,401,{err:'계정을 찾을 수 없습니다'});
     const inv=user.trinkets||[];
     const equipped=(user.equippedTrinkets||[null,null]).slice(0,2);
@@ -2067,7 +2074,7 @@ const server = http.createServer(async (req, res) => {
       if(idx===-1)return sendJson(res,400,{err:'장착되지 않은 장신구입니다'});
       equipped[idx]=null;
     }
-    await db.collection('users').updateOne({_id:username},{$set:{equippedTrinkets:equipped}});
+    await db.collection('users').updateOne({_id:username},{$set:{equippedTrinkets:equipped}},{maxTimeMS:7000});
     return sendJson(res,200,{equipped,inventory:inv});
   }
 
