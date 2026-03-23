@@ -785,10 +785,12 @@ const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
 const MB_WALK_IMG=new Image();MB_WALK_IMG.src='/boss-walk-sprite.png';
 const MB_WALK_P2_IMG=new Image();MB_WALK_P2_IMG.src='/boss-walk-sprite-p2.png';
 const MB_CHARGE_IMG=new Image();MB_CHARGE_IMG.src='/boss-charge-sprite.png';
+const MB_TRANSFORM_IMG=new Image();MB_TRANSFORM_IMG.src='/boss-transform.png';
 const NECRO_IMG=new Image();NECRO_IMG.src='/necromancer-sprite.png';
 const MB_FW=200,MB_FH=200; // 공격 애니메이션 프레임 크기
 const MB_WALK_FRAMES=4; // 걷기 애니메이션 프레임 수
 let mbRow=0,mbFrame=0,mbFrameT=0,mbLocked=false,mbPrevT=0;
+let mbTransforming=false,mbTransformStart=0;
 const SPR_FW=32,SPR_FH=32; // 직업군 스프라이트 프레임 크기 (시트: 128×64, 4열×2행)
 let selfSprFrame=0,selfSprRow=0,selfSprFrameT=0,selfSprPrevT=0;
 const otherSprState={};
@@ -866,7 +868,7 @@ function handleMsg(msg){
   }
   else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);stopGameBGM();stopMidBossBGM();}
   else if(msg.t==='finalBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('최종 보스 처치!',3000);myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);}
-  else if(msg.t==='phase2'){showPop('PHASE 2!',1500);}
+  else if(msg.t==='phase2'){showPop('PHASE 2!',1500);mbTransforming=true;mbTransformStart=performance.now();}
   else if(msg.t==='bossHp'){if(bossData)bossData.hp=msg.hp;}
   else if(msg.t==='pat'){doBossPat(msg);}
   else if(msg.t==='eDead'){kills++;score+=msg.sc||10;if(msg.sc>0)addKf('+'+(msg.sc||10));}
@@ -1023,7 +1025,7 @@ function tryShoot(){
   const now=performance.now(),w=getW();if(now-lastShot<w.cd)return;lastShot=now;
   selfSprRow=1;selfSprFrame=0;selfSprFrameT=0; // 공격 애니메이션 트리거
   let target=null,minD=Infinity;
-  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38}]:enemies;
+  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:85}]:enemies;
   if(autoAim){for(const e of allE){const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);if(d<minD){minD=d;target=e;}}}
   let tx,ty;
   if(autoAim&&target&&minD<w.range*1.3){const projSpd=(w.spd||7)*60;const tt=minD/projSpd;tx=target.x+(target.vx||0)*tt;ty=target.y+(target.vy||0)*tt;}
@@ -1061,7 +1063,7 @@ function doMelee(ang,w){
   let col=isDagger?'#ff88aacc':w.color;if(weaponElement&&weaponUpgradeLevel>=3)col=ELEMENT_COLORS[weaponElement];
   const effectMult=1+weaponUpgradeLevel*0.3,actualRange=w.range*effectMult;
   for(let a=ang-spread;a<=ang+spread;a+=step)for(let r=18;r<actualRange;r+=isDagger?12:14)parts.push({x:myPlayer.x+Math.cos(a)*r,y:myPlayer.y+Math.sin(a)*r,vx:0,vy:0,life:isDagger?120:160,maxLife:isDagger?120:160,r:pR+weaponUpgradeLevel,color:col});
-  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:38},...turrets]:enemies;
+  const allE=bossData?[...enemies,{id:'boss',x:bossData.x,y:bossData.y,r:85},...turrets]:enemies;
   for(const e of allE){const dx=e.x-myPlayer.x,dy=e.y-myPlayer.y,d=Math.sqrt(dx*dx+dy*dy);if(d<actualRange){const ea=Math.atan2(dy,dx),diff=Math.abs(((ea-ang)+Math.PI*3)%(Math.PI*2)-Math.PI);if(diff<(isDagger?0.6:1.3)){if(e.id==='boss')reportHit('boss',w.dmg,weaponElement);else if(e.isTurret)reportHit('turret',w.dmg,weaponElement,e.id);else reportHit(e.id,w.dmg,weaponElement);}}}
   send({t:'atk',x:myPlayer.x,y:myPlayer.y,ax:myPlayer.x+Math.cos(ang)*60,ay:myPlayer.y+Math.sin(ang)*60,w:myClass,cnt:1,range:actualRange,element:weaponElement,elementTier:weaponUpgradeLevel});
 }
@@ -1306,7 +1308,7 @@ function update(dt){
     if(p.visual)continue;
     if(!p.enemy){
       for(const e of enemies){const dx=p.x-e.x,dy=p.y-e.y;if(Math.sqrt(dx*dx+dy*dy)<(e.r||10)+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);p.gone=true;break;}else{if(p.pierce){if(!p._hit)p._hit=new Set();if(p._hit.has(e.id))continue;p._hit.add(e.id);}reportHit(e.id,p.dmg,p.element);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,4);if(!p.pierce)p.gone=true;}if(!p.pierce)break;}}
-      if(!p.gone&&bossData){const dx=p.x-bossData.x,dy=p.y-bossData.y;if(Math.sqrt(dx*dx+dy*dy)<38+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}else{reportHit('boss',p.dmg,p.element);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,5);}if(!p.pierce)p.gone=true;}}
+      if(!p.gone&&bossData){const dx=p.x-bossData.x,dy=p.y-bossData.y;if(Math.sqrt(dx*dx+dy*dy)<85+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}else{reportHit('boss',p.dmg,p.element);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,5);}if(!p.pierce)p.gone=true;}}
       if(!p.gone){for(const t of turrets){const dx=p.x-t.x,dy=p.y-t.y;if(Math.sqrt(dx*dx+dy*dy)<t.r+p.r){if(p.isMagic){createExplosion(p.x,p.y,p.explosionRadius||80,p.dmg*0.6,p.color,p.element);spawnParts(p.x,p.y,p.color,12);}else{reportHit('turret',p.dmg,p.element,t.id);if(p.element==='fire')send({t:'fireZone',x:p.x,y:p.y,dmg:p.dmg*0.5});spawnParts(p.x,p.y,p.color,5);}if(!p.pierce){p.gone=true;break;}}}}
     }else{if(myPlayer&&!myPlayer.dead&&!invincible){const dx=p.x-myPlayer.x,dy=p.y-myPlayer.y;if(Math.sqrt(dx*dx+dy*dy)<14+p.r){send({t:'enemyHit',dmg:p.dmg});spawnParts(p.x,p.y,p.color,4);p.gone=true;}}}
   }
@@ -1755,7 +1757,18 @@ function drawFlameDemon(ctx,b,t){
   ctx.translate(0,bobY);
   if(!b._facingRight)ctx.scale(-1,1);
   if(bMoving&&!mbLocked){const lean=Math.max(-0.08,Math.min(0.08,dx*0.03));ctx.rotate(lean);}
-  if(megaBlastState&&megaBlastState.phase==='warn'&&MB_CHARGE_IMG.complete&&MB_CHARGE_IMG.naturalWidth>0){
+  if(mbTransforming&&performance.now()-mbTransformStart>=2000){mbTransforming=false;}
+  if(mbTransforming&&MB_TRANSFORM_IMG.complete&&MB_TRANSFORM_IMG.naturalWidth>0){
+    const tElapsed=performance.now()-mbTransformStart;
+    const pulse=1+Math.sin(tElapsed*0.014)*0.09;
+    ctx.save();ctx.scale(pulse,pulse);
+    ctx.imageSmoothingEnabled=false;
+    ctx.shadowColor='#ff6600';ctx.shadowBlur=25+Math.sin(tElapsed*0.01)*15;
+    ctx.drawImage(MB_TRANSFORM_IMG,-szW/2,-szH/2,szW,szH);
+    const flashA=Math.max(0,Math.sin(tElapsed*0.018))*0.35;
+    if(flashA>0){ctx.globalAlpha=flashA;ctx.fillStyle='#ffffff';ctx.fillRect(-szW/2,-szH/2,szW,szH);ctx.globalAlpha=1;}
+    ctx.restore();
+  }else if(megaBlastState&&megaBlastState.phase==='warn'&&MB_CHARGE_IMG.complete&&MB_CHARGE_IMG.naturalWidth>0){
     const elapsed=t-megaBlastState.startTime;
     const pulse=1+Math.sin(elapsed*0.008)*0.07;
     const shakeX=elapsed>3000?(Math.random()-0.5)*4:(Math.random()-0.5)*1;
@@ -2071,8 +2084,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── 정적 파일 (assets) ──────────────────────────────────────
-  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/.test(req.url)){
-    const fp=path.join(__dirname,'assets',req.url.split('?')[0]);
+  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/i.test(req.url)){
+    const fp=path.join(__dirname,'assets',decodeURIComponent(req.url.split('?')[0]));
     try{const d=fs.readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0];res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'})[ext]||'application/octet-stream'});res.end(d);return;}catch(e){}
   }
   res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8', 'Cache-Control': 'no-store, max-age=0' });
@@ -2122,7 +2135,7 @@ function spawnBoss(room,isFinal){
   setTimeout(()=>{
     const bh=isFinal?(4500+room.currentStage*800):(2200+room.currentStage*400);
     const hp=bh*(1+(pc-1)*0.5);
-    room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:42,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5,frozen:false,invincible:false,megaBlasting:false,miniMidTimer:0,lastSlash:0,lastBigFireball:0,slashCharging:false,slashChargeTimer:0,slashWarnAng:0};
+    room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:85,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5,frozen:false,invincible:false,megaBlasting:false,miniMidTimer:0,lastSlash:0,lastBigFireball:0,slashCharging:false,slashChargeTimer:0,slashWarnAng:0};
     room.enemies=[];
     if(isFinal){
       room.finalBossAlive=true;
@@ -2187,7 +2200,7 @@ function tickRoom(code){
   }
   if(room.fireZones&&room.fireZones.length>0){room.fireZones=room.fireZones.filter(fz=>fz.life>0);for(const fz of room.fireZones){fz.life-=dt*1000;for(const e of room.enemies){const dx=e.x-fz.x,dy=e.y-fz.y;if(Math.sqrt(dx*dx+dy*dy)<30+e.r){e.hp-=fz.dmg*dt*2;if(e.hp<=0)e.dead=true;}}}}
   if(room.boss&&!room.boss.dead){
-    const b=room.boss;b.ang+=dt*1.5;if(b.hp<b.maxHp/2&&b.phase===1){b.phase=2;bcastAll(room,{t:'phase2'});}
+    const b=room.boss;b.ang+=dt*1.5;if(b.hp<b.maxHp/2&&b.phase===1){b.phase=2;b.invincible=true;setTimeout(()=>{if(room.boss&&!room.boss.dead)room.boss.invincible=false;},2000);bcastAll(room,{t:'phase2'});}
     if(!b.isFinal&&b.phase===2&&!b.megaBlasting&&b.hp<b.maxHp*0.2){
       b.megaBlasting=true;b.frozen=true;b.invincible=true;
       const safeZones=[];const alive2=arr.filter(p=>!p.dead&&!p.groggy);
