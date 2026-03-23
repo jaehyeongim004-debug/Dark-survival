@@ -7,6 +7,7 @@
     "start": "node dark-survival.js"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "mongodb": "^6.7.0"
   }
 }

@@ -6,17 +6,15 @@ const path = require('path');
 const crypto = require('crypto');
 const PORT = process.env.PORT || 8080;
 
-// ── 계정 데이터 관리 ────────────────────────────────────────────
-const ACCOUNTS_FILE = process.env.ACCOUNTS_FILE || path.join(__dirname, 'accounts.json');
-function loadAccounts() {
-  try { return JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8')); }
-  catch(e) { return { users: {} }; }
+// ── MongoDB 연결 ─────────────────────────────────────────────────
+const { MongoClient } = require('mongodb');
+const mongoClient = new MongoClient(process.env.MONGODB_URI);
+let db;
+async function connectDB() {
+  await mongoClient.connect();
+  db = mongoClient.db('dark-survival');
+  console.log('MongoDB 연결 성공!');
 }
-function saveAccounts(data) {
-  try { fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(data, null, 2)); }
-  catch(e) { console.error('[계정 저장 실패]', e); }
-}
-let accountsDb = loadAccounts();
 const sessions = new Map(); // token → username
 function genSalt() { return crypto.randomBytes(16).toString('hex'); }
 function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 64, {N:2048}).toString('hex'); }
@@ -79,18 +77,19 @@ function generateTrinket() {
     grade:g.grade, gradeColor:g.color, stats, img, score:Math.round(totalScore)
   };
 }
-function awardTrinkets(room) {
+async function awardTrinkets(room) {
   if(!room.midBossSpawned||room.midBossAlive)return;
-  const accs=loadAccounts();
-  room.players.forEach((p,playerWs)=>{
+  const usersCol=db.collection('users');
+  room.players.forEach(async (p,playerWs)=>{
     if(!playerWs.username)return;
     const t1=generateTrinket(),t2=generateTrinket();
-    if(!accs.users[playerWs.username])return;
-    if(!Array.isArray(accs.users[playerWs.username].trinkets))accs.users[playerWs.username].trinkets=[];
-    accs.users[playerWs.username].trinkets.push(t1,t2);
-    if(playerWs.readyState===1)playerWs.send(JSON.stringify({t:'trinketReward',trinkets:[t1,t2]}));
+    try{
+      const u=await usersCol.findOne({_id:playerWs.username});
+      if(!u)return;
+      await usersCol.updateOne({_id:playerWs.username},{$push:{trinkets:{$each:[t1,t2]}}});
+      if(playerWs.readyState===1)playerWs.send(JSON.stringify({t:'trinketReward',trinkets:[t1,t2]}));
+    }catch(e){console.error('[awardTrinkets error]',e);}
   });
-  saveAccounts(accs);
 }
 function applyTrinketEffects(player, equippedTrinkets) {
   for(const trinket of equippedTrinkets) {
@@ -2013,11 +2012,10 @@ const server = http.createServer(async (req, res) => {
     if(!id||id.length<3)return sendJson(res,400,{err:'아이디는 3자 이상이어야 합니다'});
     if(!pw||pw.length<4)return sendJson(res,400,{err:'비밀번호는 4자 이상이어야 합니다'});
     if(!/^[a-zA-Z0-9가-힣_]{3,16}$/.test(id))return sendJson(res,400,{err:'아이디는 영문/숫자/한글/밑줄만 사용 가능합니다'});
-    accountsDb=loadAccounts();
-    if(accountsDb.users[id])return sendJson(res,400,{err:'이미 사용 중인 아이디입니다'});
+    const existing=await db.collection('users').findOne({_id:id});
+    if(existing)return sendJson(res,400,{err:'이미 사용 중인 아이디입니다'});
     const salt=genSalt();const token=genToken();
-    accountsDb.users[id]={passwordHash:hashPw(pw,salt),salt,trinkets:[],equippedTrinkets:[null,null],createdAt:Date.now()};
-    saveAccounts(accountsDb);
+    await db.collection('users').insertOne({_id:id,passwordHash:hashPw(pw,salt),salt,trinkets:[],equippedTrinkets:[null,null],createdAt:Date.now()});
     sessions.set(token,id);
     return sendJson(res,200,{token,username:id,inventory:[],equipped:[null,null]});
   }
@@ -2025,8 +2023,7 @@ const server = http.createServer(async (req, res) => {
   if(req.url==='/auth/login' && req.method==='POST'){
     const body=await readBody(req);
     const id=(body.id||'').trim();const pw=body.pw||'';
-    accountsDb=loadAccounts();
-    const user=accountsDb.users[id];
+    const user=await db.collection('users').findOne({_id:id});
     if(!user||user.passwordHash!==hashPw(pw,user.salt||''))return sendJson(res,400,{err:'아이디 또는 비밀번호가 틀렸습니다'});
     const token=genToken();
     sessions.set(token,id);
@@ -2037,8 +2034,7 @@ const server = http.createServer(async (req, res) => {
     const token=new URL(req.url,'http://x').searchParams.get('token')||'';
     const username=sessions.get(token);
     if(!username)return sendJson(res,401,{err:'세션이 만료되었습니다'});
-    accountsDb=loadAccounts();
-    const user=accountsDb.users[username];
+    const user=await db.collection('users').findOne({_id:username});
     if(!user)return sendJson(res,401,{err:'계정을 찾을 수 없습니다'});
     return sendJson(res,200,{username,inventory:user.trinkets||[],equipped:user.equippedTrinkets||[null,null]});
   }
@@ -2048,8 +2044,7 @@ const server = http.createServer(async (req, res) => {
     const token=body.token||'';const trinketId=body.trinketId||'';const action=body.action||'equip';
     const username=sessions.get(token);
     if(!username)return sendJson(res,401,{err:'로그인이 필요합니다'});
-    accountsDb=loadAccounts();
-    const user=accountsDb.users[username];
+    const user=await db.collection('users').findOne({_id:username});
     if(!user)return sendJson(res,401,{err:'계정을 찾을 수 없습니다'});
     const inv=user.trinkets||[];
     const equipped=(user.equippedTrinkets||[null,null]).slice(0,2);
@@ -2065,8 +2060,7 @@ const server = http.createServer(async (req, res) => {
       if(idx===-1)return sendJson(res,400,{err:'장착되지 않은 장신구입니다'});
       equipped[idx]=null;
     }
-    user.equippedTrinkets=equipped;
-    saveAccounts(accountsDb);
+    await db.collection('users').updateOne({_id:username},{$set:{equippedTrinkets:equipped}});
     return sendJson(res,200,{equipped,inventory:inv});
   }
 
@@ -2314,20 +2308,16 @@ wss.on('connection',ws=>{
   ws.pid=Math.random().toString(36).substr(2,6);ws.roomCode=null;
   ws.isAlive=true;
   ws.on('pong',()=>{ws.isAlive=true;});
-  ws.on('message',raw=>{
+  ws.on('message',async raw=>{
     try{
     let msg;try{msg=JSON.parse(raw);}catch{return;}
     if(msg.t==='ping'){ws.isAlive=true;if(ws.readyState===1)ws.send(JSON.stringify({t:'pong'}));return;}
     if(msg.t==='saveStats'){
       if(!ws.username)return;
-      const db=loadAccounts();if(!db.users[ws.username])return;
-      const u=db.users[ws.username];
-      if(!u.stats)u.stats={gamesPlayed:0,wins:0,totalKills:0,bestLevel:1};
-      u.stats.gamesPlayed=(u.stats.gamesPlayed||0)+1;
-      if(msg.win)u.stats.wins=(u.stats.wins||0)+1;
-      if(msg.kills)u.stats.totalKills=(u.stats.totalKills||0)+msg.kills;
-      if(msg.level&&msg.level>(u.stats.bestLevel||1))u.stats.bestLevel=msg.level;
-      saveAccounts(db);
+      const statsInc={'stats.gamesPlayed':1,'stats.totalKills':msg.kills||0};
+      if(msg.win)statsInc['stats.wins']=1;
+      db.collection('users').updateOne({_id:ws.username},{$inc:statsInc,$max:{'stats.bestLevel':msg.level||1}})
+        .catch(e=>console.error('[saveStats error]',e));
       return;
     }
     const newPlayer=(name,x=0,y=0)=>({id:ws.pid,x,y,hp:100,maxHp:100,lv:1,exp:0,expNext:50,dead:false,groggy:false,groggyTimer:0,reviveProgress:0,name,lvUp:false,cls:null,regen:0,armor:0,expMult:1,critRate:0,dmgBonus:1,invincible:false,invincibleEnd:0,lvUpQueue:0});
@@ -2335,7 +2325,7 @@ wss.on('connection',ws=>{
       // 토큰으로 장신구 조회
       if(msg.token){
         const uname=sessions.get(msg.token);
-        if(uname){ws.username=uname;const ud=loadAccounts().users[uname];ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(t=>t&&t.id):[];}
+        if(uname){ws.username=uname;const ud=await db.collection('users').findOne({_id:uname});ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(t=>t&&t.id):[];}
       } else {ws.equippedTrinkets=[];}
       const code=genCode();
       rooms.set(code,{players:new Map(),enemies:[],boss:null,turrets:[],fireZones:[],stageTime:600,currentStage:1,started:false,midBossSpawned:false,finalBossSpawned:false,midBossAlive:false,finalBossAlive:false,eid:0,lastTick:Date.now(),readyCount:0,enemyHpMult:1,enemyDmgMult:1});
@@ -2347,7 +2337,7 @@ wss.on('connection',ws=>{
       // 토큰으로 장신구 조회
       if(msg.token){
         const uname=sessions.get(msg.token);
-        if(uname){ws.username=uname;const ud=loadAccounts().users[uname];ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(t=>t&&t.id):[];}
+        if(uname){ws.username=uname;const ud=await db.collection('users').findOne({_id:uname});ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(t=>t&&t.id):[];}
       } else {ws.equippedTrinkets=[];}
       const code=(msg.code||'').toUpperCase(),room=rooms.get(code);
       if(!room){ws.send(JSON.stringify({t:'err',msg:'방을 찾을 수 없어요'}));return;}
@@ -2488,4 +2478,6 @@ const heartbeatInterval=setInterval(()=>{
 },25000);
 wss.on('close',()=>clearInterval(heartbeatInterval));
 
-server.listen(PORT,()=>console.log('Dark Survival Final → http://localhost:'+PORT));
+connectDB().then(()=>{
+  server.listen(PORT,()=>console.log('Dark Survival Final → http://localhost:'+PORT));
+}).catch(e=>{console.error('MongoDB 연결 실패:',e);process.exit(1);});
