@@ -4,7 +4,7 @@ const { WebSocketServer } = require('ws');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // ── 계정 데이터 관리 ────────────────────────────────────────────
 const ACCOUNTS_FILE = path.join(__dirname, 'accounts.json');
