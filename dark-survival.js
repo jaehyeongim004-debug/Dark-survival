@@ -21,29 +21,76 @@ function genSalt() { return crypto.randomBytes(16).toString('hex'); }
 function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 64).toString('hex'); }
 function genToken() { return crypto.randomBytes(32).toString('hex'); }
 
-// ── 장신구 효과 (서버 적용용) ───────────────────────────────────
-const TRINKET_EFFECTS = {
-  red_charm:     { maxHpMult: 1.15 },
-  swift_ring:    { spdMult: 1.08 },
-  battle_seal:   { dmgBonusMult: 1.10 },
-  focus_crystal: { cdMult: 0.92 },
-  vampire_fang:  { regenAdd: 0.5 },
-  iron_bracelet: { armorAdd: 0.08 },
-  lucky_charm:   { critRateAdd: 10 },
-  scholar_glass: { expMultMult: 1.15 },
+// ── 장신구 시스템 (절차적 생성, 등급제) ──────────────────────────
+const TRINKET_STAT_DEFS = {
+  maxHp:   {min:1,  max:100, label:'최대체력', calc:'mult'},
+  armor:   {min:1,  max:20,  label:'방어력',   calc:'add'},
+  regen:   {min:1,  max:100, label:'체력재생', calc:'mult'},
+  dmg:     {min:1,  max:50,  label:'공격력',   calc:'mult'},
+  atkSpd:  {min:1,  max:50,  label:'공격속도', calc:'mult'},
+  moveSpd: {min:1,  max:50,  label:'이동속도', calc:'mult'},
+  range:   {min:1,  max:50,  label:'사거리',   calc:'mult'},
+  crit:    {min:1,  max:50,  label:'치명타',   calc:'add'},
 };
+const TRINKET_GRADES = [
+  {grade:'신화', minScore:230, color:'#ff2200'},
+  {grade:'전설', minScore:160, color:'#ff8800'},
+  {grade:'영웅', minScore:90,  color:'#aa44ff'},
+  {grade:'서사', minScore:0,   color:'#2288ff'},
+];
+function getTrinketImages() {
+  try {
+    const dir=path.join(__dirname,'assets','trinkets');
+    if(!fs.existsSync(dir)) fs.mkdirSync(dir,{recursive:true});
+    return fs.readdirSync(dir).filter(f=>/\.(png|jpg|webp)$/i.test(f));
+  } catch { return []; }
+}
+function generateTrinket() {
+  const imgs=getTrinketImages();
+  const keys=Object.keys(TRINKET_STAT_DEFS).sort(()=>Math.random()-0.5).slice(0,3);
+  const stats=keys.map(type=>{
+    const d=TRINKET_STAT_DEFS[type];
+    const value=Math.max(d.min,Math.round(d.min+(d.max-d.min)*Math.pow(Math.random(),2.5)));
+    return {type,value};
+  });
+  const totalScore=stats.reduce((s,{type,value})=>{
+    const d=TRINKET_STAT_DEFS[type];
+    return s+(value-d.min)/(d.max-d.min)*100;
+  },0);
+  const g=TRINKET_GRADES.find(g=>totalScore>=g.minScore)||TRINKET_GRADES[3];
+  const img=imgs.length>0?imgs[Math.floor(Math.random()*imgs.length)]:null;
+  return {
+    id:`t_${Date.now()}_${Math.random().toString(36).substr(2,6)}`,
+    grade:g.grade, gradeColor:g.color, stats, img, score:Math.round(totalScore)
+  };
+}
+function awardTrinkets(room) {
+  if(!room.midBossSpawned||room.midBossAlive)return;
+  const accs=loadAccounts();
+  room.players.forEach((p,playerWs)=>{
+    if(!playerWs.username)return;
+    const t1=generateTrinket(),t2=generateTrinket();
+    if(!accs.users[playerWs.username])return;
+    if(!Array.isArray(accs.users[playerWs.username].trinkets))accs.users[playerWs.username].trinkets=[];
+    accs.users[playerWs.username].trinkets.push(t1,t2);
+    if(playerWs.readyState===1)playerWs.send(JSON.stringify({t:'trinketReward',trinkets:[t1,t2]}));
+  });
+  saveAccounts(accs);
+}
 function applyTrinketEffects(player, equippedTrinkets) {
-  for(const tid of equippedTrinkets) {
-    if(!tid) continue;
-    const fx = TRINKET_EFFECTS[tid]; if(!fx) continue;
-    if(fx.maxHpMult)     { player.maxHp *= fx.maxHpMult; player.hp = player.maxHp; }
-    if(fx.spdMult)       player.spdMult = (player.spdMult||1) * fx.spdMult;
-    if(fx.dmgBonusMult)  player.dmgBonus = (player.dmgBonus||1) * fx.dmgBonusMult;
-    if(fx.cdMult)        player.cdMult = (player.cdMult||1) * fx.cdMult;
-    if(fx.regenAdd)      player.regen += fx.regenAdd;
-    if(fx.armorAdd)      player.armor = Math.min(0.8, (player.armor||0) + fx.armorAdd);
-    if(fx.critRateAdd)   player.critRate += fx.critRateAdd;
-    if(fx.expMultMult)   player.expMult = (player.expMult||1) * fx.expMultMult;
+  for(const trinket of equippedTrinkets) {
+    if(!trinket)continue;
+    for(const {type,value} of (trinket.stats||[])) {
+      const mult=1+value/100;
+      if(type==='maxHp')  {player.maxHp*=mult;player.hp=player.maxHp;}
+      if(type==='armor')  player.armor=Math.min(0.8,(player.armor||0)+value/100);
+      if(type==='regen')  player.regen*=mult;
+      if(type==='dmg')    player.dmgBonus=(player.dmgBonus||1)*mult;
+      if(type==='atkSpd') player.cdMult=(player.cdMult||1)/mult;
+      if(type==='moveSpd')player.spdMult=(player.spdMult||1)*mult;
+      if(type==='range')  player.rangeMult=(player.rangeMult||1)*mult;
+      if(type==='crit')   player.critRate+=value;
+    }
   }
 }
 
@@ -184,13 +231,19 @@ input.inp:focus{border-color:#ffcc00;}
 .trinketItem{width:60px;height:60px;background:#0d0d1e;border:1px solid #2a2a3a;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;transition:border-color .15s,background .15s;position:relative;}
 .trinketItem:active,.trinketItem.equipped{border-color:#ffcc00;background:#12120a;}
 .trinketItem .tIcon{font-size:22px;}
-.trinketItem .tName{font-size:7px;color:#aaa;margin-top:3px;text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.trinketItem .tImg{width:36px;height:36px;object-fit:contain;image-rendering:pixelated;}
+.trinketItem .tGrade{font-size:8px;font-weight:bold;margin-top:2px;text-align:center;}
 .trinketItem .tEquippedMark{position:absolute;top:2px;right:4px;font-size:8px;color:#88dd88;}
 #invEmpty{font-size:11px;color:#444;text-align:center;display:none;}
-#trinketTooltip{position:fixed;background:#111;border:1px solid #444;border-radius:6px;padding:8px 12px;font-size:11px;color:#ccc;pointer-events:none;z-index:50;display:none;max-width:180px;line-height:1.6;}
-#trinketTooltip .ttName{color:#ffcc00;font-weight:bold;margin-bottom:4px;}
-#trinketTooltip .ttDesc{color:#888;}
+#trinketTooltip{position:fixed;background:#111;border:1px solid #444;border-radius:6px;padding:8px 12px;font-size:11px;color:#ccc;pointer-events:none;z-index:50;display:none;max-width:200px;line-height:1.6;}
+#trinketTooltip .ttName{font-weight:bold;margin-bottom:6px;}
+#trinketTooltip .ttStat{color:#aaddff;font-size:10px;}
 #trinketTooltip .ttRarity{font-size:9px;margin-top:3px;}
+/* 보상 팝업 */
+#trinketRewardBox{margin-top:10px;text-align:center;}
+#rewardTrinkets{display:flex;gap:12px;justify-content:center;margin-top:6px;}
+/* 슬롯 이미지 */
+.equipSlot .tImg{width:32px;height:32px;object-fit:contain;image-rendering:pixelated;}
 </style>
 </head>
 <body>
@@ -292,7 +345,7 @@ input.inp:focus{border-color:#ffcc00;}
   </div>
   <div id="lvlUpScreen"><div id="lvlUpTitle">LEVEL UP!</div><div id="lvlUpSub">특성을 선택하세요</div><div id="traitCards"></div></div>
   <div id="stageClearScreen"><div id="stageClearTitle">STAGE CLEAR!</div><div id="stageClearSub"></div><div id="stageClearTimer">3</div></div>
-  <div id="goScreen"><div id="goTitle"></div><div id="goStats"></div><button class="btn" style="margin-top:8px;" onclick="location.reload()">다시 시작</button></div>
+  <div id="goScreen"><div id="goTitle"></div><div id="goStats"></div><div id="trinketRewardBox" style="display:none"><div style="color:#ffcc00;font-size:12px;margin-bottom:4px;letter-spacing:1px;">🎁 장신구 획득!</div><div id="rewardTrinkets"></div></div><button class="btn" style="margin-top:8px;" onclick="location.reload()">다시 시작</button></div>
 </div>
 <script>
 const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),G=document.getElementById('G');
@@ -383,15 +436,10 @@ function showJoin(){document.getElementById('joinRow').style.display='flex';}
 function doStart(){send({t:'start'});}
 
 // ── 장신구 정의 (클라이언트용 표시) ─────────────────────────────
-const TRINKETS={
-  red_charm:    {name:'붉은 부적',    icon:'🔴',desc:'최대 HP +15%',      rarity:'일반',   rarityColor:'#aaa'},
-  swift_ring:   {name:'신속의 반지',  icon:'💍',desc:'이동속도 +8%',      rarity:'일반',   rarityColor:'#aaa'},
-  battle_seal:  {name:'전투의 인장',  icon:'⚜️',desc:'데미지 +10%',       rarity:'고급',   rarityColor:'#55cc55'},
-  focus_crystal:{name:'집중의 수정',  icon:'🔮',desc:'공격속도 +8%',      rarity:'고급',   rarityColor:'#55cc55'},
-  vampire_fang: {name:'흡혈의 이빨', icon:'🦷',desc:'HP 재생 +0.5/초',   rarity:'고급',   rarityColor:'#55cc55'},
-  iron_bracelet:{name:'철갑의 팔찌',  icon:'⛓️',desc:'방어력 +8%',        rarity:'희귀',   rarityColor:'#5588ff'},
-  lucky_charm:  {name:'행운의 부적',  icon:'🍀',desc:'치명타율 +10%',     rarity:'희귀',   rarityColor:'#5588ff'},
-  scholar_glass:{name:'학자의 안경',  icon:'🔭',desc:'경험치 획득 +15%',  rarity:'희귀',   rarityColor:'#5588ff'},
+// ── 장신구 스탯 레이블 (클라이언트 표시용) ──────────────────────
+const TRINKET_STAT_LABELS={
+  maxHp:'최대체력',armor:'방어력',regen:'체력재생',
+  dmg:'공격력',atkSpd:'공격속도',moveSpd:'이동속도',range:'사거리',crit:'치명타',
 };
 
 // ── 인증 & 장신구 상태 ──────────────────────────────────────────
@@ -463,64 +511,85 @@ function doLogout(){
 }
 
 // ── 장신구 UI ──────────────────────────────────────────────────
+function makeTrinketEl(trinket, onclickFn, showMark) {
+  const div=document.createElement('div');
+  div.className='trinketItem';
+  const gc=trinket.gradeColor||'#444';
+  div.style.borderColor=gc;
+  div.style.boxShadow='0 0 8px '+gc+'66';
+  let inner='';
+  if(trinket.img) inner+='<img src="/trinkets/'+trinket.img+'" class="tImg">';
+  else inner+='<span class="tIcon">🔮</span>';
+  inner+='<span class="tGrade" style="color:'+(trinket.gradeColor||'#aaa')+'">'+(trinket.grade||'')+'</span>';
+  if(showMark) inner+='<span class="tEquippedMark">✓</span>';
+  div.innerHTML=inner;
+  if(onclickFn) div.onclick=onclickFn;
+  div.onmouseenter=function(e){showTrinketTooltip(e,trinket);};
+  div.onmouseleave=hideTrinketTooltip;
+  return div;
+}
 function renderTrinketPanel(){
   for(let i=0;i<2;i++){
     const slot=document.getElementById('slot'+i);
-    const tid=myEquipped[i];
-    if(tid&&TRINKETS[tid]){
-      const t=TRINKETS[tid];
+    const t=myEquipped[i];
+    slot.innerHTML='';
+    if(t&&t.id){
       slot.classList.add('filled');
-      slot.innerHTML='<span class="slotIcon">'+t.icon+'</span><span class="slotName">'+t.name+'</span>';
+      slot.style.borderColor=t.gradeColor||'#55aa55';
+      slot.style.boxShadow='0 0 10px '+(t.gradeColor||'#55aa55')+'88';
+      const slotImg=t.img?'<img src="/trinkets/'+t.img+'" class="tImg">':'<span class="slotIcon">🔮</span>';
+      slot.innerHTML=slotImg+'<span class="slotName" style="color:'+(t.gradeColor||'#88dd88')+'">'+t.grade+'</span>';
+      slot.onmouseenter=function(e){showTrinketTooltip(e,t);};
+      slot.onmouseleave=hideTrinketTooltip;
     } else {
       slot.classList.remove('filled');
+      slot.style.borderColor='';slot.style.boxShadow='';
       slot.innerHTML='<span class="slotIcon" style="color:#333">○</span><span class="slotLbl">슬롯 '+(i+1)+'</span>';
+      slot.onmouseenter=null;slot.onmouseleave=null;
     }
   }
   const inv=document.getElementById('trinketInv');
   const empty=document.getElementById('invEmpty');
   inv.innerHTML='';
-  if(myInventory.length===0){empty.style.display='block';return;}
+  if(!myInventory||myInventory.length===0){empty.style.display='block';return;}
   empty.style.display='none';
-  myInventory.forEach(tid=>{
-    const t=TRINKETS[tid];if(!t)return;
-    const isEq=myEquipped.includes(tid);
-    const div=document.createElement('div');
-    div.className='trinketItem'+(isEq?' equipped':'');
-    div.innerHTML='<span class="tIcon">'+t.icon+'</span><span class="tName">'+t.name+'</span>'+(isEq?'<span class="tEquippedMark">✓</span>':'');
-    div.onclick=()=>equipTrinket(tid);
-    div.onmouseenter=(e)=>showTrinketTooltip(e,t);
-    div.onmouseleave=()=>hideTrinketTooltip();
-    inv.appendChild(div);
+  myInventory.forEach(function(trinket){
+    if(!trinket||!trinket.id)return;
+    const isEq=myEquipped.some(function(e){return e&&e.id===trinket.id;});
+    const el=makeTrinketEl(trinket,function(){equipTrinket(trinket.id);},isEq);
+    if(isEq)el.classList.add('equipped');
+    inv.appendChild(el);
   });
 }
-function showTrinketTooltip(e,t){
+function showTrinketTooltip(e,trinket){
   const tt=document.getElementById('trinketTooltip');
-  tt.querySelector('.ttName').textContent=t.icon+' '+t.name;
-  tt.querySelector('.ttDesc').textContent=t.desc;
-  tt.querySelector('.ttRarity').innerHTML='<span style="color:'+t.rarityColor+'">'+t.rarity+'</span>';
+  tt.querySelector('.ttName').innerHTML='<span style="color:'+(trinket.gradeColor||'#aaa')+'">['+( trinket.grade||'')+']</span> 장신구';
+  const statHtml=(trinket.stats||[]).map(function(s){return '<div class="ttStat">'+(TRINKET_STAT_LABELS[s.type]||s.type)+' +'+s.value+'%</div>';}).join('');
+  tt.querySelector('.ttDesc').innerHTML=statHtml||'<span style="color:#555">스탯 없음</span>';
+  tt.querySelector('.ttRarity').innerHTML='';
   tt.style.display='block';
-  tt.style.left=(e.clientX+12)+'px';tt.style.top=(e.clientY-20)+'px';
+  tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-16)+'px';
 }
 function hideTrinketTooltip(){document.getElementById('trinketTooltip').style.display='none';}
-async function equipTrinket(tid){
+async function equipTrinket(trinketId){
   if(!authToken)return;
-  if(myEquipped.includes(tid)){await unequipTrinketById(tid);return;}
+  if(myEquipped.some(e=>e&&e.id===trinketId)){await unequipTrinketById(trinketId);return;}
   const slot=myEquipped.indexOf(null);
   if(slot===-1){showErr('슬롯이 가득 찼습니다. 먼저 장신구를 해제하세요.');return;}
   try{
-    const res=await fetch('/auth/equip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:authToken,trinketId:tid,slot,action:'equip'})});
+    const res=await fetch('/auth/equip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:authToken,trinketId,slot,action:'equip'})});
     const data=await res.json();
     if(data.err){showErr(data.err);return;}
-    myEquipped=data.equipped;renderTrinketPanel();
+    myEquipped=data.equipped;if(data.inventory)myInventory=data.inventory;renderTrinketPanel();
   }catch(e){showErr('장착 실패');}
 }
 async function unequipTrinket(slotIdx){
-  const tid=myEquipped[slotIdx];if(!tid||!authToken)return;
-  await unequipTrinketById(tid);
+  const t=myEquipped[slotIdx];if(!t||!authToken)return;
+  await unequipTrinketById(t.id);
 }
-async function unequipTrinketById(tid){
+async function unequipTrinketById(trinketId){
   try{
-    const res=await fetch('/auth/equip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:authToken,trinketId:tid,action:'unequip'})});
+    const res=await fetch('/auth/equip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:authToken,trinketId,action:'unequip'})});
     const data=await res.json();
     if(data.err){showErr(data.err);return;}
     myEquipped=data.equipped;renderTrinketPanel();
@@ -777,6 +846,16 @@ function handleMsg(msg){
   else if(msg.t==='stageClear'){showStageClear(msg.stage,msg.next);}
   else if(msg.t==='stageStart'){nextStage(msg.stage);}
   else if(msg.t==='over'){_loopRunning=false;stopGameBGM();stopMidBossBGM();endGame(msg.win);}
+  else if(msg.t==='trinketReward'){
+    myInventory.push(...(msg.trinkets||[]));
+    const box=document.getElementById('trinketRewardBox');
+    const container=document.getElementById('rewardTrinkets');
+    if(box&&container){
+      container.innerHTML='';
+      (msg.trinkets||[]).forEach(t=>container.appendChild(makeTrinketEl(t,null,false)));
+      box.style.display='block';
+    }
+  }
   else if(msg.t==='statSync'){if(myStats){if(msg.armor!==undefined)myStats.armor=msg.armor;if(msg.regen!==undefined)myStats.regen=msg.regen;updateStatsPanel();}}
   else if(msg.t==='revived'){showPop('💚 부활했습니다!',2000);if(myPlayer){myPlayer.groggy=false;myPlayer.dead=false;}}
   else if(msg.t==='groggyDead'){if(myPlayer&&myPlayer.groggy){running=false;_loopRunning=false;endGame(false);}}
@@ -1857,7 +1936,7 @@ function spawnPixelExplosion(x,y,type){
 let msgTimer=0;
 function showPop(txt,dur){const el=document.getElementById('msgPop');el.textContent=txt;el.style.display='block';msgTimer=dur||1400;}
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
-function endGame(win){running=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;const myLv=myPlayer?myPlayer.lv:1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+myLv+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');_myKills=kills;saveGameStats(win,myLv);}
+function endGame(win){running=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;const myLv=myPlayer?myPlayer.lv:1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+myLv+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');_myKills=kills;saveGameStats(win,myLv);const rb=document.getElementById('trinketRewardBox');if(rb)rb.style.display='none';}
 let _loopRunning=false;
 function loop(ts){
   const dt=Math.min(ts-lastTime,50);lastTime=ts;
@@ -1930,22 +2009,23 @@ const server = http.createServer(async (req, res) => {
     accountsDb=loadAccounts();
     const user=accountsDb.users[username];
     if(!user)return sendJson(res,401,{err:'계정을 찾을 수 없습니다'});
-    const equipped=user.equippedTrinkets||[null,null];
+    const inv=user.trinkets||[];
+    const equipped=(user.equippedTrinkets||[null,null]).slice(0,2);
     if(action==='equip'){
-      if(!TRINKET_EFFECTS[trinketId])return sendJson(res,400,{err:'존재하지 않는 장신구입니다'});
-      if(!(user.trinkets||[]).includes(trinketId))return sendJson(res,400,{err:'보유하지 않은 장신구입니다'});
+      const trinketObj=inv.find(t=>t&&t.id===trinketId);
+      if(!trinketObj)return sendJson(res,400,{err:'보유하지 않은 장신구입니다'});
       const slot=typeof body.slot==='number'?body.slot:equipped.indexOf(null);
       if(slot<0||slot>1)return sendJson(res,400,{err:'유효하지 않은 슬롯입니다'});
-      if(equipped.includes(trinketId))return sendJson(res,400,{err:'이미 장착 중입니다'});
-      equipped[slot]=trinketId;
+      if(equipped.some(e=>e&&e.id===trinketId))return sendJson(res,400,{err:'이미 장착 중입니다'});
+      equipped[slot]=trinketObj;
     } else {
-      const idx=equipped.indexOf(trinketId);
+      const idx=equipped.findIndex(e=>e&&e.id===trinketId);
       if(idx===-1)return sendJson(res,400,{err:'장착되지 않은 장신구입니다'});
       equipped[idx]=null;
     }
     user.equippedTrinkets=equipped;
     saveAccounts(accountsDb);
-    return sendJson(res,200,{equipped});
+    return sendJson(res,200,{equipped,inventory:inv});
   }
 
   // ── 정적 파일 (assets) ──────────────────────────────────────
@@ -2180,7 +2260,7 @@ setTimeout(()=>{if(!room.boss||room.boss.dead)return;room.players.forEach((p)=>{
       turrets:room.stateTick%12===0&&room.turrets?room.turrets.filter(t=>t.hp>0).map(t=>({id:t.id,x:Math.round(t.x),y:Math.round(t.y),hp:Math.round(t.hp),maxHp:t.maxHp,r:t.r,isTurret:true})):undefined,
       st:Math.round(room.stageTime),stage:room.currentStage});
   }
-  const alive=arr.filter(p=>!p.dead&&!p.groggy);if(alive.length===0&&arr.length>0){bcastAll(room,{t:'over',win:false});clearInterval(room.tick);rooms.delete(code);}
+  const alive=arr.filter(p=>!p.dead&&!p.groggy);if(alive.length===0&&arr.length>0){awardTrinkets(room);bcastAll(room,{t:'over',win:false});clearInterval(room.tick);rooms.delete(code);}
   }catch(e){console.error('[tickRoom error]',e);}
 }
 
@@ -2240,7 +2320,7 @@ wss.on('connection',ws=>{
       // 토큰으로 장신구 조회
       if(msg.token){
         const uname=sessions.get(msg.token);
-        if(uname){const ud=loadAccounts().users[uname];ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(Boolean):[];}
+        if(uname){ws.username=uname;const ud=loadAccounts().users[uname];ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(t=>t&&t.id):[];}
       } else {ws.equippedTrinkets=[];}
       const code=genCode();
       rooms.set(code,{players:new Map(),enemies:[],boss:null,turrets:[],fireZones:[],stageTime:600,currentStage:1,started:false,midBossSpawned:false,finalBossSpawned:false,midBossAlive:false,finalBossAlive:false,eid:0,lastTick:Date.now(),readyCount:0,enemyHpMult:1,enemyDmgMult:1});
@@ -2252,7 +2332,7 @@ wss.on('connection',ws=>{
       // 토큰으로 장신구 조회
       if(msg.token){
         const uname=sessions.get(msg.token);
-        if(uname){const ud=loadAccounts().users[uname];ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(Boolean):[];}
+        if(uname){ws.username=uname;const ud=loadAccounts().users[uname];ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(t=>t&&t.id):[];}
       } else {ws.equippedTrinkets=[];}
       const code=(msg.code||'').toUpperCase(),room=rooms.get(code);
       if(!room){ws.send(JSON.stringify({t:'err',msg:'방을 찾을 수 없어요'}));return;}
@@ -2327,7 +2407,7 @@ wss.on('connection',ws=>{
                 room.players.forEach(p=>{p.invincible=false;p.invincibleEnd=0;});
                 bcastAll(room,{t:'stageStart',stage:room.currentStage});
               },5500);
-            }else{bcastAll(room,{t:'weaponUpgrade',msg:'최종 보스 처치! 승리!'});bcastAll(room,{t:'over',win:true});clearInterval(room.tick);rooms.delete(ws.roomCode);}}
+            }else{bcastAll(room,{t:'weaponUpgrade',msg:'최종 보스 처치! 승리!'});awardTrinkets(room);bcastAll(room,{t:'over',win:true});clearInterval(room.tick);rooms.delete(ws.roomCode);}}
             else{
               room.midBossAlive=false;room.boss=null;
               room.enemies=[];
@@ -2371,6 +2451,7 @@ wss.on('connection',ws=>{
       const arr=[...room.players.values()];
       const alive=arr.filter(p=>!p.dead&&!p.groggy);
       if(alive.length===0&&arr.length>0){
+        awardTrinkets(room);
         bcastAll(room,{t:'over',win:false});
         clearInterval(room.tick);
         rooms.delete(ws.roomCode);
