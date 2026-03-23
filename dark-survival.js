@@ -784,6 +784,7 @@ function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 function playMidBossBGM(){midBossBGM.load();midBossBGM.play().catch(()=>{});}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
 const MB_WALK_IMG=new Image();MB_WALK_IMG.src='/boss-walk-sprite.png';
+const MB_WALK_P2_IMG=new Image();MB_WALK_P2_IMG.src='/boss-walk-sprite-p2.png';
 const MB_CHARGE_IMG=new Image();MB_CHARGE_IMG.src='/boss-charge-sprite.png';
 const NECRO_IMG=new Image();NECRO_IMG.src='/necromancer-sprite.png';
 const MB_FW=200,MB_FH=200; // 공격 애니메이션 프레임 크기
@@ -1764,12 +1765,13 @@ function drawFlameDemon(ctx,b,t){
     ctx.drawImage(MB_CHARGE_IMG,-szW/2,-szH/2,szW,szH);
   }else if(mbRow===0&&MB_WALK_IMG.complete&&MB_WALK_IMG.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
+    const walkSrc=phase2&&MB_WALK_P2_IMG.complete&&MB_WALK_P2_IMG.naturalWidth>0?MB_WALK_P2_IMG:MB_WALK_IMG;
     const cols=2,rows=2;
-    const walkFW=MB_WALK_IMG.naturalWidth/cols;
-    const walkFH=MB_WALK_IMG.naturalHeight/rows;
+    const walkFW=walkSrc.naturalWidth/cols;
+    const walkFH=walkSrc.naturalHeight/rows;
     const frameCol=mbFrame%cols;
     const frameRow=Math.floor(mbFrame/cols);
-    ctx.drawImage(MB_WALK_IMG,frameCol*walkFW,frameRow*walkFH,walkFW,walkFH,-szW/2,-szH/2,szW,szH);
+    ctx.drawImage(walkSrc,frameCol*walkFW,frameRow*walkFH,walkFW,walkFH,-szW/2,-szH/2,szW,szH);
   }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
     if(MB_IMG.naturalWidth>=MB_FW*2){
