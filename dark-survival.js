@@ -1764,10 +1764,12 @@ function drawFlameDemon(ctx,b,t){
     ctx.drawImage(MB_CHARGE_IMG,-szW/2,-szH/2,szW,szH);
   }else if(mbRow===0&&MB_WALK_IMG.complete&&MB_WALK_IMG.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
-    const walkFW=MB_WALK_IMG.naturalWidth/4;   // 4열
-    const walkFH=MB_WALK_IMG.naturalHeight/6;  // 6행
-    const frameRow=0; // 첫 번째 행만 사용
-    ctx.drawImage(MB_WALK_IMG,mbFrame*walkFW,frameRow*walkFH,walkFW,walkFH,-szW/2,-szH/2,szW,szH);
+    const cols=2,rows=2;
+    const walkFW=MB_WALK_IMG.naturalWidth/cols;
+    const walkFH=MB_WALK_IMG.naturalHeight/rows;
+    const frameCol=mbFrame%cols;
+    const frameRow=Math.floor(mbFrame/cols);
+    ctx.drawImage(MB_WALK_IMG,frameCol*walkFW,frameRow*walkFH,walkFW,walkFH,-szW/2,-szH/2,szW,szH);
   }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
     if(MB_IMG.naturalWidth>=MB_FW*2){
