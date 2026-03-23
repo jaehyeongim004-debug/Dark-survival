@@ -13,12 +13,13 @@ function loadAccounts() {
   catch(e) { return { users: {} }; }
 }
 function saveAccounts(data) {
-  try { fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(data, null, 2)); } catch(e) {}
+  try { fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(data, null, 2)); }
+  catch(e) { console.error('[계정 저장 실패]', e); }
 }
 let accountsDb = loadAccounts();
 const sessions = new Map(); // token → username
 function genSalt() { return crypto.randomBytes(16).toString('hex'); }
-function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 64).toString('hex'); }
+function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 64, {N:2048}).toString('hex'); }
 function genToken() { return crypto.randomBytes(32).toString('hex'); }
 
 // ── 장신구 시스템 (절차적 생성, 등급제) ──────────────────────────
@@ -38,15 +39,27 @@ const TRINKET_GRADES = [
   {grade:'영웅', minScore:90,  color:'#aa44ff'},
   {grade:'서사', minScore:0,   color:'#2288ff'},
 ];
-function getTrinketImages() {
+// 서버 시작 시 등급별 폴더 자동 생성
+(function initTrinketDirs(){
+  ['서사','영웅','전설','신화'].forEach(g=>{
+    try{fs.mkdirSync(path.join(__dirname,'assets','trinkets',g),{recursive:true});}catch(e){}
+  });
+})();
+function getTrinketImages(grade) {
   try {
-    const dir=path.join(__dirname,'assets','trinkets');
-    if(!fs.existsSync(dir)) fs.mkdirSync(dir,{recursive:true});
-    return fs.readdirSync(dir).filter(f=>/\.(png|jpg|webp)$/i.test(f));
+    // 등급 폴더에서 먼저 탐색
+    const gradeDir=path.join(__dirname,'assets','trinkets',grade||'서사');
+    if(fs.existsSync(gradeDir)){
+      const files=fs.readdirSync(gradeDir).filter(f=>/\.(png|jpg|webp)$/i.test(f));
+      if(files.length>0) return files.map(f=>(grade||'서사')+'/'+f);
+    }
+    // 폴백: 루트 trinkets 폴더 파일 (서브폴더 제외)
+    const rootDir=path.join(__dirname,'assets','trinkets');
+    return fs.readdirSync(rootDir)
+      .filter(f=>/\.(png|jpg|webp)$/i.test(f)&&!fs.statSync(path.join(rootDir,f)).isDirectory());
   } catch { return []; }
 }
 function generateTrinket() {
-  const imgs=getTrinketImages();
   const keys=Object.keys(TRINKET_STAT_DEFS).sort(()=>Math.random()-0.5).slice(0,3);
   const stats=keys.map(type=>{
     const d=TRINKET_STAT_DEFS[type];
@@ -58,9 +71,11 @@ function generateTrinket() {
     return s+(value-d.min)/(d.max-d.min)*100;
   },0);
   const g=TRINKET_GRADES.find(g=>totalScore>=g.minScore)||TRINKET_GRADES[3];
+  // 등급 결정 후 해당 등급 이미지 선택
+  const imgs=getTrinketImages(g.grade);
   const img=imgs.length>0?imgs[Math.floor(Math.random()*imgs.length)]:null;
   return {
-    id:`t_${Date.now()}_${Math.random().toString(36).substr(2,6)}`,
+    id:'t_'+Date.now()+'_'+Math.random().toString(36).substr(2,6),
     grade:g.grade, gradeColor:g.color, stats, img, score:Math.round(totalScore)
   };
 }
@@ -1958,6 +1973,7 @@ window.addEventListener('resize',()=>{W=G.clientWidth;H=G.clientHeight;canvas.wi
 
 // ── SERVER ─────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
+  try {
   // CORS 헤더
   res.setHeader('Access-Control-Allow-Origin','*');
   res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
@@ -2035,6 +2051,10 @@ const server = http.createServer(async (req, res) => {
   }
   res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
   res.end(HTML);
+  } catch(e) {
+    console.error('[HTTP 에러]', e);
+    if(!res.headersSent) sendJson(res, 500, {err:'서버 오류가 발생했습니다'});
+  }
 });
 const wss = new WebSocketServer({ server });
 const rooms = new Map();
