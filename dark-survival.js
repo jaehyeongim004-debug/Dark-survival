@@ -2,26 +2,64 @@
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const fs = require('fs');
-const crypto = require('crypto');
 const path = require('path');
+const crypto = require('crypto');
 const PORT = process.env.PORT || 3000;
 
-// ── 계정 저장 ────────────────────────────────────────────────
-const USERS_FILE = path.join(__dirname, 'users.json');
-function loadUsers() {
-  try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); } catch { return {}; }
+// ── 계정 데이터 관리 ────────────────────────────────────────────
+const ACCOUNTS_FILE = path.join(__dirname, 'accounts.json');
+function loadAccounts() {
+  try { return JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8')); }
+  catch(e) { return { users: {} }; }
 }
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+function saveAccounts(data) {
+  try { fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(data, null, 2)); } catch(e) {}
 }
-function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, 64).toString('hex');
+let accountsDb = loadAccounts();
+const sessions = new Map(); // token → username
+function genSalt() { return crypto.randomBytes(16).toString('hex'); }
+function hashPw(pw, salt) { return crypto.scryptSync(pw, salt, 64).toString('hex'); }
+function genToken() { return crypto.randomBytes(32).toString('hex'); }
+
+// ── 장신구 효과 (서버 적용용) ───────────────────────────────────
+const TRINKET_EFFECTS = {
+  red_charm:     { maxHpMult: 1.15 },
+  swift_ring:    { spdMult: 1.08 },
+  battle_seal:   { dmgBonusMult: 1.10 },
+  focus_crystal: { cdMult: 0.92 },
+  vampire_fang:  { regenAdd: 0.5 },
+  iron_bracelet: { armorAdd: 0.08 },
+  lucky_charm:   { critRateAdd: 10 },
+  scholar_glass: { expMultMult: 1.15 },
+};
+function applyTrinketEffects(player, equippedTrinkets) {
+  for(const tid of equippedTrinkets) {
+    if(!tid) continue;
+    const fx = TRINKET_EFFECTS[tid]; if(!fx) continue;
+    if(fx.maxHpMult)     { player.maxHp *= fx.maxHpMult; player.hp = player.maxHp; }
+    if(fx.spdMult)       player.spdMult = (player.spdMult||1) * fx.spdMult;
+    if(fx.dmgBonusMult)  player.dmgBonus = (player.dmgBonus||1) * fx.dmgBonusMult;
+    if(fx.cdMult)        player.cdMult = (player.cdMult||1) * fx.cdMult;
+    if(fx.regenAdd)      player.regen += fx.regenAdd;
+    if(fx.armorAdd)      player.armor = Math.min(0.8, (player.armor||0) + fx.armorAdd);
+    if(fx.critRateAdd)   player.critRate += fx.critRateAdd;
+    if(fx.expMultMult)   player.expMult = (player.expMult||1) * fx.expMultMult;
+  }
 }
-function genToken() {
-  return crypto.randomBytes(32).toString('hex');
+
+// ── HTTP 요청 바디 파싱 헬퍼 ────────────────────────────────────
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; if(body.length > 4096) req.destroy(); });
+    req.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve({}); } });
+    req.on('error', reject);
+  });
 }
-// sessions: token -> { username, createdAt }
-const sessions = new Map();
+function sendJson(res, code, obj) {
+  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(obj));
+}
 
 const HTML = `<!DOCTYPE html>
 <html lang='ko'>
@@ -122,19 +160,37 @@ input.inp:focus{border-color:#ffcc00;}
 #classTag span{color:#ffcc00;}
 #weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #minimap{position:absolute;top:80px;left:12px;width:120px;height:120px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
-#authScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:30;padding:20px;overflow-y:auto;pointer-events:all;touch-action:auto;}
+/* ── AUTH SCREEN ── */
+#authScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:25;padding:20px;pointer-events:all;touch-action:auto;}
 #authScreen input,#authScreen button{touch-action:manipulation;pointer-events:all;}
-.authTabs{display:flex;gap:0;margin-bottom:6px;border:1px solid #333;border-radius:4px;overflow:hidden;}
-.authTab{padding:8px 24px;font-size:12px;font-family:monospace;color:#666;background:transparent;border:none;cursor:pointer;letter-spacing:1px;touch-action:manipulation;}
-.authTab.active{color:#ffcc00;background:#1a1a00;}
-.authForm{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:220px;}
-.authForm.hidden{display:none;}
+#authTabs{display:flex;gap:0;border:1px solid #333;border-radius:4px;overflow:hidden;margin-bottom:4px;}
+.authTab{background:transparent;border:none;color:#666;padding:8px 22px;font-size:12px;font-family:monospace;cursor:pointer;transition:background .15s,color .15s;}
+.authTab.active{background:#1a1a00;color:#ffcc00;}
+#authForm{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;max-width:240px;}
 #authErr{color:#ff6666;font-size:11px;min-height:16px;text-align:center;}
-#authUserInfo{position:absolute;top:10px;right:12px;font-size:10px;color:#666;z-index:25;display:none;text-align:right;line-height:1.6;}
-#authUserInfo span{color:#ffcc00;}
-#authLogout{font-size:9px;color:#555;background:none;border:none;cursor:pointer;text-decoration:underline;font-family:monospace;display:block;margin-top:2px;}
-.statsBox{background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:8px 14px;font-size:10px;color:#666;text-align:center;line-height:1.8;width:100%;max-width:220px;}
-.statsBox .sVal{color:#88ccff;font-weight:bold;}
+#authUserInfo{font-size:11px;color:#888;text-align:center;}
+#authUserInfo b{color:#ffcc00;}
+/* ── TRINKET PANEL ── */
+#trinketPanel{display:none;flex-direction:column;align-items:center;gap:10px;width:100%;max-width:340px;margin-top:2px;}
+#trinketPanelTitle{font-size:12px;color:#888;letter-spacing:2px;}
+#equipSlots{display:flex;gap:10px;justify-content:center;}
+.equipSlot{width:60px;height:60px;background:#0a0a1a;border:1px solid #333;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;position:relative;transition:border-color .15s;}
+.equipSlot:active{border-color:#ffcc00;}
+.equipSlot.filled{border-color:#55aa55;}
+.equipSlot .slotIcon{font-size:22px;}
+.equipSlot .slotLbl{font-size:8px;color:#555;margin-top:2px;}
+.equipSlot .slotName{font-size:8px;color:#88dd88;margin-top:2px;text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#trinketInv{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:340px;max-height:160px;overflow-y:auto;}
+.trinketItem{width:60px;height:60px;background:#0d0d1e;border:1px solid #2a2a3a;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:manipulation;transition:border-color .15s,background .15s;position:relative;}
+.trinketItem:active,.trinketItem.equipped{border-color:#ffcc00;background:#12120a;}
+.trinketItem .tIcon{font-size:22px;}
+.trinketItem .tName{font-size:7px;color:#aaa;margin-top:3px;text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.trinketItem .tEquippedMark{position:absolute;top:2px;right:4px;font-size:8px;color:#88dd88;}
+#invEmpty{font-size:11px;color:#444;text-align:center;display:none;}
+#trinketTooltip{position:fixed;background:#111;border:1px solid #444;border-radius:6px;padding:8px 12px;font-size:11px;color:#ccc;pointer-events:none;z-index:50;display:none;max-width:180px;line-height:1.6;}
+#trinketTooltip .ttName{color:#ffcc00;font-weight:bold;margin-bottom:4px;}
+#trinketTooltip .ttDesc{color:#888;}
+#trinketTooltip .ttRarity{font-size:9px;margin-top:3px;}
 </style>
 </head>
 <body>
@@ -178,13 +234,44 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="minimap"><canvas id="minimapCanvas" width="120" height="120"></canvas></div>
   <div id="jsWrap"><div id="jsBase"><div id="jsKnob"></div></div></div>
   <div id="js2Wrap"><div id="js2Base"><span class="js2Icon">⚔</span><div id="js2Knob"></div></div></div>
-  <div id="lobbyScreen">
+  <!-- 인증 화면 -->
+  <div id="authScreen">
     <h1 class="title">DARK SURVIVAL</h1>
     <p class="sub">3스테이지 · 보스 처치 · 최대 4인</p>
-    <div id="accountInfo" style="font-size:11px;color:#888;text-align:center;line-height:1.8;display:none;">
-      <span id="acctName" style="color:#ffcc00;font-weight:bold;font-size:13px;"></span><br>
-      <span id="acctStats" style="color:#666;"></span>
-      <button style="font-size:9px;color:#555;background:none;border:none;cursor:pointer;text-decoration:underline;font-family:monospace;display:block;margin:2px auto 0;" onclick="doLogout()">로그아웃</button>
+    <div id="authTabs">
+      <button class="authTab active" onclick="switchAuthTab('login')">로그인</button>
+      <button class="authTab" onclick="switchAuthTab('register')">회원가입</button>
+    </div>
+    <div id="authForm">
+      <input class="inp" id="authId" placeholder="아이디" maxlength="16" autocomplete="username"/>
+      <input class="inp" id="authPw" type="password" placeholder="비밀번호" maxlength="32" autocomplete="current-password"/>
+      <button class="btn" id="authSubmitBtn" onclick="doAuthSubmit()">로그인</button>
+      <div id="authErr"></div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="btn btn2" style="font-size:11px;padding:7px 14px;" onclick="doGuest()">게스트로 시작</button>
+      </div>
+    </div>
+  </div>
+  <!-- 로비 화면 -->
+  <div id="lobbyScreen" style="display:none;">
+    <h1 class="title">DARK SURVIVAL</h1>
+    <div id="authUserInfo"></div>
+    <!-- 장신구 패널 -->
+    <div id="trinketPanel">
+      <div id="trinketPanelTitle">장신구 슬롯</div>
+      <div id="equipSlots">
+        <div class="equipSlot" id="slot0" onclick="unequipTrinket(0)">
+          <span class="slotIcon">○</span>
+          <span class="slotLbl">슬롯 1</span>
+        </div>
+        <div class="equipSlot" id="slot1" onclick="unequipTrinket(1)">
+          <span class="slotIcon">○</span>
+          <span class="slotLbl">슬롯 2</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:#555;margin-top:2px;">보유 장신구</div>
+      <div id="trinketInv"></div>
+      <div id="invEmpty">장신구가 없습니다. (앞으로 드롭됩니다!)</div>
     </div>
     <input class="inp" id="nameInp" placeholder="닉네임" maxlength="10"/>
     <div style="display:flex;gap:8px;margin-top:4px;"><button class="btn" onclick="doCreate()">방 만들기</button><button class="btn btn2" onclick="showJoin()">입장하기</button></div>
@@ -192,6 +279,7 @@ input.inp:focus{border-color:#ffcc00;}
     <div id="waitRoom" style="display:none;flex-direction:column;align-items:center;gap:10px;margin-top:4px;"><p style="color:#555;font-size:10px;">친구에게 코드를 알려주세요</p><div id="codeDisplay">----</div><div id="playerListEl"></div><button class="btn" id="startBtn" onclick="doStart()">▶ 게임 시작</button></div>
     <div id="errMsg"></div>
   </div>
+  <div id="trinketTooltip"><div class="ttName"></div><div class="ttDesc"></div><div class="ttRarity"></div></div>
   <div id="classScreen">
     <div id="classTitle">직업 선택</div><div id="classSub">전투 스타일을 고르세요</div>
     <div id="classCards">
@@ -292,87 +380,159 @@ function send(o){
 }
 function showErr(m){document.getElementById('errMsg').textContent=m;}
 function showJoin(){document.getElementById('joinRow').style.display='flex';}
-function doCreate(){const name=document.getElementById('nameInp').value.trim()||myUsername||'Player';connect(()=>send({t:'create',name}));}
-function doJoin(){const name=document.getElementById('nameInp').value.trim()||myUsername||'Player',code=document.getElementById('codeInp').value.toUpperCase();if(!code){showErr('코드 입력');return;}connect(()=>send({t:'join',code,name}));}
 function doStart(){send({t:'start'});}
 
-// ── 인증 ───────────────────────────────────────────────────
-let myUsername=null,myToken=null,myAccountStats=null;
-let _myKills=0;
+// ── 장신구 정의 (클라이언트용 표시) ─────────────────────────────
+const TRINKETS={
+  red_charm:    {name:'붉은 부적',    icon:'🔴',desc:'최대 HP +15%',      rarity:'일반',   rarityColor:'#aaa'},
+  swift_ring:   {name:'신속의 반지',  icon:'💍',desc:'이동속도 +8%',      rarity:'일반',   rarityColor:'#aaa'},
+  battle_seal:  {name:'전투의 인장',  icon:'⚜️',desc:'데미지 +10%',       rarity:'고급',   rarityColor:'#55cc55'},
+  focus_crystal:{name:'집중의 수정',  icon:'🔮',desc:'공격속도 +8%',      rarity:'고급',   rarityColor:'#55cc55'},
+  vampire_fang: {name:'흡혈의 이빨', icon:'🦷',desc:'HP 재생 +0.5/초',   rarity:'고급',   rarityColor:'#55cc55'},
+  iron_bracelet:{name:'철갑의 팔찌',  icon:'⛓️',desc:'방어력 +8%',        rarity:'희귀',   rarityColor:'#5588ff'},
+  lucky_charm:  {name:'행운의 부적',  icon:'🍀',desc:'치명타율 +10%',     rarity:'희귀',   rarityColor:'#5588ff'},
+  scholar_glass:{name:'학자의 안경',  icon:'🔭',desc:'경험치 획득 +15%',  rarity:'희귀',   rarityColor:'#5588ff'},
+};
 
-function showAuthErr(m){document.getElementById('authErr').textContent=m;}
-function clearAuthErr(){document.getElementById('authErr').textContent='';}
+// ── 인증 & 장신구 상태 ──────────────────────────────────────────
+let authToken=null,authUsername=null;
+let myEquipped=[null,null]; // 슬롯 2개 (장신구 ID 또는 null)
+let myInventory=[]; // 보유 장신구 ID 배열
 
-function switchTab(tab){
-  document.getElementById('formLogin').classList.toggle('hidden',tab!=='login');
-  document.getElementById('formRegister').classList.toggle('hidden',tab!=='register');
-  document.getElementById('tabLogin').classList.toggle('active',tab==='login');
-  document.getElementById('tabRegister').classList.toggle('active',tab!=='login');
-  clearAuthErr();
+// ── 인증 화면 ───────────────────────────────────────────────────
+let _authMode='login';
+function switchAuthTab(mode){
+  _authMode=mode;
+  document.querySelectorAll('.authTab').forEach((t,i)=>t.classList.toggle('active',(i===0&&mode==='login')||(i===1&&mode==='register')));
+  document.getElementById('authSubmitBtn').textContent=mode==='login'?'로그인':'회원가입';
+  document.getElementById('authErr').textContent='';
 }
-
-function doLogin(){
-  const u=document.getElementById('loginUser').value.trim();
-  const p=document.getElementById('loginPass').value;
-  if(!u||!p){showAuthErr('아이디와 비밀번호를 입력해주세요');return;}
-  clearAuthErr();
-  connect(()=>send({t:'login',username:u,password:p}));
+async function doAuthSubmit(){
+  const id=document.getElementById('authId').value.trim();
+  const pw=document.getElementById('authPw').value;
+  if(!id||!pw){document.getElementById('authErr').textContent='아이디와 비밀번호를 입력하세요';return;}
+  if(id.length<3){document.getElementById('authErr').textContent='아이디는 3자 이상이어야 합니다';return;}
+  if(pw.length<4){document.getElementById('authErr').textContent='비밀번호는 4자 이상이어야 합니다';return;}
+  document.getElementById('authSubmitBtn').textContent='...';
+  try{
+    const res=await fetch('/auth/'+_authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,pw})});
+    const data=await res.json();
+    if(data.err){document.getElementById('authErr').textContent=data.err;document.getElementById('authSubmitBtn').textContent=_authMode==='login'?'로그인':'회원가입';return;}
+    authToken=data.token;authUsername=data.username;
+    myInventory=data.inventory||[];myEquipped=data.equipped||[null,null];
+    localStorage.setItem('ds_token',authToken);
+    enterLobby(true);
+  }catch(e){document.getElementById('authErr').textContent='서버 오류: '+e.message;document.getElementById('authSubmitBtn').textContent=_authMode==='login'?'로그인':'회원가입';}
 }
-
-function doRegister(){
-  const u=document.getElementById('regUser').value.trim();
-  const p=document.getElementById('regPass').value;
-  const p2=document.getElementById('regPass2').value;
-  if(!u||!p){showAuthErr('모든 항목을 입력해주세요');return;}
-  if(p!==p2){showAuthErr('비밀번호가 일치하지 않아요');return;}
-  clearAuthErr();
-  connect(()=>send({t:'register',username:u,password:p}));
+async function doGuest(){
+  authToken=null;authUsername=null;myInventory=[];myEquipped=[null,null];
+  localStorage.removeItem('ds_token');
+  enterLobby(false);
 }
-
-function onAuthOk(data){
-  myUsername=data.username;myToken=data.token;myAccountStats=data.stats||{};
-  localStorage.setItem('dsToken',data.token);
+async function tryAutoLogin(){
+  const token=localStorage.getItem('ds_token');
+  if(!token){showAuthScreen();return;}
+  try{
+    const res=await fetch('/auth/me?token='+encodeURIComponent(token));
+    const data=await res.json();
+    if(data.err){localStorage.removeItem('ds_token');showAuthScreen();return;}
+    authToken=token;authUsername=data.username;
+    myInventory=data.inventory||[];myEquipped=data.equipped||[null,null];
+    enterLobby(true);
+  }catch(e){showAuthScreen();}
+}
+function showAuthScreen(){document.getElementById('authScreen').style.display='flex';document.getElementById('lobbyScreen').style.display='none';}
+function enterLobby(loggedIn){
   document.getElementById('authScreen').style.display='none';
   document.getElementById('lobbyScreen').style.display='flex';
-  const ai=document.getElementById('accountInfo');
-  ai.style.display='block';
-  document.getElementById('acctName').textContent=myUsername;
-  const s=myAccountStats;
-  document.getElementById('acctStats').textContent=
-    '게임 '+( s.gamesPlayed||0)+' · 승리 '+(s.wins||0)+' · 최고 Lv.'+(s.bestLevel||1);
-  // 닉네임 자동 채우기
-  if(!document.getElementById('nameInp').value)document.getElementById('nameInp').value=myUsername.slice(0,10);
+  const info=document.getElementById('authUserInfo');
+  if(loggedIn&&authUsername){
+    info.innerHTML='<b>'+authUsername+'</b> 님으로 로그인됨 &nbsp;<span style="color:#555;cursor:pointer;font-size:10px;" onclick="doLogout()">로그아웃</span>';
+    document.getElementById('nameInp').value=authUsername;
+    document.getElementById('trinketPanel').style.display='flex';
+    renderTrinketPanel();
+  } else {
+    info.innerHTML='<span style="color:#666;">게스트 모드 (장신구 비활성)</span> &nbsp;<span style="color:#555;cursor:pointer;font-size:10px;" onclick="showAuthScreen()">로그인</span>';
+    document.getElementById('trinketPanel').style.display='none';
+  }
 }
-
 function doLogout(){
-  myUsername=null;myToken=null;myAccountStats=null;
-  localStorage.removeItem('dsToken');
-  document.getElementById('lobbyScreen').style.display='none';
-  document.getElementById('authScreen').style.display='flex';
-  document.getElementById('accountInfo').style.display='none';
-  clearAuthErr();
+  authToken=null;authUsername=null;myInventory=[];myEquipped=[null,null];
+  localStorage.removeItem('ds_token');
+  showAuthScreen();
 }
 
-function tryAutoLogin(){
-  const token=localStorage.getItem('dsToken');
-  if(!token){showLobbyIfNoToken();return;}
-  connect(()=>send({t:'authCheck',token}));
+// ── 장신구 UI ──────────────────────────────────────────────────
+function renderTrinketPanel(){
+  for(let i=0;i<2;i++){
+    const slot=document.getElementById('slot'+i);
+    const tid=myEquipped[i];
+    if(tid&&TRINKETS[tid]){
+      const t=TRINKETS[tid];
+      slot.classList.add('filled');
+      slot.innerHTML='<span class="slotIcon">'+t.icon+'</span><span class="slotName">'+t.name+'</span>';
+    } else {
+      slot.classList.remove('filled');
+      slot.innerHTML='<span class="slotIcon" style="color:#333">○</span><span class="slotLbl">슬롯 '+(i+1)+'</span>';
+    }
+  }
+  const inv=document.getElementById('trinketInv');
+  const empty=document.getElementById('invEmpty');
+  inv.innerHTML='';
+  if(myInventory.length===0){empty.style.display='block';return;}
+  empty.style.display='none';
+  myInventory.forEach(tid=>{
+    const t=TRINKETS[tid];if(!t)return;
+    const isEq=myEquipped.includes(tid);
+    const div=document.createElement('div');
+    div.className='trinketItem'+(isEq?' equipped':'');
+    div.innerHTML='<span class="tIcon">'+t.icon+'</span><span class="tName">'+t.name+'</span>'+(isEq?'<span class="tEquippedMark">✓</span>':'');
+    div.onclick=()=>equipTrinket(tid);
+    div.onmouseenter=(e)=>showTrinketTooltip(e,t);
+    div.onmouseleave=()=>hideTrinketTooltip();
+    inv.appendChild(div);
+  });
 }
-function showLobbyIfNoToken(){
-  // 토큰 없으면 auth 화면 유지 (이미 표시됨)
+function showTrinketTooltip(e,t){
+  const tt=document.getElementById('trinketTooltip');
+  tt.querySelector('.ttName').textContent=t.icon+' '+t.name;
+  tt.querySelector('.ttDesc').textContent=t.desc;
+  tt.querySelector('.ttRarity').innerHTML='<span style="color:'+t.rarityColor+'">'+t.rarity+'</span>';
+  tt.style.display='block';
+  tt.style.left=(e.clientX+12)+'px';tt.style.top=(e.clientY-20)+'px';
+}
+function hideTrinketTooltip(){document.getElementById('trinketTooltip').style.display='none';}
+async function equipTrinket(tid){
+  if(!authToken)return;
+  if(myEquipped.includes(tid)){await unequipTrinketById(tid);return;}
+  const slot=myEquipped.indexOf(null);
+  if(slot===-1){showErr('슬롯이 가득 찼습니다. 먼저 장신구를 해제하세요.');return;}
+  try{
+    const res=await fetch('/auth/equip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:authToken,trinketId:tid,slot,action:'equip'})});
+    const data=await res.json();
+    if(data.err){showErr(data.err);return;}
+    myEquipped=data.equipped;renderTrinketPanel();
+  }catch(e){showErr('장착 실패');}
+}
+async function unequipTrinket(slotIdx){
+  const tid=myEquipped[slotIdx];if(!tid||!authToken)return;
+  await unequipTrinketById(tid);
+}
+async function unequipTrinketById(tid){
+  try{
+    const res=await fetch('/auth/equip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:authToken,trinketId:tid,action:'unequip'})});
+    const data=await res.json();
+    if(data.err){showErr(data.err);return;}
+    myEquipped=data.equipped;renderTrinketPanel();
+  }catch(e){showErr('해제 실패');}
 }
 
-// 게임 종료 시 통계 저장
-function saveGameStats(win,level){
-  if(!myUsername)return;
-  send({t:'saveStats',win:!!win,kills:_myKills,level:level||1});
-}
+// ── 방 생성/참가 (토큰 포함) ────────────────────────────────────
+function doCreate(){const name=document.getElementById('nameInp').value.trim()||'Player';connect(()=>send({t:'create',name,token:authToken||''}));}
+function doJoin(){const name=document.getElementById('nameInp').value.trim()||'Player',code=document.getElementById('codeInp').value.toUpperCase();if(!code){showErr('코드 입력');return;}connect(()=>send({t:'join',code,name,token:authToken||''}));}
 
-// 초기화 시 자동 로그인 시도
-window.addEventListener('load',()=>{
-  document.getElementById('lobbyScreen').style.display='none';
-  tryAutoLogin();
-});
+// ── 페이지 로드 시 자동 로그인 시도 ─────────────────────────────
+window.addEventListener('DOMContentLoaded',()=>{tryAutoLogin();});
 
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:2.0,multishot:0,magnetRange:1,armor:0.15,crit:false,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:15,baseCd:1000,baseRange:140,color:'#66ccff'}},
@@ -1718,8 +1878,81 @@ window.addEventListener('resize',()=>{W=G.clientWidth;H=G.clientHeight;canvas.wi
 </html>`;
 
 // ── SERVER ─────────────────────────────────────────────────
-const server = http.createServer((req, res) => {
-  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/.test(req.url)){const fp=require('path').join(__dirname,'assets',req.url.split('?')[0]);try{const d=require('fs').readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0];res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'})[ext]||'application/octet-stream'});res.end(d);return;}catch(e){}}
+const server = http.createServer(async (req, res) => {
+  // CORS 헤더
+  res.setHeader('Access-Control-Allow-Origin','*');
+  res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers','Content-Type');
+  if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}
+
+  // ── 인증 API ────────────────────────────────────────────────
+  if(req.url==='/auth/register' && req.method==='POST'){
+    const body=await readBody(req);
+    const id=(body.id||'').trim();const pw=body.pw||'';
+    if(!id||id.length<3)return sendJson(res,400,{err:'아이디는 3자 이상이어야 합니다'});
+    if(!pw||pw.length<4)return sendJson(res,400,{err:'비밀번호는 4자 이상이어야 합니다'});
+    if(!/^[a-zA-Z0-9가-힣_]{3,16}$/.test(id))return sendJson(res,400,{err:'아이디는 영문/숫자/한글/밑줄만 사용 가능합니다'});
+    accountsDb=loadAccounts();
+    if(accountsDb.users[id])return sendJson(res,400,{err:'이미 사용 중인 아이디입니다'});
+    const salt=genSalt();const token=genToken();
+    accountsDb.users[id]={passwordHash:hashPw(pw,salt),salt,trinkets:[],equippedTrinkets:[null,null],createdAt:Date.now()};
+    saveAccounts(accountsDb);
+    sessions.set(token,id);
+    return sendJson(res,200,{token,username:id,inventory:[],equipped:[null,null]});
+  }
+
+  if(req.url==='/auth/login' && req.method==='POST'){
+    const body=await readBody(req);
+    const id=(body.id||'').trim();const pw=body.pw||'';
+    accountsDb=loadAccounts();
+    const user=accountsDb.users[id];
+    if(!user||user.passwordHash!==hashPw(pw,user.salt||''))return sendJson(res,400,{err:'아이디 또는 비밀번호가 틀렸습니다'});
+    const token=genToken();
+    sessions.set(token,id);
+    return sendJson(res,200,{token,username:id,inventory:user.trinkets||[],equipped:user.equippedTrinkets||[null,null]});
+  }
+
+  if(req.url.startsWith('/auth/me') && req.method==='GET'){
+    const token=new URL(req.url,'http://x').searchParams.get('token')||'';
+    const username=sessions.get(token);
+    if(!username)return sendJson(res,401,{err:'세션이 만료되었습니다'});
+    accountsDb=loadAccounts();
+    const user=accountsDb.users[username];
+    if(!user)return sendJson(res,401,{err:'계정을 찾을 수 없습니다'});
+    return sendJson(res,200,{username,inventory:user.trinkets||[],equipped:user.equippedTrinkets||[null,null]});
+  }
+
+  if(req.url==='/auth/equip' && req.method==='POST'){
+    const body=await readBody(req);
+    const token=body.token||'';const trinketId=body.trinketId||'';const action=body.action||'equip';
+    const username=sessions.get(token);
+    if(!username)return sendJson(res,401,{err:'로그인이 필요합니다'});
+    accountsDb=loadAccounts();
+    const user=accountsDb.users[username];
+    if(!user)return sendJson(res,401,{err:'계정을 찾을 수 없습니다'});
+    const equipped=user.equippedTrinkets||[null,null];
+    if(action==='equip'){
+      if(!TRINKET_EFFECTS[trinketId])return sendJson(res,400,{err:'존재하지 않는 장신구입니다'});
+      if(!(user.trinkets||[]).includes(trinketId))return sendJson(res,400,{err:'보유하지 않은 장신구입니다'});
+      const slot=typeof body.slot==='number'?body.slot:equipped.indexOf(null);
+      if(slot<0||slot>1)return sendJson(res,400,{err:'유효하지 않은 슬롯입니다'});
+      if(equipped.includes(trinketId))return sendJson(res,400,{err:'이미 장착 중입니다'});
+      equipped[slot]=trinketId;
+    } else {
+      const idx=equipped.indexOf(trinketId);
+      if(idx===-1)return sendJson(res,400,{err:'장착되지 않은 장신구입니다'});
+      equipped[idx]=null;
+    }
+    user.equippedTrinkets=equipped;
+    saveAccounts(accountsDb);
+    return sendJson(res,200,{equipped});
+  }
+
+  // ── 정적 파일 (assets) ──────────────────────────────────────
+  if(req.url&&/\.(png|jpg|gif|mp3|ogg|wav)$/.test(req.url)){
+    const fp=path.join(__dirname,'assets',req.url.split('?')[0]);
+    try{const d=fs.readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0];res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'})[ext]||'application/octet-stream'});res.end(d);return;}catch(e){}
+  }
   res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
   res.end(HTML);
 });
@@ -2004,6 +2237,11 @@ wss.on('connection',ws=>{
     }
     const newPlayer=(name,x=0,y=0)=>({id:ws.pid,x,y,hp:100,maxHp:100,lv:1,exp:0,expNext:50,dead:false,groggy:false,groggyTimer:0,reviveProgress:0,name,lvUp:false,cls:null,regen:0,armor:0,expMult:1,critRate:0,dmgBonus:1,invincible:false,invincibleEnd:0,lvUpQueue:0});
     if(msg.t==='create'){
+      // 토큰으로 장신구 조회
+      if(msg.token){
+        const uname=sessions.get(msg.token);
+        if(uname){const ud=loadAccounts().users[uname];ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(Boolean):[];}
+      } else {ws.equippedTrinkets=[];}
       const code=genCode();
       rooms.set(code,{players:new Map(),enemies:[],boss:null,turrets:[],fireZones:[],stageTime:600,currentStage:1,started:false,midBossSpawned:false,finalBossSpawned:false,midBossAlive:false,finalBossAlive:false,eid:0,lastTick:Date.now(),readyCount:0,enemyHpMult:1,enemyDmgMult:1});
       ws.roomCode=code;rooms.get(code).players.set(ws,newPlayer(msg.name||'Player'));
@@ -2011,6 +2249,11 @@ wss.on('connection',ws=>{
       bcastAll(rooms.get(code),{t:'lobby',players:[...rooms.get(code).players.values()].map(p=>({id:p.id,name:p.name}))});
     }
     else if(msg.t==='join'){
+      // 토큰으로 장신구 조회
+      if(msg.token){
+        const uname=sessions.get(msg.token);
+        if(uname){const ud=loadAccounts().users[uname];ws.equippedTrinkets=ud?(ud.equippedTrinkets||[null,null]).filter(Boolean):[];}
+      } else {ws.equippedTrinkets=[];}
       const code=(msg.code||'').toUpperCase(),room=rooms.get(code);
       if(!room){ws.send(JSON.stringify({t:'err',msg:'방을 찾을 수 없어요'}));return;}
       if(room.started){ws.send(JSON.stringify({t:'err',msg:'이미 시작된 방이에요'}));return;}
@@ -2026,6 +2269,10 @@ wss.on('connection',ws=>{
       p.cls=msg.cls||'warrior';
       const CLS={warrior:{hp:150,maxHp:150,regen:2.0,armor:0.15,critRate:0,expMult:1},gunner:{hp:80,maxHp:80,regen:0.5,armor:0,critRate:0,expMult:1},mage:{hp:65,maxHp:65,regen:0.7,armor:0,critRate:0,expMult:1},assassin:{hp:85,maxHp:85,regen:0.2,armor:0,critRate:40,expMult:1}};
       const cls=CLS[p.cls]||CLS.warrior;p.hp=cls.hp;p.maxHp=cls.maxHp;p.regen=cls.regen;p.armor=cls.armor;p.critRate=cls.critRate;p.expMult=cls.expMult;p.rangeMult=1;p.cdMult=1;p.spdMult=1;
+      // 장신구 효과 적용 (로그인 플레이어만)
+      if(ws.equippedTrinkets&&ws.equippedTrinkets.length>0){
+        applyTrinketEffects(p,ws.equippedTrinkets);
+      }
       room.readyCount=(room.readyCount||0)+1;if(room.readyCount>=room.players.size){room.started=true;room.lastTick=Date.now();bcastAll(room,{t:'allReady'});room.tick=setInterval(()=>tickRoom(ws.roomCode),33);}
     }
     else if(msg.t==='move'){
