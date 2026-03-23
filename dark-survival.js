@@ -2010,6 +2010,7 @@ const server = http.createServer(async (req, res) => {
   if(req.url==='/ping'){return sendJson(res,200,{ok:true,time:Date.now()});}
   // ── 인증 API ────────────────────────────────────────────────
   if(req.url==='/auth/register' && req.method==='POST'){
+    if(!db)return sendJson(res,503,{err:'서버가 아직 준비 중입니다. 잠시 후 다시 시도해주세요.'});
     const body=await readBody(req);
     const id=(body.id||'').trim();const pw=body.pw||'';
     if(!id||id.length<3)return sendJson(res,400,{err:'아이디는 3자 이상이어야 합니다'});
@@ -2024,6 +2025,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if(req.url==='/auth/login' && req.method==='POST'){
+    if(!db)return sendJson(res,503,{err:'서버가 아직 준비 중입니다. 잠시 후 다시 시도해주세요.'});
     const body=await readBody(req);
     const id=(body.id||'').trim();const pw=body.pw||'';
     const user=await db.collection('users').findOne({_id:id});
@@ -2034,6 +2036,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if(req.url.startsWith('/auth/me') && req.method==='GET'){
+    if(!db)return sendJson(res,503,{err:'서버가 아직 준비 중입니다. 잠시 후 다시 시도해주세요.'});
     const token=new URL(req.url,'http://x').searchParams.get('token')||'';
     const username=sessions.get(token);
     if(!username)return sendJson(res,401,{err:'세션이 만료되었습니다'});
@@ -2043,6 +2046,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if(req.url==='/auth/equip' && req.method==='POST'){
+    if(!db)return sendJson(res,503,{err:'서버가 아직 준비 중입니다. 잠시 후 다시 시도해주세요.'});
     const body=await readBody(req);
     const token=body.token||'';const trinketId=body.trinketId||'';const action=body.action||'equip';
     const username=sessions.get(token);
@@ -2481,6 +2485,5 @@ const heartbeatInterval=setInterval(()=>{
 },25000);
 wss.on('close',()=>clearInterval(heartbeatInterval));
 
-connectDB().then(()=>{
-  server.listen(PORT,()=>console.log('Dark Survival Final → http://localhost:'+PORT));
-}).catch(e=>{console.error('MongoDB 연결 실패:',e);process.exit(1);});
+server.listen(PORT,()=>console.log('Dark Survival Final → http://localhost:'+PORT));
+connectDB().catch(e=>console.error('[MongoDB 연결 실패]',e));
