@@ -63,7 +63,8 @@ function getTrinketImages(grade) {
   } catch { return []; }
 }
 function generateTrinket() {
-  const keys=Object.keys(TRINKET_STAT_DEFS).sort(()=>Math.random()-0.5).slice(0,3);
+  const allKeys=Object.keys(TRINKET_STAT_DEFS);
+  const keys=[0,1,2].map(()=>allKeys[Math.floor(Math.random()*allKeys.length)]);
   const stats=keys.map(type=>{
     const d=TRINKET_STAT_DEFS[type];
     const value=Math.max(d.min,Math.round(d.min+(d.max-d.min)*Math.pow(Math.random(),2.5)));
