@@ -8,7 +8,10 @@ const PORT = process.env.PORT || 8080;
 
 // ── MongoDB 연결 ─────────────────────────────────────────────────
 const { MongoClient } = require('mongodb');
-const mongoClient = new MongoClient(process.env.MONGODB_URI);
+const mongoClient = new MongoClient(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 5000,
+  connectTimeoutMS: 5000,
+});
 let db;
 async function connectDB() {
   await mongoClient.connect();
@@ -483,8 +486,8 @@ async function doAuthSubmit(){
   const timer=setTimeout(()=>ctrl.abort(),10000);
   try{
     const res=await fetch('/auth/'+_authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,pw}),signal:ctrl.signal});
-    clearTimeout(timer);
     const data=await res.json();
+    clearTimeout(timer);
     if(data.err){errEl.style.color='';errEl.textContent=data.err;btn.textContent=_authMode==='login'?'로그인':'회원가입';return;}
     authToken=data.token;authUsername=data.username;
     myInventory=data.inventory||[];myEquipped=data.equipped||[null,null];
@@ -2073,7 +2076,7 @@ const server = http.createServer(async (req, res) => {
   res.end(HTML);
   } catch(e) {
     console.error('[HTTP 에러]', e);
-    if(!res.headersSent) sendJson(res, 500, {err:'서버 오류가 발생했습니다'});
+    if(!res.headersSent){try{sendJson(res,500,{err:'서버 오류가 발생했습니다'});}catch(_){}}
   }
 });
 const wss = new WebSocketServer({ server });
