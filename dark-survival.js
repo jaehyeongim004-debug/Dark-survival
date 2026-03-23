@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const PORT = process.env.PORT || 8080;
 
 // ── 계정 데이터 관리 ────────────────────────────────────────────
-const ACCOUNTS_FILE = path.join(__dirname, 'accounts.json');
+const ACCOUNTS_FILE = process.env.ACCOUNTS_FILE || path.join(__dirname, 'accounts.json');
 function loadAccounts() {
   try { return JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf8')); }
   catch(e) { return { users: {} }; }
@@ -2005,6 +2005,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers','Content-Type');
   if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}
 
+  if(req.url==='/ping'){return sendJson(res,200,{ok:true,time:Date.now()});}
   // ── 인증 API ────────────────────────────────────────────────
   if(req.url==='/auth/register' && req.method==='POST'){
     const body=await readBody(req);
