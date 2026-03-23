@@ -27,14 +27,14 @@ function genToken() { return crypto.randomBytes(32).toString('hex'); }
 
 // ── 장신구 시스템 (절차적 생성, 등급제) ──────────────────────────
 const TRINKET_STAT_DEFS = {
-  maxHp:   {min:1,  max:100, label:'최대체력', calc:'mult'},
-  armor:   {min:1,  max:20,  label:'방어력',   calc:'add'},
+  maxHp:   {min:1,  max:33,  label:'최대체력', calc:'mult'},
+  armor:   {min:1,  max:15,  label:'방어력',   calc:'add'},
   regen:   {min:1,  max:100, label:'체력재생', calc:'mult'},
-  dmg:     {min:1,  max:50,  label:'공격력',   calc:'mult'},
-  atkSpd:  {min:1,  max:50,  label:'공격속도', calc:'mult'},
+  dmg:     {min:1,  max:33,  label:'공격력',   calc:'mult'},
+  atkSpd:  {min:1,  max:33,  label:'공격속도', calc:'mult'},
   moveSpd: {min:1,  max:50,  label:'이동속도', calc:'mult'},
   range:   {min:1,  max:50,  label:'사거리',   calc:'mult'},
-  crit:    {min:1,  max:50,  label:'치명타',   calc:'add'},
+  crit:    {min:1,  max:33,  label:'치명타',   calc:'add'},
 };
 const TRINKET_GRADES = [
   {grade:'신화', minScore:230, color:'#ff2200'},
@@ -84,17 +84,16 @@ function generateTrinket() {
 }
 async function awardTrinkets(room) {
   if(!room.midBossSpawned||room.midBossAlive)return;
+  if(!db)return;
   const usersCol=db.collection('users');
-  room.players.forEach(async (p,playerWs)=>{
-    if(!playerWs.username)return;
+  for(const [playerWs] of room.players){
+    if(!playerWs.username)continue;
     const t1=generateTrinket(),t2=generateTrinket();
     try{
-      const u=await usersCol.findOne({_id:playerWs.username});
-      if(!u)return;
-      await usersCol.updateOne({_id:playerWs.username},{$push:{trinkets:{$each:[t1,t2]}}});
+      await usersCol.updateOne({_id:playerWs.username},{$push:{trinkets:{$each:[t1,t2]}}},{maxTimeMS:7000});
       if(playerWs.readyState===1)playerWs.send(JSON.stringify({t:'trinketReward',trinkets:[t1,t2]}));
     }catch(e){console.error('[awardTrinkets error]',e);}
-  });
+  }
 }
 function applyTrinketEffects(player, equippedTrinkets) {
   for(const trinket of equippedTrinkets) {
