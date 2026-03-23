@@ -1,7 +1,27 @@
 // dark-survival.js
 const http = require('http');
 const { WebSocketServer } = require('ws');
+const fs = require('fs');
+const crypto = require('crypto');
+const path = require('path');
 const PORT = process.env.PORT || 3000;
+
+// ── 계정 저장 ────────────────────────────────────────────────
+const USERS_FILE = path.join(__dirname, 'users.json');
+function loadUsers() {
+  try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); } catch { return {}; }
+}
+function saveUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+}
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+function genToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+// sessions: token -> { username, createdAt }
+const sessions = new Map();
 
 const HTML = `<!DOCTYPE html>
 <html lang='ko'>
@@ -102,10 +122,43 @@ input.inp:focus{border-color:#ffcc00;}
 #classTag span{color:#ffcc00;}
 #weaponElement{position:absolute;top:62px;left:12px;font-size:9px;color:#888;pointer-events:none;z-index:5;}
 #minimap{position:absolute;top:80px;left:12px;width:120px;height:120px;background:rgba(0,0,0,0.7);border:2px solid #333;border-radius:8px;pointer-events:none;z-index:5;}
+#authScreen{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:30;padding:20px;overflow-y:auto;pointer-events:all;touch-action:auto;}
+#authScreen input,#authScreen button{touch-action:manipulation;pointer-events:all;}
+.authTabs{display:flex;gap:0;margin-bottom:6px;border:1px solid #333;border-radius:4px;overflow:hidden;}
+.authTab{padding:8px 24px;font-size:12px;font-family:monospace;color:#666;background:transparent;border:none;cursor:pointer;letter-spacing:1px;touch-action:manipulation;}
+.authTab.active{color:#ffcc00;background:#1a1a00;}
+.authForm{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:220px;}
+.authForm.hidden{display:none;}
+#authErr{color:#ff6666;font-size:11px;min-height:16px;text-align:center;}
+#authUserInfo{position:absolute;top:10px;right:12px;font-size:10px;color:#666;z-index:25;display:none;text-align:right;line-height:1.6;}
+#authUserInfo span{color:#ffcc00;}
+#authLogout{font-size:9px;color:#555;background:none;border:none;cursor:pointer;text-decoration:underline;font-family:monospace;display:block;margin-top:2px;}
+.statsBox{background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:8px 14px;font-size:10px;color:#666;text-align:center;line-height:1.8;width:100%;max-width:220px;}
+.statsBox .sVal{color:#88ccff;font-weight:bold;}
 </style>
 </head>
 <body>
 <div id="G">
+  <div id="authScreen">
+    <h1 class="title">DARK SURVIVAL</h1>
+    <p class="sub">계정으로 전적을 저장하세요</p>
+    <div class="authTabs">
+      <button class="authTab active" id="tabLogin" onclick="switchTab('login')">로그인</button>
+      <button class="authTab" id="tabRegister" onclick="switchTab('register')">회원가입</button>
+    </div>
+    <div class="authForm" id="formLogin">
+      <input class="inp" id="loginUser" placeholder="아이디" maxlength="16" autocomplete="username"/>
+      <input class="inp" id="loginPass" type="password" placeholder="비밀번호" maxlength="32" autocomplete="current-password"/>
+      <button class="btn" onclick="doLogin()">로그인</button>
+    </div>
+    <div class="authForm hidden" id="formRegister">
+      <input class="inp" id="regUser" placeholder="아이디 (4~16자)" maxlength="16" autocomplete="username"/>
+      <input class="inp" id="regPass" type="password" placeholder="비밀번호 (4자 이상)" maxlength="32" autocomplete="new-password"/>
+      <input class="inp" id="regPass2" type="password" placeholder="비밀번호 확인" maxlength="32" autocomplete="new-password"/>
+      <button class="btn" onclick="doRegister()">가입하기</button>
+    </div>
+    <div id="authErr"></div>
+  </div>
   <canvas id="c"></canvas>
   <div id="hud">
     <div id="topRow">
@@ -128,6 +181,11 @@ input.inp:focus{border-color:#ffcc00;}
   <div id="lobbyScreen">
     <h1 class="title">DARK SURVIVAL</h1>
     <p class="sub">3스테이지 · 보스 처치 · 최대 4인</p>
+    <div id="accountInfo" style="font-size:11px;color:#888;text-align:center;line-height:1.8;display:none;">
+      <span id="acctName" style="color:#ffcc00;font-weight:bold;font-size:13px;"></span><br>
+      <span id="acctStats" style="color:#666;"></span>
+      <button style="font-size:9px;color:#555;background:none;border:none;cursor:pointer;text-decoration:underline;font-family:monospace;display:block;margin:2px auto 0;" onclick="doLogout()">로그아웃</button>
+    </div>
     <input class="inp" id="nameInp" placeholder="닉네임" maxlength="10"/>
     <div style="display:flex;gap:8px;margin-top:4px;"><button class="btn" onclick="doCreate()">방 만들기</button><button class="btn btn2" onclick="showJoin()">입장하기</button></div>
     <div id="joinRow" style="display:none;flex-direction:column;align-items:center;gap:8px;margin-top:4px;"><input class="inp" id="codeInp" placeholder="방 코드 5자리" maxlength="5" style="letter-spacing:4px;text-transform:uppercase;"/><button class="btn" onclick="doJoin()">입장</button></div>
@@ -234,9 +292,87 @@ function send(o){
 }
 function showErr(m){document.getElementById('errMsg').textContent=m;}
 function showJoin(){document.getElementById('joinRow').style.display='flex';}
-function doCreate(){const name=document.getElementById('nameInp').value.trim()||'Player';connect(()=>send({t:'create',name}));}
-function doJoin(){const name=document.getElementById('nameInp').value.trim()||'Player',code=document.getElementById('codeInp').value.toUpperCase();if(!code){showErr('코드 입력');return;}connect(()=>send({t:'join',code,name}));}
+function doCreate(){const name=document.getElementById('nameInp').value.trim()||myUsername||'Player';connect(()=>send({t:'create',name}));}
+function doJoin(){const name=document.getElementById('nameInp').value.trim()||myUsername||'Player',code=document.getElementById('codeInp').value.toUpperCase();if(!code){showErr('코드 입력');return;}connect(()=>send({t:'join',code,name}));}
 function doStart(){send({t:'start'});}
+
+// ── 인증 ───────────────────────────────────────────────────
+let myUsername=null,myToken=null,myAccountStats=null;
+let _myKills=0;
+
+function showAuthErr(m){document.getElementById('authErr').textContent=m;}
+function clearAuthErr(){document.getElementById('authErr').textContent='';}
+
+function switchTab(tab){
+  document.getElementById('formLogin').classList.toggle('hidden',tab!=='login');
+  document.getElementById('formRegister').classList.toggle('hidden',tab!=='register');
+  document.getElementById('tabLogin').classList.toggle('active',tab==='login');
+  document.getElementById('tabRegister').classList.toggle('active',tab!=='login');
+  clearAuthErr();
+}
+
+function doLogin(){
+  const u=document.getElementById('loginUser').value.trim();
+  const p=document.getElementById('loginPass').value;
+  if(!u||!p){showAuthErr('아이디와 비밀번호를 입력해주세요');return;}
+  clearAuthErr();
+  connect(()=>send({t:'login',username:u,password:p}));
+}
+
+function doRegister(){
+  const u=document.getElementById('regUser').value.trim();
+  const p=document.getElementById('regPass').value;
+  const p2=document.getElementById('regPass2').value;
+  if(!u||!p){showAuthErr('모든 항목을 입력해주세요');return;}
+  if(p!==p2){showAuthErr('비밀번호가 일치하지 않아요');return;}
+  clearAuthErr();
+  connect(()=>send({t:'register',username:u,password:p}));
+}
+
+function onAuthOk(data){
+  myUsername=data.username;myToken=data.token;myAccountStats=data.stats||{};
+  localStorage.setItem('dsToken',data.token);
+  document.getElementById('authScreen').style.display='none';
+  document.getElementById('lobbyScreen').style.display='flex';
+  const ai=document.getElementById('accountInfo');
+  ai.style.display='block';
+  document.getElementById('acctName').textContent=myUsername;
+  const s=myAccountStats;
+  document.getElementById('acctStats').textContent=
+    '게임 '+( s.gamesPlayed||0)+' · 승리 '+(s.wins||0)+' · 최고 Lv.'+(s.bestLevel||1);
+  // 닉네임 자동 채우기
+  if(!document.getElementById('nameInp').value)document.getElementById('nameInp').value=myUsername.slice(0,10);
+}
+
+function doLogout(){
+  myUsername=null;myToken=null;myAccountStats=null;
+  localStorage.removeItem('dsToken');
+  document.getElementById('lobbyScreen').style.display='none';
+  document.getElementById('authScreen').style.display='flex';
+  document.getElementById('accountInfo').style.display='none';
+  clearAuthErr();
+}
+
+function tryAutoLogin(){
+  const token=localStorage.getItem('dsToken');
+  if(!token){showLobbyIfNoToken();return;}
+  connect(()=>send({t:'authCheck',token}));
+}
+function showLobbyIfNoToken(){
+  // 토큰 없으면 auth 화면 유지 (이미 표시됨)
+}
+
+// 게임 종료 시 통계 저장
+function saveGameStats(win,level){
+  if(!myUsername)return;
+  send({t:'saveStats',win:!!win,kills:_myKills,level:level||1});
+}
+
+// 초기화 시 자동 로그인 시도
+window.addEventListener('load',()=>{
+  document.getElementById('lobbyScreen').style.display='none';
+  tryAutoLogin();
+});
 
 const CLASSES={
   warrior:{name:'검사',icon:'⚔️',color:'#66ccff',stats:{hp:150,maxHp:150,spd:2.6,dmgMult:1.15,cdMult:1,rangeMult:1,regen:2.0,multishot:0,magnetRange:1,armor:0.15,crit:false,critRate:0,expMult:1},weapon:{name:'검',type:'sword',baseDmg:15,baseCd:1000,baseRange:140,color:'#66ccff'}},
@@ -410,6 +546,9 @@ function showGameUI(){canvas.style.pointerEvents='all';document.getElementById('
 function hideGameUI(){canvas.style.pointerEvents='none';document.getElementById('jsWrap').style.pointerEvents='none';document.getElementById('js2Wrap').style.pointerEvents='none';document.getElementById('statsPanel').style.display='none';document.getElementById('autoAimBtn').style.display='none';}
 
 function handleMsg(msg){
+  if(msg.t==='authOk'){onAuthOk(msg);return;}
+  else if(msg.t==='authErr'){showAuthErr(msg.msg);return;}
+  else if(msg.t==='authFail'){doLogout();return;}
   if(msg.t==='created'){myId=msg.id;isHost=true;document.getElementById('codeDisplay').textContent=msg.code;document.getElementById('joinRow').style.display='none';document.getElementById('waitRoom').style.display='flex';}
   else if(msg.t==='joined'){myId=msg.id;document.getElementById('codeDisplay').textContent=msg.code;document.getElementById('joinRow').style.display='none';document.getElementById('startBtn').style.display='none';document.getElementById('waitRoom').style.display='flex';}
   else if(msg.t==='lobby'){document.getElementById('playerListEl').innerHTML='참가자: '+msg.players.map(p=>'<b>'+p.name+'</b>').join(', ');}
@@ -1558,7 +1697,7 @@ function spawnPixelExplosion(x,y,type){
 let msgTimer=0;
 function showPop(txt,dur){const el=document.getElementById('msgPop');el.textContent=txt;el.style.display='block';msgTimer=dur||1400;}
 function addKf(txt){const f=document.getElementById('killFeed'),el=document.createElement('div');el.className='kf';el.textContent=txt;f.appendChild(el);setTimeout(()=>el.remove(),2600);while(f.children.length>4)f.removeChild(f.firstChild);}
-function endGame(win){running=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+(myPlayer?myPlayer.lv:1)+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');}
+function endGame(win){running=false;hideGameUI();const el=document.getElementById('goScreen');el.style.display='flex';document.getElementById('goTitle').textContent=win?'ALL CLEAR! 🎉':'GAME OVER';document.getElementById('goTitle').style.color=win?'#ffcc00':'#ff4444';const stagesCleared=win?3:currentStage-1;const myLv=myPlayer?myPlayer.lv:1;document.getElementById('goStats').innerHTML='스테이지: '+stagesCleared+'/3<br>직업: '+(myClass?CLASSES[myClass].name:'없음')+'<br>처치: '+kills+'<br>점수: '+score+'<br>레벨: '+myLv+'<br>특성: '+(myTraits.length>0?myTraits.map(id=>ALL_TRAITS.find(t=>t.id===id)?.name||id).join(', '):'없음');_myKills=kills;saveGameStats(win,myLv);}
 let _loopRunning=false;
 function loop(ts){
   const dt=Math.min(ts-lastTime,50);lastTime=ts;
@@ -1819,6 +1958,50 @@ wss.on('connection',ws=>{
   ws.on('message',raw=>{
     let msg;try{msg=JSON.parse(raw);}catch{return;}
     if(msg.t==='ping'){ws.isAlive=true;if(ws.readyState===1)ws.send(JSON.stringify({t:'pong'}));return;}
+    if(msg.t==='register'){
+      const uname=(msg.username||'').trim();const pwd=msg.password||'';
+      if(uname.length<4||uname.length>16){ws.send(JSON.stringify({t:'authErr',msg:'아이디는 4~16자여야 해요'}));return;}
+      if(!/^[a-zA-Z0-9_]+$/.test(uname)){ws.send(JSON.stringify({t:'authErr',msg:'아이디는 영문/숫자/_만 사용 가능해요'}));return;}
+      if(pwd.length<4){ws.send(JSON.stringify({t:'authErr',msg:'비밀번호는 4자 이상이어야 해요'}));return;}
+      const users=loadUsers();
+      if(users[uname]){ws.send(JSON.stringify({t:'authErr',msg:'이미 사용중인 아이디에요'}));return;}
+      const salt=crypto.randomBytes(16).toString('hex');
+      users[uname]={passwordHash:hashPassword(pwd,salt),salt,createdAt:new Date().toISOString(),stats:{gamesPlayed:0,wins:0,totalKills:0,bestLevel:1}};
+      saveUsers(users);
+      const token=genToken();sessions.set(token,{username:uname,createdAt:Date.now()});
+      ws.username=uname;
+      ws.send(JSON.stringify({t:'authOk',token,username:uname,stats:users[uname].stats}));
+      return;
+    }
+    if(msg.t==='login'){
+      const uname=(msg.username||'').trim();const pwd=msg.password||'';
+      const users=loadUsers();const u=users[uname];
+      if(!u||hashPassword(pwd,u.salt)!==u.passwordHash){ws.send(JSON.stringify({t:'authErr',msg:'아이디 또는 비밀번호가 틀렸어요'}));return;}
+      const token=genToken();sessions.set(token,{username:uname,createdAt:Date.now()});
+      ws.username=uname;
+      ws.send(JSON.stringify({t:'authOk',token,username:uname,stats:u.stats}));
+      return;
+    }
+    if(msg.t==='authCheck'){
+      const session=sessions.get(msg.token||'');
+      if(!session){ws.send(JSON.stringify({t:'authFail'}));return;}
+      const users=loadUsers();const u=users[session.username];
+      if(!u){sessions.delete(msg.token);ws.send(JSON.stringify({t:'authFail'}));return;}
+      ws.username=session.username;
+      ws.send(JSON.stringify({t:'authOk',token:msg.token,username:session.username,stats:u.stats}));
+      return;
+    }
+    if(msg.t==='saveStats'){
+      if(!ws.username)return;
+      const users=loadUsers();if(!users[ws.username])return;
+      const s=users[ws.username].stats;
+      s.gamesPlayed=(s.gamesPlayed||0)+1;
+      if(msg.win)s.wins=(s.wins||0)+1;
+      if(msg.kills)s.totalKills=(s.totalKills||0)+msg.kills;
+      if(msg.level&&msg.level>(s.bestLevel||1))s.bestLevel=msg.level;
+      saveUsers(users);
+      return;
+    }
     const newPlayer=(name,x=0,y=0)=>({id:ws.pid,x,y,hp:100,maxHp:100,lv:1,exp:0,expNext:50,dead:false,groggy:false,groggyTimer:0,reviveProgress:0,name,lvUp:false,cls:null,regen:0,armor:0,expMult:1,critRate:0,dmgBonus:1,invincible:false,invincibleEnd:0,lvUpQueue:0});
     if(msg.t==='create'){
       const code=genCode();
