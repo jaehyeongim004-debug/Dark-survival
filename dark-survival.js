@@ -267,26 +267,6 @@ input.inp:focus{border-color:#ffcc00;}
 </head>
 <body>
 <div id="G">
-  <div id="authScreen">
-    <h1 class="title">DARK SURVIVAL</h1>
-    <p class="sub">계정으로 전적을 저장하세요</p>
-    <div class="authTabs">
-      <button class="authTab active" id="tabLogin" onclick="switchTab('login')">로그인</button>
-      <button class="authTab" id="tabRegister" onclick="switchTab('register')">회원가입</button>
-    </div>
-    <div class="authForm" id="formLogin">
-      <input class="inp" id="loginUser" placeholder="아이디" maxlength="16" autocomplete="username"/>
-      <input class="inp" id="loginPass" type="password" placeholder="비밀번호" maxlength="32" autocomplete="current-password"/>
-      <button class="btn" onclick="doLogin()">로그인</button>
-    </div>
-    <div class="authForm hidden" id="formRegister">
-      <input class="inp" id="regUser" placeholder="아이디 (4~16자)" maxlength="16" autocomplete="username"/>
-      <input class="inp" id="regPass" type="password" placeholder="비밀번호 (4자 이상)" maxlength="32" autocomplete="new-password"/>
-      <input class="inp" id="regPass2" type="password" placeholder="비밀번호 확인" maxlength="32" autocomplete="new-password"/>
-      <button class="btn" onclick="doRegister()">가입하기</button>
-    </div>
-    <div id="authErr"></div>
-  </div>
   <canvas id="c"></canvas>
   <div id="hud">
     <div id="topRow">
