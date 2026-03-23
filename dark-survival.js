@@ -1771,7 +1771,7 @@ function drawFlameDemon(ctx,b,t){
     const frameCol=mbFrame%cols;
     const frameRow=Math.floor(mbFrame/cols);
     ctx.drawImage(walkSrc,frameCol*walkFW,frameRow*walkFH,walkFW,walkFH,-szW/2,-szH/2,szW,szH);
-  }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
+  }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0&&mbRow!==0){
     ctx.imageSmoothingEnabled=false;
     if(MB_IMG.naturalWidth>=MB_FW*2){
       ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-szW/2,-szH/2,szW,szH);
