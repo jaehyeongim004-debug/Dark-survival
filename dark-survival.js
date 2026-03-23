@@ -2075,7 +2075,7 @@ const server = http.createServer(async (req, res) => {
     const fp=path.join(__dirname,'assets',req.url.split('?')[0]);
     try{const d=fs.readFileSync(fp);const ext=req.url.split('.').pop().split('?')[0];res.writeHead(200,{'Content-Type':({png:'image/png',jpg:'image/jpeg',gif:'image/gif',mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav'})[ext]||'application/octet-stream'});res.end(d);return;}catch(e){}
   }
-  res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+  res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8', 'Cache-Control': 'no-store, max-age=0' });
   res.end(HTML);
   } catch(e) {
     console.error('[HTTP 에러]', e);
