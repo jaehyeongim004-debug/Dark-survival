@@ -96,20 +96,21 @@ async function awardTrinkets(room) {
   }
 }
 function applyTrinketEffects(player, equippedTrinkets) {
+  const pct={maxHp:0,regen:0,dmg:0,atkSpd:0,moveSpd:0,range:0};
   for(const trinket of equippedTrinkets) {
     if(!trinket)continue;
     for(const {type,value} of (trinket.stats||[])) {
-      const mult=1+value/100;
-      if(type==='maxHp')  {player.maxHp*=mult;player.hp=player.maxHp;}
-      if(type==='armor')  player.armor=Math.min(0.8,(player.armor||0)+value/100);
-      if(type==='regen')  player.regen*=mult;
-      if(type==='dmg')    player.dmgBonus=(player.dmgBonus||1)*mult;
-      if(type==='atkSpd') player.cdMult=(player.cdMult||1)/mult;
-      if(type==='moveSpd')player.spdMult=(player.spdMult||1)*mult;
-      if(type==='range')  player.rangeMult=(player.rangeMult||1)*mult;
-      if(type==='crit')   player.critRate+=value;
+      if(pct[type]!==undefined) pct[type]+=value;
+      else if(type==='armor') player.armor=Math.min(0.8,(player.armor||0)+value/100);
+      else if(type==='crit')  player.critRate+=value;
     }
   }
+  if(pct.maxHp) {player.maxHp*=(1+pct.maxHp/100);player.hp=player.maxHp;}
+  if(pct.regen) player.regen*=(1+pct.regen/100);
+  if(pct.dmg)   player.dmgBonus=(player.dmgBonus||1)*(1+pct.dmg/100);
+  if(pct.atkSpd)player.cdMult=(player.cdMult||1)/(1+pct.atkSpd/100);
+  if(pct.moveSpd)player.spdMult=(player.spdMult||1)*(1+pct.moveSpd/100);
+  if(pct.range) player.rangeMult=(player.rangeMult||1)*(1+pct.range/100);
 }
 
 // ── HTTP 요청 바디 파싱 헬퍼 ────────────────────────────────────
@@ -645,21 +646,22 @@ function applyTrinketDisplayStats(){
   myStats.maxHp=cls.hp;myStats.hp=cls.hp;myStats.regen=cls.regen;myStats.armor=cls.armor;
   myStats.dmgMult=1;myStats.cdMult=1;myStats.spd=cls.spd;myStats.rangeMult=1;myStats.critRate=cls.critRate||0;
   for(const tid of (myTraits||[])){const tv=myTraitValues?myTraitValues[tid]:undefined;applyTrait(tid,tv);}
+  const pct={maxHp:0,regen:0,dmg:0,atkSpd:0,moveSpd:0,range:0};
   for(const t of (myEquipped||[])){
     if(!t)continue;
     for(const {type,value} of (t.stats||[])){
-      const mult=1+value/100;
-      if(type==='maxHp'){myStats.maxHp=Math.round((myStats.maxHp||100)*mult);myStats.hp=myStats.maxHp;}
-      else if(type==='regen')myStats.regen=(myStats.regen||0)*mult;
-      else if(type==='dmg')myStats.dmgMult=(myStats.dmgMult||1)*mult;
-      else if(type==='atkSpd')myStats.cdMult=(myStats.cdMult||1)/mult;
-      else if(type==='moveSpd')myStats.spd=(myStats.spd||3)*mult;
-      else if(type==='range')myStats.rangeMult=(myStats.rangeMult||1)*mult;
+      if(pct[type]!==undefined)pct[type]+=value;
       else if(type==='armor')myStats.armor=Math.min(0.8,(myStats.armor||0)+value/100);
       else if(type==='crit')myStats.critRate=(myStats.critRate||0)+value;
     }
   }
-  updateStatsPanel();
+  if(pct.maxHp){myStats.maxHp=Math.round(myStats.maxHp*(1+pct.maxHp/100));myStats.hp=myStats.maxHp;}
+  if(pct.regen)myStats.regen*=(1+pct.regen/100);
+  if(pct.dmg)myStats.dmgMult=(myStats.dmgMult||1)*(1+pct.dmg/100);
+  if(pct.atkSpd)myStats.cdMult=(myStats.cdMult||1)/(1+pct.atkSpd/100);
+  if(pct.moveSpd)myStats.spd*=(1+pct.moveSpd/100);
+  if(pct.range)myStats.rangeMult*=(1+pct.range/100);
+  updateStatsPanel(pct);
 }
 function showTrinketTooltip(e,trinket){
   const tt=document.getElementById('trinketTooltip');
@@ -825,16 +827,20 @@ function applyTrait(id,value){
 
 function updateElementDisplay(){const el=document.getElementById('weaponElement');if(weaponElement){const tier=weaponUpgradeLevel>=3?' ★★':'';el.innerHTML='<span style="color:'+ELEMENT_COLORS[weaponElement]+'">'+ELEMENT_NAMES[weaponElement]+tier+'</span>';}else el.innerHTML='';}
 function updateTraitList(){const el=document.getElementById('traitList');if(myTraits.length===0){el.innerHTML='';return;}el.innerHTML=myTraits.map(id=>{const tr=ALL_TRAITS.find(t=>t.id===id);return tr?'<span>'+tr.icon+' '+tr.name+'</span>':'';}).join('<br>');}
-function updateStatsPanel(){
+function updateStatsPanel(trinketPct){
   if(!myStats||!myWeapon)return;
   const s=myStats,w=myWeapon;
+  const p=trinketPct||{};
+  function bonusTag(v){return v?'<span style="color:#bb88ff;font-size:8px"> (+'+v+'%)</span>':'';}
   document.getElementById('statsPanel').innerHTML=
-    '<div class="statLine"><span class="statName">공격력</span><span class="statVal">'+(w.baseDmg*s.dmgMult).toFixed(1)+'</span></div>'+
-    '<div class="statLine"><span class="statName">공속</span><span class="statVal">'+(100/s.cdMult).toFixed(0)+'%</span></div>'+
-    '<div class="statLine"><span class="statName">이속</span><span class="statVal">'+s.spd.toFixed(1)+'</span></div>'+
+    '<div class="statLine"><span class="statName">공격력</span><span class="statVal">'+(w.baseDmg*s.dmgMult).toFixed(1)+bonusTag(p.dmg)+'</span></div>'+
+    '<div class="statLine"><span class="statName">공속</span><span class="statVal">'+(100/s.cdMult).toFixed(0)+'%'+bonusTag(p.atkSpd)+'</span></div>'+
+    '<div class="statLine"><span class="statName">이속</span><span class="statVal">'+s.spd.toFixed(1)+bonusTag(p.moveSpd)+'</span></div>'+
     '<div class="statLine"><span class="statName">방어력</span><span class="statVal">'+(s.armor*100).toFixed(0)+'%</span></div>'+
-    '<div class="statLine"><span class="statName">재생</span><span class="statVal">'+s.regen.toFixed(1)+'/s</span></div>'+
+    '<div class="statLine"><span class="statName">재생</span><span class="statVal">'+s.regen.toFixed(1)+'/s'+bonusTag(p.regen)+'</span></div>'+
     '<div class="statLine"><span class="statName">치명타</span><span class="statVal">'+s.critRate.toFixed(0)+'%</span></div>'+
+    '<div class="statLine"><span class="statName">최대체력</span><span class="statVal">'+Math.round(s.maxHp)+bonusTag(p.maxHp)+'</span></div>'+
+    '<div class="statLine"><span class="statName">사거리</span><span class="statVal">'+s.rangeMult.toFixed(2)+bonusTag(p.range)+'</span></div>'+
     '<div class="statLine"><span class="statName">경험치</span><span class="statVal">+'+((s.expMult-1)*100).toFixed(0)+'%</span></div>'+
     '<div class="statLine"><span class="statName">다중사격</span><span class="statVal">+'+s.multishot+'</span></div>';
 }
@@ -855,7 +861,7 @@ const midBossBGM=new Audio('/mid-boss-bgm.mp3');midBossBGM.loop=true;midBossBGM.
 function stopMidBossBGM(){midBossBGM.pause();midBossBGM.currentTime=0;}
 function playMidBossBGM(){midBossBGM.load();midBossBGM.play().catch(()=>{});}
 const MB_IMG=new Image();MB_IMG.src='/boss-sprite.png';
-const MB_WALK_IMG=new Image();MB_WALK_IMG.src='/불타는_악마의_전사.png';
+const MB_WALK_IMG=new Image();MB_WALK_IMG.src='/boss-walk-sprite.png';
 const MB_WALK_P2_IMG=new Image();MB_WALK_P2_IMG.src='/boss-walk-sprite-p2.png';
 const MB_CHARGE_IMG=new Image();MB_CHARGE_IMG.src='/boss-charge-sprite.png';
 const MB_PHASE_IMG=new Image();MB_PHASE_IMG.src='/boss-phase-sprite.png';
@@ -905,7 +911,7 @@ function handleMsg(msg){
       else{clearInterval(window._bossWarningIv);window._bossWarningIv=null;}
     },1000);
   }
-  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);stopGameBGM();playMidBossBGM();}
+  else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;if(msg.boss)bossData=msg.boss;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);stopGameBGM();playMidBossBGM();}
   else if(msg.t==='midBossDead'){
     bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);megaBlastState=null;stopMidBossBGM();playGameBGM();
     myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);
@@ -1979,7 +1985,7 @@ function drawFlameDemon(ctx,b,t){
     const frameCol=mbFrame%cols;
     const frameRow=Math.floor(mbFrame/cols);
     ctx.drawImage(walkSrc,frameCol*walkFW,frameRow*walkFH,walkFW,walkFH,-szW/2,-szH/2,szW,szH);
-  }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0&&mbRow!==0){
+  }else if(MB_IMG.complete&&MB_IMG.naturalWidth>0){
     ctx.imageSmoothingEnabled=false;
     if(MB_IMG.naturalWidth>=MB_FW*2){
       ctx.drawImage(MB_IMG,mbFrame*MB_FW,mbRow*MB_FH,MB_FW,MB_FH,-szW/2,-szH/2,szW,szH);
@@ -2342,7 +2348,7 @@ function spawnMiniMidBoss(room){
   const a=Math.random()*Math.PI*2,r=220+Math.random()*100;
   room.enemies.push({id:room.eid++,x:br.x+Math.cos(a)*r,y:br.y+Math.sin(a)*r,hp:5000,maxHp:5000,spd:1.3,type:'basic',r:22,dead:false,lastShot:0,shieldHp:0,dmgMult:2.0,poison:0,ice:false,atkSlow:false,isMiniMid:true,chargeTimer:0,charging:false,chargeDx:0,chargeDy:0,chargeTimeLeft:0});
 }
-function spawnBoss(room,isFinal){
+function spawnBoss(room,isFinal,code){
   const pc=room.players.size;
   const ARENA=800;
   room.players.forEach(p=>{
@@ -2358,21 +2364,26 @@ function spawnBoss(room,isFinal){
   bcastAll(room,{t:'state',players:ps,enemies:[],st:room.stageTime,stage:room.currentStage,teleport:true});
   bcastAll(room,{t:'bossWarning',isFinal,x:bossSpawnX,y:bossSpawnY,countdown:5});
   setTimeout(()=>{
-    const bh=isFinal?(4500+room.currentStage*800):(2200+room.currentStage*400);
-    const hp=bh*(1+(pc-1)*0.5);
-    room.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:85,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5,frozen:false,invincible:false,megaBlasting:false,miniMidTimer:0,lastSlash:0,lastBigFireball:0,slashCharging:false,slashChargeTimer:0,slashWarnAng:0};
-    room.enemies=[];
-    if(isFinal){
-      room.finalBossAlive=true;
-      room.turrets=[];
-      for(let i=0;i<5+pc;i++){const angle=(i/(5+pc))*Math.PI*2,dist=250+Math.random()*100;room.turrets.push({id:'turret_'+i,x:Math.cos(angle)*dist,y:Math.sin(angle)*dist,hp:1000,maxHp:1000,r:25,isTurret:true,dead:false});}
-      spawnMiniMidBoss(room);spawnMiniMidBoss(room);
-      bcastAll(room,{t:'finalBoss',boss:room.boss});
-      bcastAll(room,{t:'turrets',turrets:room.turrets});
-    }else{
-      room.midBossAlive=true;
-      bcastAll(room,{t:'midBoss',boss:room.boss});
-    }
+    try{
+      if(!rooms.has(code))return;
+      const liveRoom=rooms.get(code);
+      if(!liveRoom||!liveRoom.started)return;
+      const bh=isFinal?(4500+liveRoom.currentStage*800):(2200+liveRoom.currentStage*400);
+      const hp=bh*(1+(pc-1)*0.5);
+      liveRoom.boss={hp,maxHp:hp,x:bossSpawnX,y:bossSpawnY,r:85,dead:false,ang:0,phase:1,isFinal,playerCount:pc,lastHeavy:0,lastHpThreshold:100,armor:isFinal?0.7:0.5,frozen:false,invincible:false,megaBlasting:false,miniMidTimer:0,lastSlash:0,lastBigFireball:0,slashCharging:false,slashChargeTimer:0,slashWarnAng:0};
+      liveRoom.enemies=[];
+      if(isFinal){
+        liveRoom.finalBossAlive=true;
+        liveRoom.turrets=[];
+        for(let i=0;i<5+pc;i++){const angle=(i/(5+pc))*Math.PI*2,dist=250+Math.random()*100;liveRoom.turrets.push({id:'turret_'+i,x:Math.cos(angle)*dist,y:Math.sin(angle)*dist,hp:1000,maxHp:1000,r:25,isTurret:true,dead:false});}
+        spawnMiniMidBoss(liveRoom);spawnMiniMidBoss(liveRoom);
+        bcastAll(liveRoom,{t:'finalBoss',boss:liveRoom.boss});
+        bcastAll(liveRoom,{t:'turrets',turrets:liveRoom.turrets});
+      }else{
+        liveRoom.midBossAlive=true;
+        bcastAll(liveRoom,{t:'midBoss',boss:liveRoom.boss});
+      }
+    }catch(e){console.error('[spawnBoss timeout error]',e);}
   },5000);
 }
 
@@ -2497,9 +2508,9 @@ function tickRoom(code){
     }
   });
   if(!room.midBossAlive&&!room.finalBossAlive&&!room.stageClearPending){room.spawnT=(room.spawnT||0)+dt;if(room.spawnT>0.7){room.spawnT=0;spawnEnemies(room);}}
-  if(!room.midBossSpawned&&room.stageTime<=300){room.midBossSpawned=true;spawnBoss(room,false);}
+  if(!room.midBossSpawned&&room.stageTime<=300){room.midBossSpawned=true;spawnBoss(room,false,code);}
   if(room.midBossAlive)room.stageTime=Math.max(room.stageTime,0.1);
-  if(!room.finalBossSpawned&&!room.midBossAlive&&room.midBossSpawned&&room.stageTime<=0){room.finalBossSpawned=true;room.stageTime=0;spawnBoss(room,true);}
+  if(!room.finalBossSpawned&&!room.midBossAlive&&room.midBossSpawned&&room.stageTime<=0){room.finalBossSpawned=true;room.stageTime=0;spawnBoss(room,true,code);}
   const arr=[...room.players.values()];
   if(!room.stageClearPending){
   room.enemies=room.enemies.filter(e=>!e.dead);
