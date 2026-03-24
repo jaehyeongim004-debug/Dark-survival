@@ -83,7 +83,7 @@ function generateTrinket() {
   };
 }
 async function awardTrinkets(room) {
-  if(!room.midBossSpawned||room.midBossAlive)return;
+  if(room.currentStage===1&&(!room.midBossSpawned||room.midBossAlive))return;
   if(!db)return;
   const usersCol=db.collection('users');
   for(const [playerWs] of room.players){
