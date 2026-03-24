@@ -644,9 +644,22 @@ function renderTrinketPanel(){
 function applyTrinketDisplayStats(){
   if(!myStats||!myClass)return;
   const cls=CLS[myClass]||CLS.warrior;
-  myStats.maxHp=cls.hp;myStats.hp=cls.hp;myStats.regen=cls.regen;myStats.armor=cls.armor;
+  // 기본 스탯으로 리셋 (multishot/expMult는 게임 중 별도 누적이므로 유지)
+  myStats.maxHp=cls.hp;myStats.regen=cls.regen;myStats.armor=cls.armor;
   myStats.dmgMult=1;myStats.cdMult=1;myStats.spd=cls.spd;myStats.rangeMult=1;myStats.critRate=cls.critRate||0;
-  for(const tid of (myTraits||[])){const tv=myTraitValues?myTraitValues[tid]:undefined;applyTrait(tid,tv);}
+  // 특성 선택 스탯 적용 (서버 메시지 없이 순수 계산)
+  for(const {id,value} of myTraitPicks){
+    if(id==='hp'){myStats.maxHp+=(value||40);}
+    else if(id==='spd')myStats.spd*=(1+(value||20)/100);
+    else if(id==='dmg')myStats.dmgMult*=(1+(value||25)/100);
+    else if(id==='cd')myStats.cdMult*=(1-(value||20)/100);
+    else if(id==='range')myStats.rangeMult*=(1+(value||30)/100);
+    else if(id==='regen'){let r=value||0.5;if(myClass==='mage'||myClass==='gunner')r*=0.5;myStats.regen+=r;}
+    else if(id==='armor')myStats.armor=Math.min(0.8,(myStats.armor||0)+(value||20)/100);
+    else if(id==='crit'){myStats.critRate+=(value||30);if(myStats.critRate>100){const ov=myStats.critRate-100;myStats.dmgMult*=(1+ov/100);myStats.critRate=100;}}
+    // multishot/magnet/weapon은 리셋 안 하므로 재적용 생략
+  }
+  // 장신구 누적합 계산 후 1회 적용 (기본+레벨업+특성) × 장신구 순서
   const pct={maxHp:0,regen:0,dmg:0,atkSpd:0,moveSpd:0,range:0};
   for(const t of (myEquipped||[])){
     if(!t)continue;
@@ -656,12 +669,13 @@ function applyTrinketDisplayStats(){
       else if(type==='crit')myStats.critRate=(myStats.critRate||0)+value;
     }
   }
-  if(pct.maxHp){myStats.maxHp=Math.round(myStats.maxHp*(1+pct.maxHp/100));myStats.hp=myStats.maxHp;}
+  if(pct.maxHp)myStats.maxHp=Math.round(myStats.maxHp*(1+pct.maxHp/100));
   if(pct.regen)myStats.regen*=(1+pct.regen/100);
-  if(pct.dmg)myStats.dmgMult=(myStats.dmgMult||1)*(1+pct.dmg/100);
-  if(pct.atkSpd)myStats.cdMult=(myStats.cdMult||1)/(1+pct.atkSpd/100);
+  if(pct.dmg)myStats.dmgMult*=(1+pct.dmg/100);
+  if(pct.atkSpd)myStats.cdMult/=(1+pct.atkSpd/100);
   if(pct.moveSpd)myStats.spd*=(1+pct.moveSpd/100);
   if(pct.range)myStats.rangeMult*=(1+pct.range/100);
+  _trinketPct=pct;
   updateStatsPanel(pct);
 }
 function showTrinketTooltip(e,trinket){
@@ -712,7 +726,8 @@ const CLASSES={
   mage:{name:'마법사',icon:'✨',color:'#cc88ff',stats:{hp:65,maxHp:65,spd:3.0,dmgMult:1.2,cdMult:1,rangeMult:1.1,regen:0.7,multishot:0,magnetRange:1,armor:0,crit:false,critRate:0,expMult:1},weapon:{name:'마법',type:'magic',baseDmg:50,baseCd:850,baseRange:300,color:'#cc88ff',spd:6,explosionRadius:80}},
   assassin:{name:'암살자',icon:'🗡️',color:'#ff88aa',stats:{hp:85,maxHp:85,spd:4.2,dmgMult:1.05,cdMult:0.88,rangeMult:1,regen:0.2,multishot:0,magnetRange:1,armor:0,crit:true,critRate:40,expMult:1},weapon:{name:'단검',type:'dagger',baseDmg:28,baseCd:280,baseRange:90,color:'#ff88aa',spd:12}}
 };
-let myTraits=[],myStats=null,myWeapon=null,weaponUpgradeLevel=0,weaponElement=null;
+let myTraits=[],myTraitPicks=[],myStats=null,myWeapon=null,weaponUpgradeLevel=0,weaponElement=null;
+let _trinketPct={};
 const ELEMENT_COLORS={fire:'#ff4400',poison:'#44ff44',ice:'#44ddff'};
 const ELEMENT_NAMES={fire:'🔥 화염',poison:'☠ 독',ice:'❄ 냉기'};
 
@@ -793,7 +808,7 @@ function pickTrait(tr){
   _traitSelectOpen=false;
   if(_traitAutoTimeout){clearTimeout(_traitAutoTimeout);_traitAutoTimeout=null;}
   document.getElementById('lvlUpScreen').style.display='none';
-  myTraits.push(tr.id);applyTrait(tr.id,tr.value);updateTraitList();updateStatsPanel();
+  myTraits.push(tr.id);myTraitPicks.push({id:tr.id,value:tr.value});applyTrait(tr.id,tr.value);updateTraitList();updateStatsPanel(_trinketPct);
   send({t:'traitPicked',trait:tr.id,value:tr.value});
   invincibleEnd=performance.now()+2000;
   if(localLvUpQueue>0){
@@ -822,7 +837,7 @@ function applyTrait(id,value){
     if(weaponUpgradeLevel===1){if(myWeapon.type==='sword'){myWeapon.baseDmg*=1.4;myWeapon.baseRange*=1.3;}else if(myWeapon.type==='bullet'){myWeapon.baseDmg*=1.2;myWeapon.baseCd*=0.8;myWeapon.spd*=1.2;}else if(myWeapon.type==='magic'){myWeapon.baseDmg*=1.5;myWeapon.explosionRadius*=1.4;}else if(myWeapon.type==='dagger'){myWeapon.baseDmg*=1.35;myWeapon.baseCd*=1.15;s.spd*=1.15;}}
     else if(weaponUpgradeLevel===2){weaponElement=['fire','poison','ice'][Math.floor(Math.random()*3)];updateElementDisplay();}
     else if(weaponUpgradeLevel===3)updateElementDisplay();
-    updateStatsPanel();
+    updateStatsPanel(_trinketPct);
   }
 }
 
@@ -915,7 +930,7 @@ function handleMsg(msg){
   else if(msg.t==='midBoss'){midBossSpawned=true;bossAlive=true;bossWarning=null;if(msg.boss)bossData=msg.boss;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='⚠ 중간 보스 ⚠';showPop('⚠ 중간 보스 등장!',3000);stopGameBGM();playMidBossBGM();}
   else if(msg.t==='midBossDead'){
     bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('중간 보스 처치!',3000);megaBlastState=null;stopMidBossBGM();playGameBGM();
-    myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);
+    myStats.multishot+=1;updateTraitList();updateStatsPanel(_trinketPct);showPop('🔱 다중사격 획득!',2000);
     if(weaponUpgradeLevel<3){
       invincible=true;invincibleEnd=Infinity;
       send({t:'invincible',start:true});
@@ -934,7 +949,7 @@ function handleMsg(msg){
           if(_traitAutoTimeout){clearTimeout(_traitAutoTimeout);_traitAutoTimeout=null;}
           document.getElementById('lvlUpScreen').style.display='none';
           applyTrait(wt.id,wt.value);
-          myTraits.push(wt.id);updateTraitList();updateStatsPanel();
+          myTraits.push(wt.id);updateTraitList();updateStatsPanel(_trinketPct);
           send({t:'traitPicked',trait:wt.id,value:wt.value});
           invincibleEnd=performance.now()+2000;
           running=true;
@@ -952,7 +967,7 @@ function handleMsg(msg){
     }
   }
   else if(msg.t==='finalBoss'){finalBossSpawned=true;bossAlive=true;bossWarning=null;document.getElementById('bossBar').style.display='block';document.getElementById('bossLbl').textContent='☠ 최종 보스 ☠';showPop('☠ 최종 보스 등장!',3000);stopGameBGM();stopMidBossBGM();}
-  else if(msg.t==='finalBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('최종 보스 처치!',3000);myStats.multishot+=1;updateTraitList();updateStatsPanel();showPop('🔱 다중사격 획득!',2000);}
+  else if(msg.t==='finalBossDead'){bossAlive=false;document.getElementById('bossBar').style.display='none';showPop('최종 보스 처치!',3000);myStats.multishot+=1;updateTraitList();updateStatsPanel(_trinketPct);showPop('🔱 다중사격 획득!',2000);}
   else if(msg.t==='phase2'){showPop('PHASE 2!',1500);mbTransforming=true;mbTransformStart=performance.now();}
   else if(msg.t==='phase3'){showPop('PHASE 3!',1500);}
   else if(msg.t==='reverseControls'){reverseControlsEnd=performance.now()+msg.duration;showPop('⚠ 조작 반전! (30초)',2500);}
@@ -986,7 +1001,7 @@ function handleMsg(msg){
       box.style.display='block';
     }
   }
-  else if(msg.t==='statSync'){if(myStats){if(msg.armor!==undefined)myStats.armor=msg.armor;if(msg.regen!==undefined)myStats.regen=msg.regen;updateStatsPanel();}}
+  else if(msg.t==='statSync'){if(myStats){if(msg.armor!==undefined)myStats.armor=msg.armor;updateStatsPanel(_trinketPct);}}
   else if(msg.t==='revived'){showPop('💚 부활했습니다!',2000);if(myPlayer){myPlayer.groggy=false;myPlayer.dead=false;}}
   else if(msg.t==='groggyDead'){if(myPlayer&&myPlayer.groggy){running=false;_loopRunning=false;endGame(false);}}
   else if(msg.t==='enemyBuff'){showPop(msg.msg,3000);}
@@ -1018,7 +1033,7 @@ function initGameState(){
   document.getElementById('classTag').innerHTML='<span>'+cls.icon+' '+cls.name+'</span>';
   document.getElementById('bossBar').style.display='none';
   G.style.background=STAGE_BG[0];
-  updateTraitList();updateStatsPanel();updateElementDisplay();
+  updateTraitList();updateStatsPanel(_trinketPct);updateElementDisplay();
   playGameBGM();
   lastTime=performance.now();_loopRunning=true;requestAnimationFrame(loop);
 }
@@ -1040,9 +1055,9 @@ function applyState(msg){
     }
     myPlayer.hp=me.hp;myPlayer.maxHp=me.maxHp;myPlayer.lv=me.lv;myPlayer.dead=me.dead;myPlayer.exp=me.exp;myPlayer.expNext=me.expNext;
     if(myStats){
+      // maxHp은 HP바 표시용으로만 동기화 (스탯창은 클라이언트 재계산값 사용)
       myStats.maxHp=me.maxHp;
-      if(me.armor!==undefined&&!isNaN(me.armor))myStats.armor=me.armor;
-      if(me.regen!==undefined&&!isNaN(me.regen))myStats.regen=me.regen;
+      // regen/armor는 클라이언트 recalc(applyTrinketDisplayStats)가 관리 → state sync 덮어쓰기 생략
       if(me.dmgBonus!==undefined&&!isNaN(me.dmgBonus)&&me.dmgBonus>0){
         const prev=myStats._lastDmgBonus||1;
         if(me.dmgBonus!==prev&&!isNaN(prev)&&prev>0){
@@ -1059,10 +1074,9 @@ function applyState(msg){
           myStats._lastCdMult=me.cdMult;
         }
       }
-      if(me.critRate!==undefined&&!isNaN(me.critRate)&&me.critRate>myStats.critRate){myStats.critRate=me.critRate;if(myStats.critRate>0)myStats.crit=true;}
       if(isNaN(myStats.dmgMult)||!isFinite(myStats.dmgMult))myStats.dmgMult=1;
       if(isNaN(myStats.cdMult)||!isFinite(myStats.cdMult))myStats.cdMult=1;
-      updateStatsPanel();
+      updateStatsPanel(_trinketPct);
     }
     if(me.dead&&running&&!me.groggy){running=false;endGame(false);}
     const wasGroggy=myPlayer.groggy;
