@@ -641,27 +641,10 @@ function renderTrinketPanel(){
   });
   applyTrinketDisplayStats();
 }
-function applyTrinketDisplayStats(){
-  if(!myStats||!myClass)return;
-  const cls=CLS[myClass]||CLS.warrior;
-  // 기본 스탯으로 리셋 (multishot/expMult는 게임 중 별도 누적이므로 유지)
-  myStats.maxHp=cls.hp;myStats.regen=cls.regen;myStats.armor=cls.armor;
-  myStats.dmgMult=1;myStats.cdMult=1;myStats.spd=cls.spd;myStats.rangeMult=1;myStats.critRate=cls.critRate||0;
-  // 특성 선택 스탯 적용 (서버 메시지 없이 순수 계산)
-  for(const {id,value} of myTraitPicks){
-    if(id==='hp'){myStats.maxHp+=(value||40);}
-    else if(id==='spd')myStats.spd*=(1+(value||20)/100);
-    else if(id==='dmg')myStats.dmgMult*=(1+(value||25)/100);
-    else if(id==='cd')myStats.cdMult*=(1-(value||20)/100);
-    else if(id==='range')myStats.rangeMult*=(1+(value||30)/100);
-    else if(id==='regen'){let r=value||0.5;if(myClass==='mage'||myClass==='gunner')r*=0.5;myStats.regen+=r;}
-    else if(id==='armor')myStats.armor=Math.min(0.8,(myStats.armor||0)+(value||20)/100);
-    else if(id==='crit'){myStats.critRate+=(value||30);if(myStats.critRate>100){const ov=myStats.critRate-100;myStats.dmgMult*=(1+ov/100);myStats.critRate=100;}}
-    // multishot/magnet/weapon은 리셋 안 하므로 재적용 생략
-  }
-  // 장신구 누적합 계산 후 1회 적용 (기본+레벨업+특성) × 장신구 순서
+function reapplyTrinketBonus(){
+  if(!myStats||!myEquipped||!myEquipped.some(t=>t))return;
   const pct={maxHp:0,regen:0,dmg:0,atkSpd:0,moveSpd:0,range:0};
-  for(const t of (myEquipped||[])){
+  for(const t of myEquipped){
     if(!t)continue;
     for(const {type,value} of (t.stats||[])){
       if(pct[type]!==undefined)pct[type]+=value;
@@ -669,14 +652,25 @@ function applyTrinketDisplayStats(){
       else if(type==='crit')myStats.critRate=(myStats.critRate||0)+value;
     }
   }
-  if(pct.maxHp)myStats.maxHp=Math.round(myStats.maxHp*(1+pct.maxHp/100));
+  // 이전 장신구 배율 제거
+  if(_trinketPct.maxHp)myStats.maxHp/=(1+_trinketPct.maxHp/100);
+  if(_trinketPct.regen)myStats.regen/=(1+_trinketPct.regen/100);
+  if(_trinketPct.dmg)myStats.dmgMult/=(1+_trinketPct.dmg/100);
+  if(_trinketPct.atkSpd)myStats.cdMult*=(1+_trinketPct.atkSpd/100);
+  if(_trinketPct.moveSpd)myStats.spd/=(1+_trinketPct.moveSpd/100);
+  if(_trinketPct.range)myStats.rangeMult/=(1+_trinketPct.range/100);
+  // 새 배율 적용
+  if(pct.maxHp){myStats.maxHp*=(1+pct.maxHp/100);myStats.hp=Math.min(myStats.hp,myStats.maxHp);}
   if(pct.regen)myStats.regen*=(1+pct.regen/100);
   if(pct.dmg)myStats.dmgMult*=(1+pct.dmg/100);
   if(pct.atkSpd)myStats.cdMult/=(1+pct.atkSpd/100);
   if(pct.moveSpd)myStats.spd*=(1+pct.moveSpd/100);
   if(pct.range)myStats.rangeMult*=(1+pct.range/100);
   _trinketPct=pct;
-  updateStatsPanel(pct);
+}
+function applyTrinketDisplayStats(){
+  reapplyTrinketBonus();
+  updateStatsPanel(_trinketPct);
 }
 function showTrinketTooltip(e,trinket){
   const tt=document.getElementById('trinketTooltip');
@@ -808,7 +802,7 @@ function pickTrait(tr){
   _traitSelectOpen=false;
   if(_traitAutoTimeout){clearTimeout(_traitAutoTimeout);_traitAutoTimeout=null;}
   document.getElementById('lvlUpScreen').style.display='none';
-  myTraits.push(tr.id);myTraitPicks.push({id:tr.id,value:tr.value});applyTrait(tr.id,tr.value);updateTraitList();updateStatsPanel(_trinketPct);
+  myTraits.push(tr.id);myTraitPicks.push({id:tr.id,value:tr.value});applyTrait(tr.id,tr.value);reapplyTrinketBonus();updateTraitList();updateStatsPanel(_trinketPct);
   send({t:'traitPicked',trait:tr.id,value:tr.value});
   invincibleEnd=performance.now()+2000;
   if(localLvUpQueue>0){
@@ -1023,7 +1017,7 @@ function initGameState(){
   const cls=CLASSES[myClass];
   myStats={...cls.stats};
   myStats._lastDmgBonus=1;myStats._lastCdMult=1;
-  myWeapon={...cls.weapon};myTraits=[];weaponUpgradeLevel=0;weaponElement=null;
+  myWeapon={...cls.weapon};myTraits=[];myTraitPicks=[];_trinketPct={};weaponUpgradeLevel=0;weaponElement=null;
   running=true;stageTime=600;currentStage=1;midBossSpawned=false;finalBossSpawned=false;bossAlive=false;
   kills=0;score=0;projs=[];parts=[];orbs=[];remoteEffects=[];explosions=[];fireZones=[];turrets=[];pixelExplList=[];megaBlastState=null;
   myPlayer={x:0,y:0,hp:myStats.hp,maxHp:myStats.maxHp,lv:1,exp:0,expNext:50,dead:false};
